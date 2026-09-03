@@ -15,6 +15,10 @@ typedef struct {
     Conv     conv;
     Span     span;
     uint32_t id; /* dense index within the enclosing function */
+
+    /* Working state for sema/ownership; meaningless outside that pass. */
+    uint8_t state;
+    Span    moved_at;
 } Local;
 
 typedef struct Program {

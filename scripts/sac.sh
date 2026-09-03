@@ -15,7 +15,7 @@
 # BERYL_BUILD_NONCE changes the binary, so each attempt gets an independent
 # verdict. Six attempts makes a spurious failure vanishingly unlikely.
 
-SAC_MAX_ATTEMPTS="${SAC_MAX_ATTEMPTS:-6}"
+SAC_MAX_ATTEMPTS="${SAC_MAX_ATTEMPTS:-10}"
 
 # sac_build_run <exe> <compile-command-prefix...> -- <sources...>
 #

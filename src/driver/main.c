@@ -15,6 +15,7 @@
 #include "../parse/parser.h"
 #include "../parse/print.h"
 #include "../sema/check.h"
+#include "../sema/ownership.h"
 #include "../sema/resolve.h"
 
 #define BERYL_VERSION "0.1.0-dev"
@@ -98,6 +99,7 @@ static int cmd_check(int argc, char **argv) {
     if (diag_errors(c.d) == 0) {
         resolve_program(c.d, c.p);
         check_program(c.d, c.p);
+        if (diag_errors(c.d) == 0) ownership_check(c.d, c.p);
     }
     int rc = report(&c);
     if (rc == 0) printf("ok\n");

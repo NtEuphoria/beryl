@@ -260,6 +260,14 @@ static void check_fn(C *c, Item *it) {
         diag_help(dg, "add a `return` at the end, or give the `if` an `else` branch");
     }
 
+    /* Hand the function's bindings to the ownership pass. */
+    it->nlocals = c->locals.len;
+    if (c->locals.len) {
+        Local **arr = ARENA_ARRAY(c->a, Local *, c->locals.len);
+        for (uint32_t i = 0; i < c->locals.len; i++) arr[i] = c->locals.data[i];
+        it->locals = arr;
+    }
+
     chk_pop_scope(c);
     c->fn = NULL;
 }
@@ -292,6 +300,12 @@ bool check_program(DiagBag *d, Program *p) {
                     c.scopes.len    = 0;
                     chk_push_scope(&c);
                     chk_block(&c, it->test.body);
+                    it->nlocals = c.locals.len;
+                    if (c.locals.len) {
+                        Local **arr = ARENA_ARRAY(c.a, Local *, c.locals.len);
+                        for (uint32_t k = 0; k < c.locals.len; k++) arr[k] = c.locals.data[k];
+                        it->locals = arr;
+                    }
                     chk_pop_scope(&c);
                     break;
                 }

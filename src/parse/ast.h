@@ -302,6 +302,8 @@ struct Item {
     Str      qual_name; /* module-qualified, filled by resolve */
     Type    *rtype;     /* IT_STRUCT/IT_ENUM: the named type. IT_FN: return type. */
     void    *owner;     /* Module* this item was declared in */
+    void    *locals;    /* Local** recorded by check, consumed by ownership */
+    uint32_t nlocals;
     union {
         struct {
             Str        recv;     /* receiver type for a method, empty for free fn */
