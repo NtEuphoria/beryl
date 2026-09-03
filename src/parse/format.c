@@ -472,6 +472,7 @@ Str ast_format(Arena *a, const Module *m) {
     sb_init(&f.sb, a);
 
     f_doc(&f, m->doc);
+    if (!str_empty(m->doc)) sb_char(&f.sb, '\n');
     sb_cstr(&f.sb, "module ");
     for (uint32_t i = 0; i < m->path.len; i++) {
         if (i) sb_char(&f.sb, '.');

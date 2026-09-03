@@ -24,8 +24,8 @@ fi
 SRC=()
 while IFS= read -r f; do SRC+=("$f"); done < <(find src -name '*.c' | sort)
 
-# Build with SAC retry, using --version as the liveness check.
-sac_build_run build/beryl.exe \
+# Build with SAC retry, probing with `version` because it exits 0.
+SAC_PROBE_ARGS=version sac_build_run build/beryl.exe \
   clang -std=c11 -Wall -Wextra -Werror -Wno-unused-parameter "${OPT[@]}" -Isrc \
   -- "${SRC[@]}" >/dev/null
 rc=$?

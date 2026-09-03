@@ -37,7 +37,9 @@ sac_build_run() {
     fi
 
     set +e
-    out=$("$exe" 2>&1)
+    # SAC_PROBE_ARGS lets the caller pick arguments that exit 0.
+    # shellcheck disable=SC2086
+    out=$("$exe" ${SAC_PROBE_ARGS:-} 2>&1)
     rc=$?
     set -e
 

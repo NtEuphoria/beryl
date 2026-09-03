@@ -346,13 +346,13 @@ void diag_render(const DiagBag *d, FILE *out, bool color) {
     while (pos < n) {
         uint32_t eol = pos;
         while (eol < n && p[eol] != '\n') eol++;
-        Str line = str_new(p + pos, eol - pos);
+        Str  line     = str_new(p + pos, eol - pos);
+        bool coloured = true;
         if (str_starts_with(line, "error")) fputs("\x1b[1;31m", out);
         else if (str_starts_with(line, "warning")) fputs("\x1b[1;33m", out);
-        else if (str_starts_with(line, "  = note:") || str_starts_with(line, "   = note:"))
-            fputs("\x1b[1;36m", out);
+        else coloured = false;
         fwrite(line.ptr, 1, line.len, out);
-        fputs("\x1b[0m", out);
+        if (coloured) fputs("\x1b[0m", out);
         fputc('\n', out);
         pos = eol + 1;
     }
