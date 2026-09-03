@@ -1,3 +1,4 @@
+.claude-flow/
 build/
 *.o
 *.obj

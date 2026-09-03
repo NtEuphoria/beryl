@@ -319,13 +319,23 @@ mathx = { path = "../mathx" }
 ## 7. Backends
 
 ```
-.be → lex → parse → resolve → typecheck → monomorphize → ownership → MIR
+.be → lex → parse → resolve → typecheck → monomorphize → ownership → lower
                                                                       ├─→ C → clang → .exe
                                                                       └─→ EnforceScript .c → Workbench
 ```
 
-MIR is shared. Both backends want explicit copies, explicit drops, and desugared control
-flow, so that lowering happens exactly once.
+**Revised 2026-09-03 during planning.** An earlier draft specified a shared low-level SSA
+**MIR** feeding both backends. That is wrong for this language pair. EnforceScript is a
+*high-level* language: lowering to an SSA IR and then reconstructing classes, methods, loops
+and expressions from it would destroy exactly the structure that backend must emit, and would
+make the generated script unreadable — which matters, because it gets debugged inside
+Workbench.
+
+Both backends therefore emit from the **typed, monomorphized AST**, sharing `src/ir/lower.c`
+for drop insertion, temporary management, and desugaring (`try`, `orelse`, `catch`, compound
+assignment, `for`, `defer`). This is less code, produces better EnforceScript, and costs
+nothing on the native side because clang performs all real optimization. A true MIR earns its
+keep only alongside a direct machine-code backend, which is v2.
 
 ### 7.1 Native backend
 
@@ -470,8 +480,8 @@ Written in C11, built by clang into a single dependency-free binary.
 src/common   arena.c str.c vec.c map.c diag.c source.c   — infrastructure
 src/lex      lexer.c token.c
 src/parse    parser.c ast.c
-src/sema     resolve.c types.c infer.c check.c ownership.c monomorph.c constfold.c taint.c
-src/ir       hir.c mir.c
+src/sema     resolve.c types.c check.c ownership.c monomorph.c constfold.c taint.c
+src/ir       lower.c                                     — drops, temporaries, desugaring
 src/opt      constprop.c dce.c inline.c
 src/back     c_backend.c enforce_backend.c
 src/driver   main.c build.c test.c fmt.c audit.c manifest.c
