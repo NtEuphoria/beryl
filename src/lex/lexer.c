@@ -35,6 +35,7 @@ static const char *const g_tok_names[TK_COUNT] = {
     [TK_LBRACKET] = "[",        [TK_RBRACKET] = "]",
     [TK_COMMA] = ",",           [TK_DOT] = ".",
     [TK_DOTDOT] = "..",         [TK_COLON] = ":",
+    [TK_SEMI] = ";",
     [TK_ARROW] = "->",          [TK_FATARROW] = "=>",
     [TK_AT] = "@",              [TK_QUESTION] = "?",
     [TK_BANG] = "!",            [TK_PIPE] = "|",
@@ -531,6 +532,7 @@ TokenVec lex_file(Arena *a, SourceMap *sm, DiagBag *d, Interner *in, uint32_t fi
                 case ']': punct(&L, &r.t, TK_RBRACKET, 1); break;
                 case ',': punct(&L, &r.t, TK_COMMA, 1); break;
                 case ':': punct(&L, &r.t, TK_COLON, 1); break;
+                case ';': punct(&L, &r.t, TK_SEMI, 1); break;
                 case '@': punct(&L, &r.t, TK_AT, 1); break;
                 case '?': punct(&L, &r.t, TK_QUESTION, 1); break;
                 case '~': punct(&L, &r.t, TK_TILDE, 1); break;

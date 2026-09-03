@@ -66,6 +66,7 @@ typedef enum {
     TK_DOT,
     TK_DOTDOT,
     TK_COLON,
+    TK_SEMI,
     TK_ARROW,    /* -> */
     TK_FATARROW, /* => */
     TK_AT,
