@@ -32,6 +32,18 @@ typedef VEC(TypeExpr *) TypeExprVec;
 
 typedef enum { CONV_LET = 0, CONV_INOUT, CONV_SINK, CONV_SET } Conv;
 
+/* What a name resolved to. Filled by sema/resolve and sema/check. */
+typedef enum {
+    RES_NONE = 0,
+    RES_LOCAL,   /* res -> Local*  */
+    RES_FN,      /* res -> Item*   */
+    RES_CONST,   /* res -> Item*   */
+    RES_TYPE,    /* res -> Item*   */
+    RES_FIELD,   /* res -> Field*  */
+    RES_VARIANT, /* res -> EnumVariant* */
+    RES_INTRINSIC,
+} ResKind;
+
 const char *conv_name(Conv c); /* "let" / "inout" / "sink" / "set" */
 
 /* ---- syntactic types --------------------------------------------------- */
@@ -110,7 +122,10 @@ typedef VEC(FieldInit) FieldInitVec;
 struct Expr {
     ExprKind kind;
     Span     span;
-    Type    *type; /* filled by sema/check */
+    Type    *type;     /* filled by sema/check */
+    void    *res;      /* filled by sema: see ResKind */
+    uint8_t  res_kind;
+    uint8_t  intrinsic; /* Intrinsic id when res_kind == RES_INTRINSIC */
     union {
         struct {
             uint64_t val;
@@ -250,6 +265,7 @@ typedef struct {
     Conv      conv;
     bool      is_self;
     Span      span;
+    Type     *rtype; /* resolved */
 } Param;
 
 typedef VEC(Param) ParamVec;
@@ -260,6 +276,8 @@ typedef struct {
     Expr     *deflt;
     Str       doc;
     Span      span;
+    Type     *rtype; /* resolved */
+    uint32_t  index;
 } Field;
 
 typedef VEC(Field) FieldVec;
@@ -282,6 +300,8 @@ struct Item {
     AttrVec  attrs;
     Str      name;
     Str      qual_name; /* module-qualified, filled by resolve */
+    Type    *rtype;     /* IT_STRUCT/IT_ENUM: the named type. IT_FN: return type. */
+    void    *owner;     /* Module* this item was declared in */
     union {
         struct {
             Str        recv;     /* receiver type for a method, empty for free fn */
