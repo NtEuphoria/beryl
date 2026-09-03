@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # Build and run the compiler's own unit and golden tests.
-set -euo pipefail
+set -uo pipefail
 cd "$(dirname "$0")/.."
+
+# shellcheck source=scripts/sac.sh
+. scripts/sac.sh
 
 mkdir -p build
 
-CFLAGS="-std=c11 -Wall -Wextra -Werror -Wno-unused-parameter -g -O0 -Isrc"
+SRC=()
+while IFS= read -r f; do SRC+=("$f"); done < <(find src -name '*.c' ! -path 'src/driver/main.c' | sort)
+while IFS= read -r f; do SRC+=("$f"); done < <(find tests -name '*.c' | sort)
 
-# Every compiler source except the CLI entry point (which owns main()).
-SRC=$(find src -name '*.c' ! -path 'src/driver/main.c' | sort | tr '\n' ' ')
-TESTS=$(find tests -name '*.c' | sort | tr '\n' ' ')
-
-# shellcheck disable=SC2086
-clang $CFLAGS -o build/run_tests.exe $SRC $TESTS
-
-./build/run_tests.exe
+sac_build_run build/run_tests.exe \
+  clang -std=c11 -Wall -Wextra -Werror -Wno-unused-parameter -g -O0 -Isrc \
+  -- "${SRC[@]}"

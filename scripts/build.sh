@@ -1,29 +1,38 @@
 #!/usr/bin/env bash
 # Build the beryl compiler. Release by default; pass --debug for -O0 -g.
-set -euo pipefail
+set -uo pipefail
 cd "$(dirname "$0")/.."
+
+# shellcheck source=scripts/sac.sh
+. scripts/sac.sh
 
 mkdir -p build
 
 MODE="${1:-release}"
 if [ "$MODE" = "--debug" ] || [ "$MODE" = "debug" ]; then
-  OPT="-O0 -g"
+  OPT=(-O0 -g)
 else
-  OPT="-O2 -DNDEBUG"
+  OPT=(-O2 -DNDEBUG)
 fi
-
-CFLAGS="-std=c11 -Wall -Wextra -Werror -Wno-unused-parameter $OPT -Isrc"
 
 if [ ! -f src/driver/main.c ]; then
   echo "build: src/driver/main.c does not exist yet — nothing to link."
-  echo "       (this is expected until Task 12; use scripts/test.sh meanwhile)"
+  echo "       (expected until Task 12; use scripts/test.sh meanwhile)"
   exit 0
 fi
 
-SRC=$(find src -name '*.c' | sort | tr '\n' ' ')
+SRC=()
+while IFS= read -r f; do SRC+=("$f"); done < <(find src -name '*.c' | sort)
 
-# shellcheck disable=SC2086
-clang $CFLAGS -o build/beryl.exe $SRC
+# Build with SAC retry, using --version as the liveness check.
+sac_build_run build/beryl.exe \
+  clang -std=c11 -Wall -Wextra -Werror -Wno-unused-parameter "${OPT[@]}" -Isrc \
+  -- "${SRC[@]}" >/dev/null
+rc=$?
+if [ $rc -ne 0 ] && [ $rc -ne 126 ]; then
+  echo "build: compile failed" >&2
+  exit $rc
+fi
 
 SIZE=$(wc -c < build/beryl.exe)
 echo "built build/beryl.exe  (${SIZE} bytes)"
