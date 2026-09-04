@@ -8,6 +8,7 @@ void run_parser_tests(void);
 void run_sema_tests(void);
 void run_ownership_tests(void);
 void run_enfusion_tests(void);
+void run_security_tests(void);
 
 int main(void) {
     run_common_tests();
@@ -17,5 +18,6 @@ int main(void) {
     run_sema_tests();
     run_ownership_tests();
     run_enfusion_tests();
+    run_security_tests();
     return t_summary();
 }

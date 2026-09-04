@@ -16,8 +16,9 @@ typedef struct {
     Span     span;
     uint32_t id; /* dense index within the enclosing function */
 
-    /* Working state for sema/ownership; meaningless outside that pass. */
-    uint8_t state;
+    /* Working state for the analysis passes; meaningless outside them. */
+    uint8_t state; /* ownership */
+    uint8_t taint; /* taint  */
     Span    moved_at;
 } Local;
 

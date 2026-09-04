@@ -16,6 +16,8 @@
 #include "../parse/print.h"
 #include "../sema/check.h"
 #include "../back/enforce_backend.h"
+#include "../sema/taint.h"
+#include "audit.h"
 #include "build.h"
 #include "../sema/ownership.h"
 #include "../sema/resolve.h"
@@ -102,6 +104,10 @@ static int cmd_check(int argc, char **argv) {
         resolve_program(c.d, c.p);
         check_program(c.d, c.p);
         if (diag_errors(c.d) == 0) ownership_check(c.d, c.p);
+        if (diag_errors(c.d) == 0) {
+            SecurityOpts so = {0};
+            taint_check(c.d, c.p, so);
+        }
     }
     int rc = report(&c);
     if (rc == 0) printf("ok\n");
@@ -185,6 +191,10 @@ static bool frontend(Ctx *c, int nfiles, char **files) {
     if (!resolve_program(c->d, c->p)) return false;
     if (!check_program(c->d, c->p)) return false;
     if (!ownership_check(c->d, c->p)) return false;
+
+    /* forbid_unsafe comes from beryl.toml once a manifest is loaded. */
+    SecurityOpts so = {0};
+    if (!taint_check(c->d, c->p, so)) return false;
     return true;
 }
 
@@ -299,6 +309,23 @@ static int cmd_build(int argc, char **argv, CgenMode mode, bool then_run) {
     return rc;
 }
 
+static int cmd_audit(int argc, char **argv) {
+    if (argc < 1) {
+        fprintf(stderr, "usage: beryl audit <file.be>...\n");
+        return 2;
+    }
+    Ctx   c = ctx_new();
+    Flags f = parse_flags(c.a, argc, argv);
+    if (!frontend(&c, f.nfiles, f.files)) {
+        int rc = report(&c);
+        arena_free(c.a);
+        return rc ? rc : 1;
+    }
+    int rc = audit_report(c.p, c.sm, STR_EMPTY, false);
+    arena_free(c.a);
+    return rc;
+}
+
 static void usage(void) {
     printf("beryl %s\n\n", BERYL_VERSION);
     printf("usage: beryl <command> [args]\n\n");
@@ -328,6 +355,7 @@ int main(int argc, char **argv) {
     if (strcmp(cmd, "build") == 0) return cmd_build(n, rest, CGEN_PROGRAM, false);
     if (strcmp(cmd, "run") == 0) return cmd_build(n, rest, CGEN_PROGRAM, true);
     if (strcmp(cmd, "test") == 0) return cmd_build(n, rest, CGEN_TESTS, true);
+    if (strcmp(cmd, "audit") == 0) return cmd_audit(n, rest);
     if (strcmp(cmd, "fmt") == 0) return cmd_fmt(n, rest);
     if (strcmp(cmd, "ast") == 0) return cmd_ast(n, rest);
     if (strcmp(cmd, "version") == 0 || strcmp(cmd, "--version") == 0) {
