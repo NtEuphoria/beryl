@@ -108,6 +108,37 @@ BE_ARITH(uint16_t, u16, 0)
 BE_ARITH(uint32_t, u32, 0)
 BE_ARITH(uint64_t, u64, 0)
 
+/* The explicit opt-outs. Checked arithmetic costs roughly 2x in a dependent
+ * multiply-add chain (docs/BENCHMARKS.md); these are how a hot loop declines
+ * the check without reaching for @unsafe, and they say so at the call site.
+ *
+ * Wrapping goes through the unsigned type because signed overflow is
+ * undefined in C, and "undefined" is not what `wrapping_add` promises. */
+#define BE_WRAP(T, U, S, MINV, MAXV)                                                       \
+    static inline T be_wadd_##S(T a, T b) { return (T)((U)a + (U)b); }                     \
+    static inline T be_wsub_##S(T a, T b) { return (T)((U)a - (U)b); }                     \
+    static inline T be_wmul_##S(T a, T b) { return (T)((U)a * (U)b); }                     \
+    static inline T be_satadd_##S(T a, T b) {                                              \
+        T r;                                                                               \
+        if (!__builtin_add_overflow(a, b, &r)) return r;                                   \
+        return (b > 0) ? (T)(MAXV) : (T)(MINV);                                            \
+    }                                                                                      \
+    static inline T be_satsub_##S(T a, T b) {                                              \
+        T r;                                                                               \
+        if (!__builtin_sub_overflow(a, b, &r)) return r;                                   \
+        return (b < 0) ? (T)(MAXV) : (T)(MINV);                                            \
+    }
+
+BE_WRAP(int8_t, uint8_t, i8, INT8_MIN, INT8_MAX)
+BE_WRAP(int16_t, uint16_t, i16, INT16_MIN, INT16_MAX)
+BE_WRAP(int32_t, uint32_t, i32, INT32_MIN, INT32_MAX)
+BE_WRAP(int64_t, uint64_t, i64, INT64_MIN, INT64_MAX)
+BE_WRAP(uint8_t, uint8_t, u8, 0, UINT8_MAX)
+BE_WRAP(uint16_t, uint16_t, u16, 0, UINT16_MAX)
+BE_WRAP(uint32_t, uint32_t, u32, 0, UINT32_MAX)
+BE_WRAP(uint64_t, uint64_t, u64, 0, UINT64_MAX)
+
+#undef BE_WRAP
 #undef BE_ARITH
 
 /* Shifts: a shift by >= the width is undefined in C, so it traps here. */

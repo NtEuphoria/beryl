@@ -129,7 +129,7 @@ static Str gen_list_method(E *e, Expr *x) {
 }
 
 static Str gen_intrinsic(E *e, Expr *x) {
-    if ((Intrinsic)x->intrinsic >= INTR_LIST_LEN) return gen_list_method(e, x);
+    if (intrinsic_is_list_method((Intrinsic)x->intrinsic)) return gen_list_method(e, x);
 
     SB sb;
     sb_init(&sb, e->a);
@@ -173,6 +173,32 @@ static Str gen_intrinsic(E *e, Expr *x) {
         case INTR_SQRT:
             sb_fmt(&sb, "Math.Sqrt(%.*s)", S(ef_expr(e, args.data[0].value)));
             return sb_finish(&sb);
+
+        /* EnforceScript's `int` already wraps, so the opt-outs are plain
+         * operators here. They still carry meaning in the source: they say the
+         * author considered overflow and chose this. */
+        case INTR_WRAPPING_ADD:
+            sb_fmt(&sb, "(%.*s + %.*s)", S(ef_expr(e, args.data[0].value)),
+                   S(ef_expr(e, args.data[1].value)));
+            return sb_finish(&sb);
+        case INTR_WRAPPING_SUB:
+            sb_fmt(&sb, "(%.*s - %.*s)", S(ef_expr(e, args.data[0].value)),
+                   S(ef_expr(e, args.data[1].value)));
+            return sb_finish(&sb);
+        case INTR_WRAPPING_MUL:
+            sb_fmt(&sb, "(%.*s * %.*s)", S(ef_expr(e, args.data[0].value)),
+                   S(ef_expr(e, args.data[1].value)));
+            return sb_finish(&sb);
+        case INTR_SATURATING_ADD:
+        case INTR_SATURATING_SUB: {
+            /* No engine equivalent, so it is spelled out with a clamp. */
+            Str a  = ef_expr(e, args.data[0].value);
+            Str b  = ef_expr(e, args.data[1].value);
+            Str op = str_from((Intrinsic)x->intrinsic == INTR_SATURATING_ADD ? "+" : "-");
+            sb_fmt(&sb, "Math.Clamp(%.*s %.*s %.*s, -2147483648, 2147483647)", S(a), S(op),
+                   S(b));
+            return sb_finish(&sb);
+        }
         default: sb_cstr(&sb, "0"); return sb_finish(&sb);
     }
 }

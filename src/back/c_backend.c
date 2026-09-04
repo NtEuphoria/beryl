@@ -420,7 +420,7 @@ static Str gen_list_method(G *g, Expr *e) {
 }
 
 static Str gen_call_intrinsic(G *g, Expr *e) {
-    if ((Intrinsic)e->intrinsic >= INTR_LIST_LEN) return gen_list_method(g, e);
+    if (intrinsic_is_list_method((Intrinsic)e->intrinsic)) return gen_list_method(g, e);
 
     SB sb;
     sb_init(&sb, g->a);
@@ -490,6 +490,23 @@ static Str gen_call_intrinsic(G *g, Expr *e) {
             Type *t = e->type;
             Str   x = gen_expr(g, args.data[0].value);
             sb_fmt(&sb, "be_sqrt_f%u(%.*s)", t ? t->bits : 64, S(x));
+            return sb_finish(&sb);
+        }
+        case INTR_WRAPPING_ADD:
+        case INTR_WRAPPING_SUB:
+        case INTR_WRAPPING_MUL:
+        case INTR_SATURATING_ADD:
+        case INTR_SATURATING_SUB: {
+            Type       *t  = e->type;
+            const char *fn = (Intrinsic)e->intrinsic == INTR_WRAPPING_ADD   ? "be_wadd"
+                             : (Intrinsic)e->intrinsic == INTR_WRAPPING_SUB ? "be_wsub"
+                             : (Intrinsic)e->intrinsic == INTR_WRAPPING_MUL ? "be_wmul"
+                             : (Intrinsic)e->intrinsic == INTR_SATURATING_ADD
+                                 ? "be_satadd"
+                                 : "be_satsub";
+            sb_fmt(&sb, "%s_%s(%.*s, %.*s)", fn, int_suffix(t),
+                   S(gen_expr(g, args.data[0].value)),
+                   S(gen_expr(g, args.data[1].value)));
             return sb_finish(&sb);
         }
         default: sb_cstr(&sb, "0"); return sb_finish(&sb);

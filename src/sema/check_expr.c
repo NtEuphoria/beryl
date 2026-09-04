@@ -77,6 +77,32 @@ static Type *chk_intrinsic(C *c, Expr *e, Intrinsic id) {
             return first;
         }
 
+        case INTR_WRAPPING_ADD:
+        case INTR_WRAPPING_SUB:
+        case INTR_WRAPPING_MUL:
+        case INTR_SATURATING_ADD:
+        case INTR_SATURATING_SUB: {
+            if (n != 2) {
+                diag_error(c->d, 304, e->span, "`%s` takes 2 arguments, found %u",
+                           intrinsic_name(id), n);
+                for (uint32_t i = 0; i < n; i++) chk(c, args.data[i].value, NULL);
+                return chk_err(c);
+            }
+            Type *lt = chk(c, args.data[0].value, NULL);
+            Type *rt = chk(c, args.data[1].value, lt);
+            chk_expect_type(c, args.data[1].value->span, lt, rt, "in this argument");
+            if (!ty_is_error(lt) && !ty_is_integer(lt)) {
+                Diag *dg = diag_error(c->d, 303, e->span,
+                                      "`%s` requires an integer, found `%.*s`",
+                                      intrinsic_name(id), (int)ty_name(c->a, lt).len,
+                                      ty_name(c->a, lt).ptr);
+                diag_note(dg, "these exist to opt out of the overflow trap, which only "
+                              "applies to integers");
+                return chk_err(c);
+            }
+            return lt;
+        }
+
         case INTR_ABS:
         case INTR_SQRT: {
             if (n != 1) {

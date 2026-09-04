@@ -7,6 +7,11 @@ static const struct {
     {"print", INTR_PRINT},   {"println", INTR_PRINTLN}, {"assert", INTR_ASSERT},
     {"min", INTR_MIN},       {"max", INTR_MAX},         {"abs", INTR_ABS},
     {"clamp", INTR_CLAMP},   {"sqrt", INTR_SQRT},
+    {"wrapping_add", INTR_WRAPPING_ADD},
+    {"wrapping_sub", INTR_WRAPPING_SUB},
+    {"wrapping_mul", INTR_WRAPPING_MUL},
+    {"saturating_add", INTR_SATURATING_ADD},
+    {"saturating_sub", INTR_SATURATING_SUB},
 };
 
 static const struct {
