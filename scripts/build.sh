@@ -8,6 +8,12 @@ cd "$(dirname "$0")/.."
 
 mkdir -p build
 
+# Keep the embedded runtime in step with runtime/*. The generated header is
+# committed, so a build never actually requires Python.
+if command -v python >/dev/null 2>&1; then
+  python scripts/embed_runtime.py >/dev/null
+fi
+
 MODE="${1:-release}"
 if [ "$MODE" = "--debug" ] || [ "$MODE" = "debug" ]; then
   OPT=(-O0 -g)

@@ -1,6 +1,111 @@
 /* check_expr.c — expression type checking. */
 #include "check.h"
 
+#include "intrinsic.h"
+
+/* Built-ins are only reachable when no user function shadows the name, so a
+ * project is always free to define its own `min` or `print`. */
+static Type *chk_intrinsic(C *c, Expr *e, Intrinsic id) {
+    ArgVec   args = e->call.args;
+    uint32_t n    = args.len;
+    e->res_kind   = RES_INTRINSIC;
+    e->intrinsic  = (uint8_t)id;
+
+    Type *vd = ty_prim(c->tc, TY_VOID);
+
+    switch (id) {
+        case INTR_PRINT:
+        case INTR_PRINTLN: {
+            if (id == INTR_PRINT && n != 1) {
+                diag_error(c->d, 304, e->span, "`print` takes 1 argument, found %u", n);
+                for (uint32_t i = 0; i < n; i++) chk(c, args.data[i].value, NULL);
+                return vd;
+            }
+            if (n > 1) {
+                diag_error(c->d, 304, e->span, "`println` takes 0 or 1 arguments, found %u",
+                           n);
+            }
+            for (uint32_t i = 0; i < n; i++) {
+                Type *at = chk(c, args.data[i].value, NULL);
+                if (ty_is_error(at)) continue;
+                bool printable = ty_is_numeric(at) || at->kind == TY_BOOL ||
+                                 at->kind == TY_STR || at->kind == TY_CHAR;
+                if (!printable) {
+                    Diag *dg = diag_error(c->d, 303, args.data[i].value->span,
+                                          "`%.*s` cannot be printed",
+                                          (int)ty_name(c->a, at).len, ty_name(c->a, at).ptr);
+                    diag_help(dg, "print its fields, or a number derived from it");
+                }
+            }
+            return vd;
+        }
+
+        case INTR_ASSERT: {
+            Type *bt = ty_prim(c->tc, TY_BOOL);
+            if (n != 1) {
+                diag_error(c->d, 304, e->span, "`assert` takes 1 argument, found %u", n);
+                for (uint32_t i = 0; i < n; i++) chk(c, args.data[i].value, NULL);
+                return vd;
+            }
+            Type *at = chk(c, args.data[0].value, bt);
+            chk_expect_type(c, args.data[0].value->span, bt, at, "in an assertion");
+            return vd;
+        }
+
+        case INTR_MIN:
+        case INTR_MAX:
+        case INTR_CLAMP: {
+            uint32_t want = (id == INTR_CLAMP) ? 3 : 2;
+            if (n != want) {
+                diag_error(c->d, 304, e->span, "`%s` takes %u arguments, found %u",
+                           intrinsic_name(id), want, n);
+                for (uint32_t i = 0; i < n; i++) chk(c, args.data[i].value, NULL);
+                return chk_err(c);
+            }
+            Type *first = chk(c, args.data[0].value, NULL);
+            for (uint32_t i = 1; i < n; i++) {
+                Type *at = chk(c, args.data[i].value, first);
+                chk_expect_type(c, args.data[i].value->span, first, at,
+                                "in this argument");
+            }
+            if (!ty_is_error(first) && !ty_is_numeric(first)) {
+                diag_error(c->d, 303, e->span, "`%s` requires numbers, found `%.*s`",
+                           intrinsic_name(id), (int)ty_name(c->a, first).len,
+                           ty_name(c->a, first).ptr);
+                return chk_err(c);
+            }
+            return first;
+        }
+
+        case INTR_ABS:
+        case INTR_SQRT: {
+            if (n != 1) {
+                diag_error(c->d, 304, e->span, "`%s` takes 1 argument, found %u",
+                           intrinsic_name(id), n);
+                for (uint32_t i = 0; i < n; i++) chk(c, args.data[i].value, NULL);
+                return chk_err(c);
+            }
+            Type *at = chk(c, args.data[0].value, NULL);
+            if (ty_is_error(at)) return at;
+            if (id == INTR_SQRT && !ty_is_float(at)) {
+                Diag *dg = diag_error(c->d, 303, e->span,
+                                      "`sqrt` requires a float, found `%.*s`",
+                                      (int)ty_name(c->a, at).len, ty_name(c->a, at).ptr);
+                diag_help(dg, "cast first: `sqrt(x as f64)`");
+                return chk_err(c);
+            }
+            if (!ty_is_numeric(at)) {
+                diag_error(c->d, 303, e->span, "`abs` requires a number, found `%.*s`",
+                           (int)ty_name(c->a, at).len, ty_name(c->a, at).ptr);
+                return chk_err(c);
+            }
+            return at;
+        }
+
+        default: return chk_err(c);
+    }
+}
+
 Type *chk_err(C *c) { return ty_prim(c->tc, TY_ERROR); }
 
 void chk_expect_type(C *c, Span at, Type *want, Type *found, const char *ctx) {
@@ -257,6 +362,9 @@ static Type *chk_call(C *c, Expr *e) {
                            "`%.*s` is a type, not a function", (int)name.len, name.ptr);
                 return chk_err(c);
             }
+            Intrinsic id = intrinsic_from_name(name);
+            if (id != INTR_NONE) return chk_intrinsic(c, e, id);
+
             Diag *dg = diag_error(c->d, 301, callee->span,
                                   "cannot find function `%.*s` in this scope",
                                   (int)name.len, name.ptr);

@@ -15,6 +15,7 @@
 #include "../parse/parser.h"
 #include "../parse/print.h"
 #include "../sema/check.h"
+#include "build.h"
 #include "../sema/ownership.h"
 #include "../sema/resolve.h"
 
@@ -172,13 +173,108 @@ static int cmd_fmt(int argc, char **argv) {
     return rc;
 }
 
+/* Loads every file, then runs resolve, check and ownership in order. Each
+ * stage only runs when the previous one was clean, so a syntax error never
+ * produces a cascade of invented type errors. */
+static bool frontend(Ctx *c, int nfiles, char **files) {
+    for (int i = 0; i < nfiles; i++)
+        if (!load(c, files[i])) return false;
+    if (diag_errors(c->d)) return false;
+
+    if (!resolve_program(c->d, c->p)) return false;
+    if (!check_program(c->d, c->p)) return false;
+    if (!ownership_check(c->d, c->p)) return false;
+    return true;
+}
+
+typedef struct {
+    const char *out;
+    bool        release;
+    bool        emit_c;
+    int         nfiles;
+    char      **files;
+} Flags;
+
+static Flags parse_flags(Arena *a, int argc, char **argv) {
+    Flags f = {0};
+    f.files = (char **)arena_alloc(a, sizeof(char *) * (size_t)(argc > 0 ? argc : 1), 8);
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "--release") == 0) f.release = true;
+        else if (strcmp(argv[i], "--emit-c") == 0) f.emit_c = true;
+        else if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) f.out = argv[++i];
+        else f.files[f.nfiles++] = argv[i];
+    }
+    return f;
+}
+
+/* Derives `build/<stem>.exe` from the first input file. */
+static Str default_out(Arena *a, const char *first) {
+    Str  p    = str_from(first);
+    uint32_t start = 0, end = p.len;
+    for (uint32_t i = 0; i < p.len; i++)
+        if (p.ptr[i] == '/' || p.ptr[i] == '\\') start = i + 1;
+    for (uint32_t i = start; i < p.len; i++)
+        if (p.ptr[i] == '.') end = i;
+    SB sb;
+    sb_init(&sb, a);
+    sb_cstr(&sb, ".beryl-cache/");
+    sb_str(&sb, str_new(p.ptr + start, end - start));
+    sb_cstr(&sb, ".exe");
+    return sb_finish(&sb);
+}
+
+static int cmd_build(int argc, char **argv, CgenMode mode, bool then_run) {
+    Ctx   c = ctx_new();
+    Flags f = parse_flags(c.a, argc, argv);
+    if (f.nfiles < 1) {
+        fprintf(stderr, "usage: beryl %s [--release] [--emit-c] [-o out] <file.be>...\n",
+                then_run ? "run" : "build");
+        arena_free(c.a);
+        return 2;
+    }
+
+    if (!frontend(&c, f.nfiles, f.files)) {
+        int rc = report(&c);
+        arena_free(c.a);
+        return rc ? rc : 1;
+    }
+    report(&c); /* warnings, if any */
+
+    BuildOpts o = {0};
+    o.cache_dir = ".beryl-cache";
+    o.release   = f.release;
+    o.mode      = mode;
+    o.out_exe   = f.out ? f.out : str_cstr(c.a, default_out(c.a, f.files[0]));
+
+    int rc = 0;
+    if (then_run) {
+        int code = 0;
+        if (!build_and_run(c.a, c.sm, c.d, c.p, o, &code)) rc = 1;
+        else rc = code;
+    } else {
+        if (!build_native(c.a, c.sm, c.d, c.p, o)) rc = 1;
+        else printf("built %s\n", o.out_exe);
+    }
+
+    if (f.emit_c) printf("generated C kept at %s/out.c\n", o.cache_dir);
+    arena_free(c.a);
+    return rc;
+}
+
 static void usage(void) {
     printf("beryl %s\n\n", BERYL_VERSION);
     printf("usage: beryl <command> [args]\n\n");
-    printf("  check <file.be>...      parse, resolve and type-check\n");
-    printf("  fmt [--check] <file>    format source canonically\n");
-    printf("  ast <file.be>           dump the syntax tree\n");
-    printf("  version                 print the version\n");
+    printf("  check <file.be>...            parse, resolve, type-check, ownership\n");
+    printf("  build [opts] <file.be>...     compile to a native executable\n");
+    printf("  run   [opts] <file.be>...     compile and run\n");
+    printf("  test  [opts] <file.be>...     run every `test` block natively\n");
+    printf("  fmt [--check] <file.be>...    format source canonically\n");
+    printf("  ast <file.be>                 dump the syntax tree\n");
+    printf("  version                       print the version\n\n");
+    printf("options:\n");
+    printf("  --release    optimize (-O2, no unwind tables)\n");
+    printf("  --emit-c     keep the generated C for inspection\n");
+    printf("  -o <path>    output executable path\n");
 }
 
 int main(int argc, char **argv) {
@@ -191,6 +287,9 @@ int main(int argc, char **argv) {
     char      **rest = argv + 2;
 
     if (strcmp(cmd, "check") == 0) return cmd_check(n, rest);
+    if (strcmp(cmd, "build") == 0) return cmd_build(n, rest, CGEN_PROGRAM, false);
+    if (strcmp(cmd, "run") == 0) return cmd_build(n, rest, CGEN_PROGRAM, true);
+    if (strcmp(cmd, "test") == 0) return cmd_build(n, rest, CGEN_TESTS, true);
     if (strcmp(cmd, "fmt") == 0) return cmd_fmt(n, rest);
     if (strcmp(cmd, "ast") == 0) return cmd_ast(n, rest);
     if (strcmp(cmd, "version") == 0 || strcmp(cmd, "--version") == 0) {

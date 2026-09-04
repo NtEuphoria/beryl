@@ -12,6 +12,14 @@
 
 #include "arena.h"
 
+/* Lets the compiler type-check our own printf-style calls. A missing argument
+ * in a format string is otherwise silent and produces spectacular garbage. */
+#if defined(__GNUC__) || defined(__clang__)
+#define BE_PRINTF(fmt_idx, first_arg) __attribute__((format(printf, fmt_idx, first_arg)))
+#else
+#define BE_PRINTF(fmt_idx, first_arg)
+#endif
+
 typedef struct {
     const char *ptr;
     uint32_t    len;
@@ -44,7 +52,7 @@ void sb_init(SB *sb, Arena *a);
 void sb_char(SB *sb, char c);
 void sb_str(SB *sb, Str s);
 void sb_cstr(SB *sb, const char *s);
-void sb_fmt(SB *sb, const char *fmt, ...);
+void sb_fmt(SB *sb, const char *fmt, ...) BE_PRINTF(2, 3);
 void sb_vfmt(SB *sb, const char *fmt, va_list ap);
 void sb_repeat(SB *sb, char c, int n);
 Str  sb_finish(SB *sb);

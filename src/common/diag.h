@@ -40,15 +40,15 @@ typedef struct DiagBag DiagBag;
 
 DiagBag *diag_new(Arena *a, SourceMap *sm);
 
-Diag *diag_error(DiagBag *d, uint32_t code, Span at, const char *fmt, ...);
-Diag *diag_warn(DiagBag *d, uint32_t code, Span at, const char *fmt, ...);
+Diag *diag_error(DiagBag *d, uint32_t code, Span at, const char *fmt, ...) BE_PRINTF(4, 5);
+Diag *diag_warn(DiagBag *d, uint32_t code, Span at, const char *fmt, ...) BE_PRINTF(4, 5);
 
 /* Adds a caret span with a message. Labels render in insertion order, sorted
  * by position within a line. If a diagnostic has no labels, carets are drawn
  * on the primary span with no message. */
-void diag_label(Diag *dg, Span at, const char *fmt, ...);
-void diag_note(Diag *dg, const char *fmt, ...);
-void diag_help(Diag *dg, const char *fmt, ...);
+void diag_label(Diag *dg, Span at, const char *fmt, ...) BE_PRINTF(3, 4);
+void diag_note(Diag *dg, const char *fmt, ...) BE_PRINTF(2, 3);
+void diag_help(Diag *dg, const char *fmt, ...) BE_PRINTF(2, 3);
 
 uint32_t diag_errors(const DiagBag *d);
 uint32_t diag_warnings(const DiagBag *d);

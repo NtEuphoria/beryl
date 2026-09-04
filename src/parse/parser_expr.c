@@ -175,6 +175,9 @@ static Expr *parse_postfix(P *p) {
                     } else if (ct.kind == TK_SINK) {
                         p_next(p);
                         arg.conv = CONV_SINK;
+                    } else if (ct.kind == TK_SET) {
+                        p_next(p);
+                        arg.conv = CONV_SET;
                     }
                     arg.value = parse_expr(p);
                     if (!arg.value) break;
