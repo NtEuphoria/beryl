@@ -74,6 +74,9 @@ allowed, and it happens to make builds faster too.
 | [INTERNALS](docs/INTERNALS.md) | how the compiler is built |
 | [BUILDING](docs/BUILDING.md) | building the compiler |
 
+There is also a **[browsable reference](https://claude.ai/code/artifact/296829be-41ec-424f-b86b-13a83b1336f6)** —
+the same material as the cheatsheet, with a filterable diagnostics table.
+
 ## Where it stands
 
 v0.1 is real but not finished. It compiles and runs real programs on both
