@@ -34,6 +34,34 @@ Str ef_tmp(E *e) {
     return sb_finish(&sb);
 }
 
+/* EnforceScript reserves words Beryl does not, `out` and `ref` most sharply,
+ * and a collision is a bare "Broken expression" from Workbench with no hint of
+ * the cause. Every emitted identifier goes through here. */
+static bool is_enforce_keyword(Str s) {
+    static const char *const kw[] = {
+        "out",      "inout",    "ref",     "class",    "enum",     "void",
+        "int",      "float",    "bool",    "string",   "vector",   "array",
+        "map",      "set",      "new",     "delete",   "null",     "this",
+        "super",    "override", "protected", "private", "static",  "const",
+        "typedef",  "proto",    "native",  "sealed",   "modded",   "owned",
+        "notnull",  "volatile", "autoptr", "if",       "else",     "while",
+        "for",      "foreach",  "switch",  "case",     "default",  "break",
+        "continue", "return",   "true",    "false",    "managed",  "local",
+        "event",    "sizeof",   "typename", "Class",   "result",   "private"};
+    for (size_t i = 0; i < sizeof kw / sizeof kw[0]; i++)
+        if (str_eq_c(s, kw[i])) return true;
+    return false;
+}
+
+Str ef_ident(E *e, Str name) {
+    if (!is_enforce_keyword(name)) return name;
+    SB sb;
+    sb_init(&sb, e->a);
+    sb_str(&sb, name);
+    sb_char(&sb, '_');
+    return sb_finish(&sb);
+}
+
 /* Base-game methods are PascalCase; Beryl's are snake_case. Converting keeps
  * generated script idiomatic without renaming anything in the Beryl source. */
 Str ef_method_name(Str name) { return name; }
@@ -356,7 +384,7 @@ static void emit_signature(E *e, Item *it, bool is_static) {
         if (pm->conv == CONV_INOUT || pm->conv == CONV_SET) sb_cstr(&sb, "out ");
         sb_str(&sb, ef_type(e, pm->rtype));
         sb_char(&sb, ' ');
-        sb_str(&sb, pm->name);
+        sb_str(&sb, ef_ident(e, pm->name));
         if (pm->deflt) {
             sb_cstr(&sb, " = ");
             /* Defaults must be literals in EnforceScript, which the checker
@@ -414,7 +442,7 @@ static void emit_struct(E *e, Item *it) {
     for (uint32_t i = 0; i < it->strukt.fields.len; i++) {
         Field *f = &it->strukt.fields.data[i];
         emit_doc(e, f->doc);
-        ef_line(e, "%.*s %.*s;", S(ef_type_field(e, f->rtype)), S(f->name));
+        ef_line(e, "%.*s %.*s;", S(ef_type_field(e, f->rtype)), S(ef_ident(e, f->name)));
     }
     ef_blank(e);
 
@@ -424,11 +452,11 @@ static void emit_struct(E *e, Item *it) {
     e->indent++;
     for (uint32_t i = 0; i < it->strukt.fields.len; i++) {
         Field *f = &it->strukt.fields.data[i];
-        if (f->deflt) ef_line(e, "%.*s = %.*s;", S(f->name), S(ef_expr(e, f->deflt)));
+        if (f->deflt) ef_line(e, "%.*s = %.*s;", S(ef_ident(e, f->name)), S(ef_expr(e, f->deflt)));
         else if (f->rtype && f->rtype->kind == TY_LIST)
-            ef_line(e, "%.*s = new %.*s();", S(f->name), S(ef_type(e, f->rtype)));
+            ef_line(e, "%.*s = new %.*s();", S(ef_ident(e, f->name)), S(ef_type(e, f->rtype)));
         else if (f->rtype && f->rtype->kind == TY_MAP)
-            ef_line(e, "%.*s = new %.*s();", S(f->name), S(ef_type(e, f->rtype)));
+            ef_line(e, "%.*s = new %.*s();", S(ef_ident(e, f->name)), S(ef_type(e, f->rtype)));
     }
     e->indent--;
     ef_line(e, "}");
@@ -437,16 +465,17 @@ static void emit_struct(E *e, Item *it) {
      * what preserves value semantics at the points the language requires a
      * copy, and the emitter inserts calls to it only there. */
     ef_blank(e);
-    ef_line(e, "//! Value semantics: Beryl structs copy on assignment.");
-    ef_line(e, "%.*s Clone()", S(cls));
+    ef_line(e, "//! Value semantics: Beryl structs copy on assignment. Named");
+    ef_line(e, "//! BerylCopy rather than Clone, which the engine base class already has.");
+    ef_line(e, "%.*s BerylCopy()", S(cls));
     ef_line(e, "{");
     e->indent++;
     ef_line(e, "%.*s c = new %.*s();", S(cls), S(cls));
     for (uint32_t i = 0; i < it->strukt.fields.len; i++) {
         Field *f = &it->strukt.fields.data[i];
         if (ef_needs_copy(f->rtype) && f->rtype->kind == TY_STRUCT)
-            ef_line(e, "c.%.*s = %.*s.Clone();", S(f->name), S(f->name));
-        else ef_line(e, "c.%.*s = %.*s;", S(f->name), S(f->name));
+            ef_line(e, "c.%.*s = %.*s.BerylCopy();", S(ef_ident(e, f->name)), S(ef_ident(e, f->name)));
+        else ef_line(e, "c.%.*s = %.*s;", S(ef_ident(e, f->name)), S(ef_ident(e, f->name)));
     }
     ef_line(e, "return c;");
     e->indent--;

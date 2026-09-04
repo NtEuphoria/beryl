@@ -1,4 +1,5 @@
 /* Tests for the EnforceScript backend: lowering, conventions, and the lint. */
+#include <string.h>
 #include "../../src/back/enforce_backend.h"
 #include "../../src/parse/parser.h"
 #include "../../src/sema/check.h"
@@ -51,7 +52,7 @@ static Str enf(const char *src, uint32_t *errors) {
 }
 
 static void test_struct_and_method(void) {
-    CASE("enfusion: a struct becomes a prefixed class with defaults and Clone");
+    CASE("enfusion: a struct becomes a prefixed class with defaults and a copy helper");
     uint32_t errs = 0;
     Str      out  = enf("module flight.pid\n"
                         "pub struct Pid {\n"
@@ -71,7 +72,7 @@ static void test_struct_and_method(void) {
     CHECK_CONTAINS(out, "\tfloat kp;");
     CHECK_CONTAINS(out, "\tvoid SPK_Pid()");
     CHECK_CONTAINS(out, "\t\tki = 0;");
-    CHECK_CONTAINS(out, "\tSPK_Pid Clone()");
+    CHECK_CONTAINS(out, "\tSPK_Pid BerylCopy()");
 
     CASE("enfusion: the receiver is implicit, so self.field is a bare field");
     CHECK_CONTAINS(out, "\tfloat step(float sp, float dt)");
@@ -179,7 +180,7 @@ static void test_enum_and_inout(void) {
 }
 
 static void test_value_semantics(void) {
-    CASE("enfusion: copying a struct binding inserts Clone, a literal does not");
+    CASE("enfusion: copying a struct binding inserts a copy, a literal does not");
     uint32_t errs = 0;
     Str      out  = enf("module t\n"
                         "struct P {\n"
@@ -194,8 +195,52 @@ static void test_value_semantics(void) {
     if (errs) printf("%.*s\n", (int)out.len, out.ptr);
     CHECK_EQ_I(errs, 0);
     /* A place expression copies; a freshly built value does not. */
-    CHECK_CONTAINS(out, "SPK_P copy = src.Clone();");
+    CHECK_CONTAINS(out, "SPK_P copy = src.BerylCopy();");
     CHECK_CONTAINS(out, "SPK_P _t0 = new SPK_P();");
+}
+
+/* Both of these were found by compiling generated script in the real
+ * Workbench, not by inspection. Neither would fail a golden test that only
+ * checked the text looked reasonable. */
+static void test_reserved_words(void) {
+    CASE("enfusion: identifiers colliding with engine keywords are renamed");
+    uint32_t errs = 0;
+    Str      out  = enf("module t\n"
+                        "struct Holder {\n"
+                        "    ref: i32 = 0\n"
+                        "    class: i32 = 0\n"
+                        "}\n"
+                        "fn scale(let v: i32, let by: i32) -> i32 {\n"
+                        "    var out = v\n"
+                        "    out = out * by\n"
+                        "    return out\n"
+                        "}\n",
+                        &errs);
+    if (errs) printf("%.*s\n", (int)out.len, out.ptr);
+    CHECK_EQ_I(errs, 0);
+
+    /* `out` is how EnforceScript spells an out-parameter, and a collision
+     * surfaces only as "Broken expression" with no hint of the cause. */
+    CHECK_CONTAINS(out, "int out_ = v;");
+    CHECK_CONTAINS(out, "out_ = (out_ * by);");
+    CHECK_CONTAINS(out, "return out_;");
+    CHECK_CONTAINS(out, "int ref_;");
+    CHECK_CONTAINS(out, "int class_;");
+
+    CASE("enfusion: the copy helper avoids the engine base class's Clone");
+    out = enf("module t\n"
+              "struct P {\n"
+              "    x: i32\n"
+              "}\n",
+              &errs);
+    CHECK_EQ_I(errs, 0);
+    /* `Class` already declares Clone, so redeclaring it is a hard error. */
+    CHECK_CONTAINS(out, "SPK_P BerylCopy()");
+    bool declares_clone = false;
+    for (uint32_t i = 0; i + 8 <= out.len; i++)
+        if (out.ptr[i] == ' ' && memcmp(out.ptr + i + 1, "Clone()", 7) == 0)
+            declares_clone = true;
+    CHECK(!declares_clone);
 }
 
 static void test_lint(void) {
@@ -243,5 +288,6 @@ void run_enfusion_tests(void) {
     test_option();
     test_enum_and_inout();
     test_value_semantics();
+    test_reserved_words();
     test_lint();
 }

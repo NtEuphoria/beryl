@@ -38,7 +38,7 @@ static Str copy_if_needed(E *e, Expr *x, Str rendered) {
     if (!x->type || x->type->kind != TY_STRUCT) return rendered;
     SB sb;
     sb_init(&sb, e->a);
-    sb_fmt(&sb, "%.*s.Clone()", S(rendered));
+    sb_fmt(&sb, "%.*s.BerylCopy()", S(rendered));
     return sb_finish(&sb);
 }
 
@@ -175,7 +175,7 @@ Str ef_expr(E *e, Expr *x) {
         case EX_SELF: sb_cstr(&sb, "this"); break;
 
         case EX_PATH:
-            if (x->res_kind == RES_LOCAL) sb_str(&sb, ((Local *)x->res)->name);
+            if (x->res_kind == RES_LOCAL) sb_str(&sb, ef_ident(e, ((Local *)x->res)->name));
             else if (x->res_kind == RES_CONST) sb_str(&sb, ef_prefixed(e, x->res
                                                                           ? ((Item *)x->res)->name
                                                                           : STR_EMPTY));
@@ -186,8 +186,8 @@ Str ef_expr(E *e, Expr *x) {
         case EX_FIELD:
             /* Inside a method, `self.kp` is just `kp`, matching how the base
              * game's own classes are written. */
-            if (x->field.base && x->field.base->kind == EX_SELF) sb_str(&sb, x->field.name);
-            else sb_fmt(&sb, "%.*s.%.*s", S(ef_expr(e, x->field.base)), S(x->field.name));
+            if (x->field.base && x->field.base->kind == EX_SELF) sb_str(&sb, ef_ident(e, x->field.name));
+            else sb_fmt(&sb, "%.*s.%.*s", S(ef_expr(e, x->field.base)), S(ef_ident(e, x->field.name)));
             break;
 
         case EX_INDEX:
@@ -256,7 +256,7 @@ Str ef_expr(E *e, Expr *x) {
                     if (str_eq(x->struct_lit.fields.data[k].name, fl->name))
                         val = x->struct_lit.fields.data[k].value;
                 if (!val) continue; /* the constructor already applied the default */
-                ef_line(e, "%.*s.%.*s = %.*s;", S(tmp), S(fl->name),
+                ef_line(e, "%.*s.%.*s = %.*s;", S(tmp), S(ef_ident(e, fl->name)),
                         S(copy_if_needed(e, val, ef_expr(e, val))));
             }
             sb_str(&sb, tmp);
@@ -400,9 +400,9 @@ void ef_stmt(E *e, Stmt *s) {
             }
             if (s->let.init) {
                 Str v = copy_if_needed(e, s->let.init, ef_expr(e, s->let.init));
-                ef_line(e, "%.*s %.*s = %.*s;", S(ef_type(e, t)), S(s->let.name), S(v));
+                ef_line(e, "%.*s %.*s = %.*s;", S(ef_type(e, t)), S(ef_ident(e, s->let.name)), S(v));
             } else {
-                ef_line(e, "%.*s %.*s;", S(ef_type(e, t)), S(s->let.name));
+                ef_line(e, "%.*s %.*s;", S(ef_type(e, t)), S(ef_ident(e, s->let.name)));
             }
             break;
         }
@@ -446,12 +446,13 @@ void ef_stmt(E *e, Stmt *s) {
             if (it && it->kind == EX_RANGE) {
                 Str lo = ef_expr(e, it->range.lo);
                 Str hi = ef_expr(e, it->range.hi);
-                ef_line(e, "for (int %.*s = %.*s; %.*s < %.*s; %.*s++)", S(s->for_st.var),
-                        S(lo), S(s->for_st.var), S(hi), S(s->for_st.var));
+                Str lv = ef_ident(e, s->for_st.var);
+                ef_line(e, "for (int %.*s = %.*s; %.*s < %.*s; %.*s++)", S(lv), S(lo),
+                        S(lv), S(hi), S(lv));
             } else {
                 Type *et = (it && it->type) ? it->type->elem : NULL;
                 ef_line(e, "foreach (%.*s %.*s : %.*s)", S(ef_type(e, et)),
-                        S(s->for_st.var), S(ef_expr(e, it)));
+                        S(ef_ident(e, s->for_st.var)), S(ef_expr(e, it)));
             }
             ef_line(e, "{");
             e->indent++;

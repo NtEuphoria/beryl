@@ -32,6 +32,7 @@ Str ef_prefixed(E *e, Str name);
 Str ef_type(E *e, Type *t);
 Str ef_type_field(E *e, Type *t); /* adds `ref` where a member needs it */
 Str ef_tmp(E *e);
+Str ef_ident(E *e, Str name);
 Str ef_method_name(Str name);
 
 Str  ef_expr(E *e, Expr *x);
