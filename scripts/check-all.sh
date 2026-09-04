@@ -23,4 +23,8 @@ for f in examples/*_test.be; do
 done
 
 echo
+echo "== diagnostics documented =="
+bash scripts/check-diagnostics.sh || exit 1
+
+echo
 echo "all green"

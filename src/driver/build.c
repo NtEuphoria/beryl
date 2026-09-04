@@ -109,6 +109,7 @@ bool build_native(Arena *a, SourceMap *sm, DiagBag *d, Program *p, BuildOpts o) 
     }
 
     Str code = cgen_program(a, sm, d, p, o.mode);
+    if (code.len == 0) return false; /* the native lint rejected something */
     if (!write_file(str_cstr(a, csrc), code)) {
         fprintf(stderr, "beryl: cannot write %.*s\n", (int)csrc.len, csrc.ptr);
         return false;
@@ -173,6 +174,7 @@ bool build_and_run(Arena *a, SourceMap *sm, DiagBag *d, Program *p, BuildOpts o,
     }
 
     Str code = cgen_program(a, sm, d, p, o.mode);
+    if (code.len == 0) return false; /* the native lint rejected something */
     if (!write_file(str_cstr(a, csrc), code)) return false;
 
     /* Each attempt changes the binary's content hash, which earns an

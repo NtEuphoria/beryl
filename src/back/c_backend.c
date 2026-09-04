@@ -1033,7 +1033,68 @@ static void gen_fn(G *g, Item *it, Expr *body) {
 
 /* ---- program ----------------------------------------------------------- */
 
+/* ---- native profile lint ----------------------------------------------- */
+
+/* The type checker accepts these because they are real types with a real
+ * lowering planned; the native backend simply cannot emit them yet. Saying so
+ * beats emitting C that clang rejects with a message about a type the user
+ * never wrote. */
+static void lint_native_type(DiagBag *d, Arena *a, Type *t, Span at, const char *what) {
+    if (!t) return;
+    switch (t->kind) {
+        case TY_MAP: {
+            Diag *dg = diag_error(d, 901, at,
+                                  "`Map<K, V>` has no native representation in v0.1");
+            diag_note(dg, "it lowers to the engine's own `map` on the enfusion target, "
+                          "where it works today");
+            diag_help(dg, "use `List<T>` with a linear scan, or build for enfusion, for "
+                          "%s", what);
+            break;
+        }
+        case TY_BOX:
+        case TY_RC:
+        case TY_POOL:
+        case TY_HANDLE: {
+            Diag *dg = diag_error(d, 902, at,
+                                  "`%.*s` is not implemented in v0.1",
+                                  (int)ty_name(a, t).len, ty_name(a, t).ptr);
+            diag_note(dg, "the ownership model is designed around these, but v0.1 ships "
+                          "only value types, arrays and List");
+            diag_help(dg, "use a value, an array index, or `List<T>` for %s", what);
+            break;
+        }
+        case TY_ARRAY:
+        case TY_LIST:
+        case TY_OPTION:
+        case TY_ERRUNION: lint_native_type(d, a, t->elem, at, what); break;
+        default: break;
+    }
+}
+
+static bool lint_native(DiagBag *d, Arena *a, Program *p) {
+    uint32_t before = diag_errors(d);
+    for (uint32_t m = 0; m < p->modules.len; m++) {
+        Module *mod = p->modules.data[m];
+        for (uint32_t i = 0; i < mod->items.len; i++) {
+            Item *it = mod->items.data[i];
+            if (it->kind == IT_STRUCT) {
+                for (uint32_t f = 0; f < it->strukt.fields.len; f++)
+                    lint_native_type(d, a, it->strukt.fields.data[f].rtype,
+                                     it->strukt.fields.data[f].span, "this field");
+            } else if (it->kind == IT_FN && !it->fn.generics.len) {
+                for (uint32_t q = 0; q < it->fn.params.len; q++)
+                    lint_native_type(d, a, it->fn.params.data[q].rtype,
+                                     it->fn.params.data[q].span, "this parameter");
+                lint_native_type(d, a, it->rtype, it->span, "this return type");
+            }
+        }
+    }
+    return diag_errors(d) == before;
+}
+
 Str cgen_program(Arena *a, SourceMap *sm, DiagBag *d, Program *p, CgenMode mode) {
+    if (!lint_native(d, a, p)) return STR_EMPTY;
+
     G g = {0};
     g.a = a;
     g.sm = sm;

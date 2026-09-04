@@ -397,6 +397,8 @@ static int cmd_build(int argc, char **argv, CgenMode mode, bool then_run) {
         if (!build_native(c.a, c.sm, c.d, c.p, o)) rc = 1;
         else printf("built %s\n", o.out_exe);
     }
+    /* The backends can report too — the native profile lint, for one. */
+    if (rc != 0 && diag_errors(c.d)) report(&c);
 
     if (f.emit_c) printf("generated C kept at %s/out.c\n", o.cache_dir);
     arena_free(c.a);
