@@ -71,11 +71,14 @@ allowed, and it happens to make builds faster too.
 | [THREAT-MODEL](docs/THREAT-MODEL.md) | the residual register |
 | [BENCHMARKS](docs/BENCHMARKS.md) | measured, including the misses |
 | [STATUS](docs/STATUS.md) | what works and what does not |
+| [ROADMAP](docs/ROADMAP.md) | where it goes next, and what to do first |
 | [INTERNALS](docs/INTERNALS.md) | how the compiler is built |
 | [BUILDING](docs/BUILDING.md) | building the compiler |
 
-There is also a **[browsable reference](https://claude.ai/code/artifact/296829be-41ec-424f-b86b-13a83b1336f6)** —
-the same material as the cheatsheet, with a filterable diagnostics table.
+Browsable versions:
+**[reference](https://claude.ai/code/artifact/296829be-41ec-424f-b86b-13a83b1336f6)** (the cheatsheet, with a
+filterable diagnostics table) and
+**[roadmap](https://claude.ai/code/artifact/6dc455ec-3425-4828-8b25-5237130f8876)**.
 
 ## Where it stands
 

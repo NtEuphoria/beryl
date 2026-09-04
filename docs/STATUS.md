@@ -1,5 +1,7 @@
 # Status — what v0.1 actually does
 
+For where this goes next, see [ROADMAP.md](ROADMAP.md).
+
 A straight inventory, so nobody has to discover a gap by hitting it. Everything
 listed as missing produces a **clear diagnostic**, not odd behaviour.
 
@@ -7,7 +9,8 @@ listed as missing produces a **clear diagnostic**, not odd behaviour.
 
 **Language**
 
-- modules, `pub`, `use` (flat namespace), no circular imports
+- `module` declarations and circular-import detection — but see the rough edges
+  below: `pub` and `use` are not yet enforced
 - `struct` with field defaults, methods as `fn Type.name(...)`
 - `enum`, C-like, with explicit discriminants
 - `const` with compile-time evaluation
@@ -55,7 +58,7 @@ listed as missing produces a **clear diagnostic**, not odd behaviour.
 | `Map<K,V>` methods | `BE0306` | usable as a type; works fully on the enfusion target |
 | `Map<K,V>` natively | `BE0901` | no native representation yet |
 | `Box` `Rc` `Pool` `Handle` | `BE0902` | designed into the ownership model, not implemented |
-| payload enums, `match` | — | v0.2 |
+| payload enums, `match` | — | [ROADMAP.md](ROADMAP.md) v0.4 |
 | concurrency, async | — | deliberately cut from v0.1 |
 | capability-based I/O | — | designed ([SECURITY.md](SECURITY.md) §6); there is no I/O to protect yet |
 | reproducible builds | — | conflicts with the SAC workaround; unresolved |
@@ -65,6 +68,14 @@ listed as missing produces a **clear diagnostic**, not odd behaviour.
 
 ## Known rough edges
 
+- **The module system does not enforce anything.** `use` is parsed and used only
+  for cycle detection; `pub` is stored and never checked. Every short name
+  resolves across the whole program, so a private function in another module is
+  callable with no import. First item of real work in
+  [ROADMAP.md](ROADMAP.md) §5.3.
+- **`lib/` is empty.** There is no standard library written in Beryl at all —
+  the directories were scaffolded and never filled. The built-ins and the
+  container intrinsics are implemented in the compiler, in C.
 - **`defer` runs where it is written**, not at scope exit. Correct ordering
   arrives with destructors.
 - **`catch` yields a zero value** when the handler does not return. Fine for

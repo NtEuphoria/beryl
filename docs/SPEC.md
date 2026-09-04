@@ -86,9 +86,14 @@ use core.math.clamp
 **Circular module dependencies are forbidden** (`BE0309`), which is what keeps
 resolution a single ordered pass rather than a fixpoint.
 
-In v0.1 name resolution is effectively **flat**: `use` is parsed and cycle-checked,
-but short names resolve across the whole program. Two modules defining the same
-short name is a v0.2 problem.
+**In v0.1 the module system does not actually work.** Name resolution is flat:
+`use` is parsed and used only for cycle detection, `pub` is stored and never
+checked, and every short name resolves across the whole program. A private
+function in another module is callable with no import at all.
+
+Treat `module`, `use` and `pub` as documentation of intent until this is fixed —
+it is the first item of real work in [ROADMAP.md](ROADMAP.md) §5.3, because
+every line written before then is written against a namespace that will change.
 
 ---
 
