@@ -86,6 +86,8 @@ static TokKind keyword_lookup(Str s) {
     return TK_IDENT;
 }
 
+bool tok_is_keyword(TokKind k) { return k >= TK_MODULE && k <= TK_MATCH; }
+
 /* ---- newline classification -------------------------------------------- */
 
 bool tok_can_end_expr(TokKind k) {

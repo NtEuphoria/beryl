@@ -472,10 +472,26 @@ static void emit_struct(E *e, Item *it) {
     e->indent++;
     ef_line(e, "%.*s c = new %.*s();", S(cls), S(cls));
     for (uint32_t i = 0; i < it->strukt.fields.len; i++) {
-        Field *f = &it->strukt.fields.data[i];
-        if (ef_needs_copy(f->rtype) && f->rtype->kind == TY_STRUCT)
-            ef_line(e, "c.%.*s = %.*s.BerylCopy();", S(ef_ident(e, f->name)), S(ef_ident(e, f->name)));
-        else ef_line(e, "c.%.*s = %.*s;", S(ef_ident(e, f->name)), S(ef_ident(e, f->name)));
+        Field *f  = &it->strukt.fields.data[i];
+        Str    fn = ef_ident(e, f->name);
+        if (!f->rtype) {
+            ef_line(e, "c.%.*s = %.*s;", S(fn), S(fn));
+            continue;
+        }
+        switch (f->rtype->kind) {
+            case TY_STRUCT:
+                ef_line(e, "c.%.*s = %.*s.BerylCopy();", S(fn), S(fn));
+                break;
+            case TY_ARRAY:
+            case TY_LIST:
+            case TY_MAP:
+                /* A container is a reference here, so copying the field would
+                 * alias it and quietly break value semantics. */
+                ef_line(e, "c.%.*s = new %.*s();", S(fn), S(ef_type(e, f->rtype)));
+                ef_line(e, "c.%.*s.Copy(%.*s);", S(fn), S(fn));
+                break;
+            default: ef_line(e, "c.%.*s = %.*s;", S(fn), S(fn)); break;
+        }
     }
     ef_line(e, "return c;");
     e->indent--;

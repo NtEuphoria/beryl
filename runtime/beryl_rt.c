@@ -24,6 +24,17 @@ _Noreturn void beryl_panic(const char *msg, const char *file, int line) {
     abort();
 }
 
+void *beryl_grow(void *p, size_t bytes) {
+    void *n = realloc(p, bytes);
+    if (!n && bytes) {
+        fprintf(stderr, "beryl: out of memory growing a list to %zu bytes\n", bytes);
+        abort();
+    }
+    return n;
+}
+
+void beryl_release(void *p) { free(p); }
+
 void beryl_print_str(BeStr s) { fwrite(s.ptr, 1, s.len, stdout); }
 void beryl_print_i64(int64_t v) { printf("%lld", (long long)v); }
 void beryl_print_u64(uint64_t v) { printf("%llu", (unsigned long long)v); }

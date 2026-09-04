@@ -243,6 +243,50 @@ static void test_diagnostics(void) {
                 "fractional literal");
 }
 
+static void test_containers(void) {
+    CASE("containers: List methods type-check, and a container field defaults empty");
+    uint32_t errs = 0;
+    Str      out  = sema1("module t\n"
+                          "struct S {\n"
+                          "    ids: List<i32>\n"
+                          "}\n"
+                          "fn m() -> i32 {\n"
+                          "    var s = S{ }\n"
+                          "    s.ids.push(1)\n"
+                          "    s.ids.set(0, 2)\n"
+                          "    var free: List<i32>\n"
+                          "    free.push(3)\n"
+                          "    s.ids.clear()\n"
+                          "    return s.ids.len() + free.get(0)\n"
+                          "}\n",
+                          &errs);
+    if (errs) printf("%.*s\n", (int)out.len, out.ptr);
+    CHECK_EQ_I(errs, 0);
+
+    expect_diag("containers: an unknown List method names the ones that exist",
+                "module t\nfn m() {\n    var xs: List<i32>\n    xs.frobnicate()\n}\n",
+                "BE0306", "len, push, get, set and clear");
+
+    expect_diag("containers: push checks its element type",
+                "module t\nfn m() {\n    var xs: List<i32>\n    xs.push(1.5)\n}\n",
+                "BE0303", NULL);
+
+    CASE("parser: a reserved word is a valid member name");
+    /* `set` is a passing convention, but `xs.set(i, v)` still has to parse. */
+    out = sema1("module t\n"
+                "struct Holder {\n"
+                "    set: i32 = 0\n"
+                "    for: i32 = 0\n"
+                "}\n"
+                "fn m() -> i32 {\n"
+                "    let h = Holder{ set: 1, for: 2 }\n"
+                "    return h.set + h.for\n"
+                "}\n",
+                &errs);
+    if (errs) printf("%.*s\n", (int)out.len, out.ptr);
+    CHECK_EQ_I(errs, 0);
+}
+
 static void test_const_eval(void) {
     CASE("const: literals, arithmetic and other constants fold");
     uint32_t errs = 0;
@@ -318,6 +362,7 @@ void run_sema_tests(void) {
     test_positive();
     test_diagnostics();
     test_const_eval();
+    test_containers();
     test_warnings();
     test_module_cycle();
 }

@@ -195,10 +195,9 @@ static Item *parse_struct(P *p, bool is_pub, Str doc, AttrVec attrs) {
 
         Str   fdoc = collect_doc(p);
         Token fid  = p_peek(p);
-        if (!p_expect(p, TK_IDENT, "as a field name")) break;
 
         Field f = {0};
-        f.name  = fid.text;
+        if (!p_member_name(p, &f.name, "as a field name")) break;
         f.doc   = fdoc;
         p_expect(p, TK_COLON, "after a field name");
         f.type = parse_type(p);

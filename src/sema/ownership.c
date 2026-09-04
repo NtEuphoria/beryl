@@ -478,7 +478,12 @@ static void walk_stmt(O *o, Stmt *s) {
             for (uint32_t i = 0; i < o->nlocals; i++) {
                 Local *l = o->locals[i];
                 if (l->span.offset == s->span.offset && str_eq(l->name, s->let.name)) {
-                    l->state = s->let.init ? OS_INIT : OS_UNINIT;
+                    /* A container declared without a value starts empty rather
+                     * than uninitialized; there is no other useful state for
+                     * it, and it saves an initializer that says nothing. */
+                    bool defaulted = l->type && (l->type->kind == TY_LIST ||
+                                                 l->type->kind == TY_MAP);
+                    l->state = (s->let.init || defaulted) ? OS_INIT : OS_UNINIT;
                     break;
                 }
             }

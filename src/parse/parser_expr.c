@@ -152,11 +152,12 @@ static Expr *parse_postfix(P *p) {
     for (;;) {
         if (p_check(p, TK_DOT)) {
             p_next(p);
-            Token id = p_peek(p);
-            if (!p_expect(p, TK_IDENT, "after `.`")) break;
-            Expr *f        = ast_expr(p->a, EX_FIELD, span_join(e->span, id.span));
-            f->field.base  = e;
-            f->field.name  = id.text;
+            Token id    = p_peek(p);
+            Str   fname = STR_EMPTY;
+            if (!p_member_name(p, &fname, "after `.`")) break;
+            Expr *f       = ast_expr(p->a, EX_FIELD, span_join(e->span, id.span));
+            f->field.base = e;
+            f->field.name = fname;
             e              = f;
             continue;
         }
@@ -251,8 +252,7 @@ static Expr *parse_struct_lit(P *p, Expr *path_expr) {
     while (!p_check(p, TK_RBRACE) && !p_check(p, TK_EOF)) {
         FieldInit fi = {0};
         Token     id = p_peek(p);
-        if (!p_expect(p, TK_IDENT, "in a struct literal field")) break;
-        fi.name = id.text;
+        if (!p_member_name(p, &fi.name, "in a struct literal field")) break;
         if (!p_expect(p, TK_COLON, "after a struct literal field name")) break;
         fi.value = parse_expr(p);
         if (!fi.value) break;

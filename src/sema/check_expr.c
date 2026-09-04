@@ -358,6 +358,64 @@ static Type *chk_call_item(C *c, Expr *e, Item *fn, bool has_self) {
     return fn->rtype ? fn->rtype : ty_prim(c->tc, TY_VOID);
 }
 
+/* Methods on `List<T>`. The receiver is the base of the field access, so it
+ * is already checked by the time this runs. */
+static Type *chk_list_method(C *c, Expr *e, Type *lt, Str name) {
+    Intrinsic id = intrinsic_list_method(name);
+    if (id == INTR_NONE) {
+        Diag *dg = diag_error(c->d, 306, e->call.callee->span,
+                              "no method `%.*s` on `%.*s`", (int)name.len, name.ptr,
+                              (int)ty_name(c->a, lt).len, ty_name(c->a, lt).ptr);
+        diag_help(dg, "`List<T>` has len, push, get, set and clear");
+        for (uint32_t i = 0; i < e->call.args.len; i++)
+            chk(c, e->call.args.data[i].value, NULL);
+        return chk_err(c);
+    }
+
+    e->res_kind  = RES_INTRINSIC;
+    e->intrinsic = (uint8_t)id;
+
+    Type    *i32 = ty_int(c->tc, 32, true);
+    Type    *vd  = ty_prim(c->tc, TY_VOID);
+    uint32_t n   = e->call.args.len;
+
+    uint32_t want = (id == INTR_LIST_SET)                              ? 2
+                    : (id == INTR_LIST_PUSH || id == INTR_LIST_GET)    ? 1
+                                                                       : 0;
+    if (n != want) {
+        diag_error(c->d, 304, e->span, "`%.*s` takes %u argument%s, found %u",
+                   (int)name.len, name.ptr, want, want == 1 ? "" : "s", n);
+        for (uint32_t i = 0; i < n; i++) chk(c, e->call.args.data[i].value, NULL);
+        return (id == INTR_LIST_GET) ? lt->elem : (id == INTR_LIST_LEN ? i32 : vd);
+    }
+
+    switch (id) {
+        case INTR_LIST_LEN: return i32;
+        case INTR_LIST_CLEAR: return vd;
+        case INTR_LIST_PUSH: {
+            Type *at = chk(c, e->call.args.data[0].value, lt->elem);
+            chk_expect_type(c, e->call.args.data[0].value->span, lt->elem, at,
+                            "in this `push`");
+            return vd;
+        }
+        case INTR_LIST_GET: {
+            Type *it = chk(c, e->call.args.data[0].value, i32);
+            chk_expect_type(c, e->call.args.data[0].value->span, i32, it,
+                            "as a list index");
+            return lt->elem;
+        }
+        default: { /* INTR_LIST_SET */
+            Type *it = chk(c, e->call.args.data[0].value, i32);
+            chk_expect_type(c, e->call.args.data[0].value->span, i32, it,
+                            "as a list index");
+            Type *at = chk(c, e->call.args.data[1].value, lt->elem);
+            chk_expect_type(c, e->call.args.data[1].value->span, lt->elem, at,
+                            "in this `set`");
+            return vd;
+        }
+    }
+}
+
 static Type *chk_call(C *c, Expr *e) {
     Expr *callee = e->call.callee;
 
@@ -421,6 +479,8 @@ static Type *chk_call(C *c, Expr *e) {
             return chk_err(c);
         }
 
+        if (bt->kind == TY_LIST) return chk_list_method(c, e, bt, callee->field.name);
+
         Str   tname = (bt->kind == TY_STRUCT || bt->kind == TY_ENUM) ? bt->name
                                                                     : ty_name(c->a, bt);
         Item *m     = prog_method(c->p, tname, callee->field.name);
@@ -472,6 +532,9 @@ static Type *chk_struct_lit(C *c, Expr *e) {
     for (uint32_t f = 0; f < decl->strukt.fields.len; f++) {
         Field *fl = &decl->strukt.fields.data[f];
         if (fl->deflt) continue;
+        /* A container field starts empty, so a literal need not name it. */
+        if (fl->rtype && (fl->rtype->kind == TY_LIST || fl->rtype->kind == TY_MAP))
+            continue;
         bool given = false;
         for (uint32_t i = 0; i < e->struct_lit.fields.len; i++)
             if (str_eq(e->struct_lit.fields.data[i].name, fl->name)) given = true;

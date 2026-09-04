@@ -19,6 +19,7 @@
 #include "../sema/taint.h"
 #include "audit.h"
 #include "build.h"
+#include "manifest.h"
 #include "../sema/ownership.h"
 #include "../sema/resolve.h"
 
@@ -91,30 +92,6 @@ static int report(Ctx *c) {
     return 0;
 }
 
-static int cmd_check(int argc, char **argv) {
-    if (argc < 1) {
-        fprintf(stderr, "usage: beryl check <file.be>...\n");
-        return 2;
-    }
-    Ctx c = ctx_new();
-    for (int i = 0; i < argc; i++)
-        if (!load(&c, argv[i])) return 2;
-
-    if (diag_errors(c.d) == 0) {
-        resolve_program(c.d, c.p);
-        check_program(c.d, c.p);
-        if (diag_errors(c.d) == 0) ownership_check(c.d, c.p);
-        if (diag_errors(c.d) == 0) {
-            SecurityOpts so = {0};
-            taint_check(c.d, c.p, so);
-        }
-    }
-    int rc = report(&c);
-    if (rc == 0) printf("ok\n");
-    arena_free(c.a);
-    return rc;
-}
-
 static int cmd_ast(int argc, char **argv) {
     if (argc < 1) {
         fprintf(stderr, "usage: beryl ast <file.be>\n");
@@ -183,7 +160,7 @@ static int cmd_fmt(int argc, char **argv) {
 /* Loads every file, then runs resolve, check and ownership in order. Each
  * stage only runs when the previous one was clean, so a syntax error never
  * produces a cascade of invented type errors. */
-static bool frontend(Ctx *c, int nfiles, char **files) {
+static bool frontend(Ctx *c, int nfiles, char **files, bool forbid_unsafe) {
     for (int i = 0; i < nfiles; i++)
         if (!load(c, files[i])) return false;
     if (diag_errors(c->d)) return false;
@@ -192,8 +169,7 @@ static bool frontend(Ctx *c, int nfiles, char **files) {
     if (!check_program(c->d, c->p)) return false;
     if (!ownership_check(c->d, c->p)) return false;
 
-    /* forbid_unsafe comes from beryl.toml once a manifest is loaded. */
-    SecurityOpts so = {0};
+    SecurityOpts so = {forbid_unsafe};
     if (!taint_check(c->d, c->p, so)) return false;
     return true;
 }
@@ -230,6 +206,122 @@ static Flags parse_flags(Arena *a, int argc, char **argv) {
     return f;
 }
 
+/* When no files are named, a package builds itself: beryl.toml is read and
+ * every .be under src/ is compiled, in sorted order so a build is
+ * reproducible. */
+static Manifest resolve_inputs(Ctx *c, Flags *f) {
+    Manifest m = manifest_load(c->a, c->d, ".");
+    if (f->nfiles > 0) return m;
+    if (!m.found) return m;
+
+    PathVec files = list_beryl_files(c->a, "src");
+    if (files.len == 0) {
+        Diag *dg = diag_error(c->d, 802, SPAN_NONE, "no .be files found under src/");
+        diag_help(dg, "put your sources in src/, or name them on the command line");
+        return m;
+    }
+    f->files = (char **)arena_alloc(c->a, sizeof(char *) * files.len, 8);
+    for (uint32_t i = 0; i < files.len; i++)
+        f->files[f->nfiles++] = str_cstr(c->a, files.data[i]);
+
+    if (!str_empty(m.enfusion_prefix)) f->prefix = str_cstr(c->a, m.enfusion_prefix);
+    if (!f->out_dir && !str_empty(m.enfusion_out))
+        f->out_dir = str_cstr(c->a, m.enfusion_out);
+    return m;
+}
+
+static bool write_text_file(const char *path, const char *content) {
+    FILE *fp = fopen(path, "wb");
+    if (!fp) return false;
+    fwrite(content, 1, strlen(content), fp);
+    fclose(fp);
+    return true;
+}
+
+static int cmd_new(int argc, char **argv) {
+    if (argc < 1) {
+        fprintf(stderr, "usage: beryl new <name>\n");
+        return 2;
+    }
+    const char *name = argv[0];
+
+    char dir[512], src[512], path[640];
+    snprintf(dir, sizeof dir, "%s", name);
+    snprintf(src, sizeof src, "%s/src", name);
+#ifdef _WIN32
+    char cmd[1024];
+    snprintf(cmd, sizeof cmd, "cmd /c \"mkdir \"%s\"\" >nul 2>&1", src);
+    system(cmd);
+#else
+    char cmd[1024];
+    snprintf(cmd, sizeof cmd, "mkdir -p '%s'", src);
+    system(cmd);
+#endif
+
+    char toml[1024];
+    snprintf(toml, sizeof toml,
+             "[package]\n"
+             "name    = \"%s\"\n"
+             "version = \"0.1.0\"\n"
+             "\n"
+             "[security]\n"
+             "# No dependency can execute code at build time; Beryl has no build\n"
+             "# scripts and no procedural macros. This forbids @unsafe as well.\n"
+             "forbid_unsafe = true\n"
+             "\n"
+             "# Uncomment to also emit EnforceScript for Arma Reforger:\n"
+             "# [target.enfusion]\n"
+             "# prefix = \"%s\"\n"
+             "# out    = \"../MyMod/scripts/Game/MyMod\"\n",
+             name, "MOD");
+    snprintf(path, sizeof path, "%s/beryl.toml", dir);
+    if (!write_text_file(path, toml)) {
+        fprintf(stderr, "beryl: cannot write %s\n", path);
+        return 2;
+    }
+
+    const char *main_be =
+        "//! A new Beryl package.\n"
+        "\n"
+        "module main\n"
+        "\n"
+        "pub struct Counter {\n"
+        "    n: i32 = 0\n"
+        "    step: i32 = 1\n"
+        "}\n"
+        "\n"
+        "pub fn Counter.bump(inout self) {\n"
+        "    self.n += self.step\n"
+        "}\n"
+        "\n"
+        "fn main() {\n"
+        "    var c = Counter{ step: 5 }\n"
+        "    c.bump()\n"
+        "    c.bump()\n"
+        "    print(\"counter = \")\n"
+        "    println(c.n)\n"
+        "}\n"
+        "\n"
+        "test \"bump advances by the step\" {\n"
+        "    var c = Counter{ step: 5 }\n"
+        "    c.bump()\n"
+        "    assert(c.n == 5)\n"
+        "    c.bump()\n"
+        "    assert(c.n == 10)\n"
+        "}\n";
+    snprintf(path, sizeof path, "%s/src/main.be", dir);
+    if (!write_text_file(path, main_be)) {
+        fprintf(stderr, "beryl: cannot write %s\n", path);
+        return 2;
+    }
+
+    printf("created %s\n", name);
+    printf("  cd %s\n", name);
+    printf("  beryl test     # runs the test block natively\n");
+    printf("  beryl run      # builds and runs\n");
+    return 0;
+}
+
 /* Derives `build/<stem>.exe` from the first input file. */
 static Str default_out(Arena *a, const char *first) {
     Str  p    = str_from(first);
@@ -247,16 +339,18 @@ static Str default_out(Arena *a, const char *first) {
 }
 
 static int cmd_build(int argc, char **argv, CgenMode mode, bool then_run) {
-    Ctx   c = ctx_new();
-    Flags f = parse_flags(c.a, argc, argv);
+    Ctx      c = ctx_new();
+    Flags    f = parse_flags(c.a, argc, argv);
+    Manifest m = resolve_inputs(&c, &f);
     if (f.nfiles < 1) {
         fprintf(stderr, "usage: beryl %s [--release] [--emit-c] [-o out] <file.be>...\n",
                 then_run ? "run" : "build");
+        fprintf(stderr, "       (or run inside a package with beryl.toml and src/)\n");
         arena_free(c.a);
         return 2;
     }
 
-    if (!frontend(&c, f.nfiles, f.files)) {
+    if (!frontend(&c, f.nfiles, f.files, m.forbid_unsafe)) {
         int rc = report(&c);
         arena_free(c.a);
         return rc ? rc : 1;
@@ -309,19 +403,38 @@ static int cmd_build(int argc, char **argv, CgenMode mode, bool then_run) {
     return rc;
 }
 
-static int cmd_audit(int argc, char **argv) {
-    if (argc < 1) {
-        fprintf(stderr, "usage: beryl audit <file.be>...\n");
+static int cmd_check(int argc, char **argv) {
+    Ctx      c = ctx_new();
+    Flags    f = parse_flags(c.a, argc, argv);
+    Manifest m = resolve_inputs(&c, &f);
+    if (f.nfiles < 1) {
+        fprintf(stderr, "usage: beryl check <file.be>...\n");
+        fprintf(stderr, "       (or run inside a package with beryl.toml and src/)\n");
+        arena_free(c.a);
         return 2;
     }
-    Ctx   c = ctx_new();
-    Flags f = parse_flags(c.a, argc, argv);
-    if (!frontend(&c, f.nfiles, f.files)) {
+    bool ok = frontend(&c, f.nfiles, f.files, m.forbid_unsafe);
+    int  rc = report(&c);
+    if (ok && rc == 0) printf("ok\n");
+    arena_free(c.a);
+    return rc;
+}
+
+static int cmd_audit(int argc, char **argv) {
+    Ctx      c = ctx_new();
+    Flags    f = parse_flags(c.a, argc, argv);
+    Manifest m = resolve_inputs(&c, &f);
+    if (f.nfiles < 1) {
+        fprintf(stderr, "usage: beryl audit <file.be>...\n");
+        arena_free(c.a);
+        return 2;
+    }
+    if (!frontend(&c, f.nfiles, f.files, m.forbid_unsafe)) {
         int rc = report(&c);
         arena_free(c.a);
         return rc ? rc : 1;
     }
-    int rc = audit_report(c.p, c.sm, STR_EMPTY, false);
+    int rc = audit_report(c.p, c.sm, m.name, m.forbid_unsafe);
     arena_free(c.a);
     return rc;
 }
@@ -356,6 +469,8 @@ int main(int argc, char **argv) {
     if (strcmp(cmd, "run") == 0) return cmd_build(n, rest, CGEN_PROGRAM, true);
     if (strcmp(cmd, "test") == 0) return cmd_build(n, rest, CGEN_TESTS, true);
     if (strcmp(cmd, "audit") == 0) return cmd_audit(n, rest);
+    if (strcmp(cmd, "new") == 0) return cmd_new(n, rest);
+    if (strcmp(cmd, "new") == 0) return cmd_new(n, rest);
     if (strcmp(cmd, "fmt") == 0) return cmd_fmt(n, rest);
     if (strcmp(cmd, "ast") == 0) return cmd_ast(n, rest);
     if (strcmp(cmd, "version") == 0 || strcmp(cmd, "--version") == 0) {

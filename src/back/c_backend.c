@@ -206,6 +206,35 @@ static void ensure_type(G *g, Type *t) {
             line(g, "");
             break;
         }
+        case TY_LIST: {
+            ensure_type(g, t->elem);
+            Str id = type_id(g, t);
+            Str el = ctype(g, t->elem);
+            line(g, "typedef struct { %.*s *data; int32_t len; int32_t cap; } %.*s;",
+                 S(el), S(id));
+            line(g, "static void %.*s_push(%.*s *l, %.*s v) {", S(id), S(id), S(el));
+            line(g, "    if (l->len == l->cap) {");
+            line(g, "        l->cap = l->cap ? l->cap * 2 : 8;");
+            line(g, "        l->data = (%.*s *)beryl_grow(l->data, sizeof(%.*s) * "
+                    "(size_t)l->cap);",
+                 S(el), S(el));
+            line(g, "    }");
+            line(g, "    l->data[l->len++] = v;");
+            line(g, "}");
+            line(g, "static %.*s %.*s_get(const %.*s *l, int64_t i, const char *f, int n) {",
+                 S(el), S(id), S(id));
+            line(g, "    be_idx(i, l->len, f, n);");
+            line(g, "    return l->data[i];");
+            line(g, "}");
+            line(g, "static void %.*s_set(%.*s *l, int64_t i, %.*s v, const char *f, "
+                    "int n) {",
+                 S(id), S(id), S(el));
+            line(g, "    be_idx(i, l->len, f, n);");
+            line(g, "    l->data[i] = v;");
+            line(g, "}");
+            line(g, "");
+            break;
+        }
         case TY_ERRUNION: {
             ensure_type(g, t->elem);
             Str id = type_id(g, t);
@@ -353,7 +382,46 @@ static Str gen_binary(G *g, Expr *e) {
     return sb_finish(&sb);
 }
 
+/* Container methods are emitted against the helpers generated with the list's
+ * type, so the receiver has to be rendered as storage rather than a value. */
+static Str gen_list_method(G *g, Expr *e) {
+    Expr  *recv = e->call.callee->field.base;
+    Type  *lt   = recv->type;
+    Str    id   = type_id(g, lt);
+    Str    r    = gen_expr(g, recv);
+    Str    f    = file_of(g, e->span);
+    ArgVec args = e->call.args;
+
+    SB sb;
+    sb_init(&sb, g->a);
+    switch ((Intrinsic)e->intrinsic) {
+        case INTR_LIST_LEN: sb_fmt(&sb, "(%.*s).len", S(r)); break;
+        case INTR_LIST_CLEAR:
+            line(g, "(%.*s).len = 0;", S(r));
+            sb_cstr(&sb, "((void)0)");
+            break;
+        case INTR_LIST_PUSH:
+            line(g, "%.*s_push(&(%.*s), %.*s);", S(id), S(r),
+                 S(gen_expr(g, args.data[0].value)));
+            sb_cstr(&sb, "((void)0)");
+            break;
+        case INTR_LIST_GET:
+            sb_fmt(&sb, "%.*s_get(&(%.*s), (int64_t)%.*s, \"%.*s\", %u)", S(id), S(r),
+                   S(gen_expr(g, args.data[0].value)), S(f), line_of(g, e->span));
+            break;
+        default: /* INTR_LIST_SET */
+            line(g, "%.*s_set(&(%.*s), (int64_t)%.*s, %.*s, \"%.*s\", %u);", S(id), S(r),
+                 S(gen_expr(g, args.data[0].value)),
+                 S(gen_expr(g, args.data[1].value)), S(f), line_of(g, e->span));
+            sb_cstr(&sb, "((void)0)");
+            break;
+    }
+    return sb_finish(&sb);
+}
+
 static Str gen_call_intrinsic(G *g, Expr *e) {
+    if ((Intrinsic)e->intrinsic >= INTR_LIST_LEN) return gen_list_method(g, e);
+
     SB sb;
     sb_init(&sb, g->a);
     ArgVec args = e->call.args;
@@ -777,7 +845,12 @@ static void gen_stmt(G *g, Stmt *s) {
                     }
                 }
                 Str ct = ctype(g, dt);
-                line(g, "%.*s %.*s;", S(ct), S(nm));
+                /* A container starts empty. Everything else was proved
+                 * assigned-before-read by the ownership pass, so it needs no
+                 * initializer here. */
+                if (dt && (dt->kind == TY_LIST || dt->kind == TY_MAP))
+                    line(g, "%.*s %.*s = {0};", S(ct), S(nm));
+                else line(g, "%.*s %.*s;", S(ct), S(nm));
             }
             break;
         }

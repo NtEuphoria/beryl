@@ -42,6 +42,18 @@ bool p_expect(P *p, TokKind k, const char *ctx) {
     return false;
 }
 
+/* Accepts a field or method name. A reserved word is fine here: `list.set(i, v)`
+ * is unambiguous, because nothing but a name can follow a `.`. */
+bool p_member_name(P *p, Str *out, const char *ctx) {
+    Token t = p_peek(p);
+    if (t.kind == TK_IDENT || tok_is_keyword(t.kind)) {
+        p_next(p);
+        *out = t.text;
+        return true;
+    }
+    return p_expect(p, TK_IDENT, ctx);
+}
+
 void p_skip_newlines(P *p) {
     while (p_check(p, TK_NEWLINE) || p_check(p, TK_DOC)) p_next(p);
 }

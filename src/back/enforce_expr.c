@@ -97,7 +97,40 @@ static Str call_args(E *e, Expr *x, Item *fn, Str extra_out) {
     return sb_finish(&sb);
 }
 
+/* `List<T>` is the engine's own `array<T>` on this target, so its methods are
+ * the engine's methods. Nothing is reimplemented. */
+static Str gen_list_method(E *e, Expr *x) {
+    Expr  *recv = x->call.callee->field.base;
+    Str    r    = ef_expr(e, recv);
+    ArgVec args = x->call.args;
+
+    SB sb;
+    sb_init(&sb, e->a);
+    switch ((Intrinsic)x->intrinsic) {
+        case INTR_LIST_LEN: sb_fmt(&sb, "%.*s.Count()", S(r)); break;
+        case INTR_LIST_GET:
+            sb_fmt(&sb, "%.*s.Get(%.*s)", S(r), S(ef_expr(e, args.data[0].value)));
+            break;
+        case INTR_LIST_PUSH:
+            ef_line(e, "%.*s.Insert(%.*s);", S(r), S(ef_expr(e, args.data[0].value)));
+            sb_cstr(&sb, "0");
+            break;
+        case INTR_LIST_SET:
+            ef_line(e, "%.*s.Set(%.*s, %.*s);", S(r), S(ef_expr(e, args.data[0].value)),
+                    S(ef_expr(e, args.data[1].value)));
+            sb_cstr(&sb, "0");
+            break;
+        default: /* INTR_LIST_CLEAR */
+            ef_line(e, "%.*s.Clear();", S(r));
+            sb_cstr(&sb, "0");
+            break;
+    }
+    return sb_finish(&sb);
+}
+
 static Str gen_intrinsic(E *e, Expr *x) {
+    if ((Intrinsic)x->intrinsic >= INTR_LIST_LEN) return gen_list_method(e, x);
+
     SB sb;
     sb_init(&sb, e->a);
     ArgVec args = x->call.args;
@@ -417,6 +450,10 @@ void ef_stmt(E *e, Stmt *s) {
             if (s->let.init) {
                 Str v = copy_if_needed(e, s->let.init, ef_expr(e, s->let.init));
                 ef_line(e, "%.*s %.*s = %.*s;", S(ef_type(e, t)), S(ef_ident(e, s->let.name)), S(v));
+            } else if (t && (t->kind == TY_LIST || t->kind == TY_MAP)) {
+                /* A container starts empty; a null ref would not be usable. */
+                ef_line(e, "%.*s %.*s = new %.*s();", S(ef_type(e, t)),
+                        S(ef_ident(e, s->let.name)), S(ef_type(e, t)));
             } else {
                 ef_line(e, "%.*s %.*s;", S(ef_type(e, t)), S(ef_ident(e, s->let.name)));
             }

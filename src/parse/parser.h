@@ -34,6 +34,7 @@ Token   p_next(P *p);
 bool    p_check(P *p, TokKind k);
 bool    p_accept(P *p, TokKind k);
 bool    p_expect(P *p, TokKind k, const char *ctx);
+bool    p_member_name(P *p, Str *out, const char *ctx);
 void    p_skip_newlines(P *p);
 Span    p_span_from(P *p, uint32_t start_pos);
 

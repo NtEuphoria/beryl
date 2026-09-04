@@ -103,6 +103,11 @@ typedef enum {
 
 const char *tok_name(TokKind k);
 
+/* True for the reserved words. A keyword is still a perfectly good member
+ * name -- `list.set(...)` reads better than any alternative -- so the parser
+ * accepts one wherever a field or method name is expected. */
+bool tok_is_keyword(TokKind k);
+
 typedef struct {
     TokKind  kind;
     Span     span;

@@ -32,8 +32,17 @@ pub struct Store {
     total: i32 = 0
 }
 
-pub fn Store.count(inout self, by: i32) {
-    self.total += by
+pub fn Store.add(inout self, id: i32) {
+    self.ids.push(id)
+    self.total += 1
+}
+
+pub fn Store.sum(let self) -> i32 {
+    var acc = 0
+    for i in 0..self.ids.len() {
+        acc += self.ids.get(i)
+    }
+    return acc
 }
 
 pub enum Mode {

@@ -48,6 +48,13 @@ void beryl_test_begin(const char *name);
 void beryl_test_assert(bool ok, const char *expr, const char *file, int line);
 int  beryl_test_summary(void);
 
+/* ---- allocation -------------------------------------------------------- */
+/* The only allocator Beryl needs so far, used by `List<T>`. Failure aborts:
+ * a program that cannot grow a list has no useful way to continue. */
+
+void *beryl_grow(void *p, size_t bytes);
+void  beryl_release(void *p);
+
 /* ---- bounds ------------------------------------------------------------ */
 
 static inline int64_t be_idx(int64_t i, int64_t n, const char *f, int l) {
