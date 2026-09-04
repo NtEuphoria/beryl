@@ -107,7 +107,11 @@ typedef struct {
     TokKind  kind;
     Span     span;
     Str      text;   /* identifier name, cooked string value, or raw literal text */
-    Str      suffix; /* numeric type suffix, empty when absent */
+    Str      suffix;
+    /* True when a line break preceded this token. The lexer's newline rule
+     * suppresses most of these, but a `>` closing a generic type can never
+     * end an expression, so the parser needs the raw fact as well. */
+    bool nl_before; /* numeric type suffix, empty when absent */
     uint64_t ival;   /* TK_INT, TK_CHAR */
     double   fval;   /* TK_FLOAT */
 } Token;

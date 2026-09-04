@@ -15,6 +15,7 @@
 #include "../parse/parser.h"
 #include "../parse/print.h"
 #include "../sema/check.h"
+#include "../back/enforce_backend.h"
 #include "build.h"
 #include "../sema/ownership.h"
 #include "../sema/resolve.h"
@@ -191,17 +192,29 @@ typedef struct {
     const char *out;
     bool        release;
     bool        emit_c;
+    bool        enfusion;
+    const char *prefix;
+    const char *out_dir;
     int         nfiles;
     char      **files;
 } Flags;
 
 static Flags parse_flags(Arena *a, int argc, char **argv) {
-    Flags f = {0};
-    f.files = (char **)arena_alloc(a, sizeof(char *) * (size_t)(argc > 0 ? argc : 1), 8);
+    Flags f  = {0};
+    f.prefix = "BE";
+    f.files  = (char **)arena_alloc(a, sizeof(char *) * (size_t)(argc > 0 ? argc : 1), 8);
     for (int i = 0; i < argc; i++) {
         if (strcmp(argv[i], "--release") == 0) f.release = true;
         else if (strcmp(argv[i], "--emit-c") == 0) f.emit_c = true;
         else if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) f.out = argv[++i];
+        else if ((strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--target") == 0) &&
+                 i + 1 < argc) {
+            const char *t = argv[++i];
+            if (strcmp(t, "enfusion") == 0) f.enfusion = true;
+            else if (strcmp(t, "native") != 0)
+                fprintf(stderr, "beryl: unknown target `%s`; use native or enfusion\n", t);
+        } else if (strcmp(argv[i], "--prefix") == 0 && i + 1 < argc) f.prefix = argv[++i];
+        else if (strcmp(argv[i], "--out-dir") == 0 && i + 1 < argc) f.out_dir = argv[++i];
         else f.files[f.nfiles++] = argv[i];
     }
     return f;
@@ -239,6 +252,31 @@ static int cmd_build(int argc, char **argv, CgenMode mode, bool then_run) {
         return rc ? rc : 1;
     }
     report(&c); /* warnings, if any */
+
+    if (f.enfusion) {
+        EnfusionOpts eo = {0};
+        eo.prefix       = str_from(f.prefix);
+        eo.out_dir      = str_from(f.out_dir ? f.out_dir : ".");
+
+        if (!enfusion_lint(c.d, c.p, eo)) {
+            report(&c);
+            arena_free(c.a);
+            return 1;
+        }
+        if (f.out_dir) {
+            if (!enfusion_emit(c.a, c.sm, c.d, c.p, eo)) {
+                report(&c);
+                arena_free(c.a);
+                return 1;
+            }
+            printf("emitted EnforceScript into %s\n", f.out_dir);
+        } else {
+            Str out = enfusion_render_all(c.a, c.sm, c.d, c.p, eo);
+            fwrite(out.ptr, 1, out.len, stdout);
+        }
+        arena_free(c.a);
+        return 0;
+    }
 
     BuildOpts o = {0};
     o.cache_dir = ".beryl-cache";

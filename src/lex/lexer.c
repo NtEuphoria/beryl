@@ -598,6 +598,7 @@ TokenVec lex_file(Arena *a, SourceMap *sm, DiagBag *d, Interner *in, uint32_t fi
             if (depth > 0) depth--;
         }
 
+        t.nl_before = raw.data[i].nl_before;
         vec_push(a, out, t);
         if (k != TK_DOC) prev = k;
     }

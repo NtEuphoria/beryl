@@ -214,6 +214,9 @@ static Item *parse_struct(P *p, bool is_pub, Str doc, AttrVec attrs) {
             p_skip_newlines(p);
             sep = true;
         }
+        /* A real line break separates too, which matters after a type that
+         * ends in `>` — the lexer cannot emit a terminator there. */
+        if (p_peek(p).nl_before) sep = true;
         if (!sep) break;
         if (p->pos == before) p_next(p);
     }
@@ -255,6 +258,9 @@ static Item *parse_enum(P *p, bool is_pub, Str doc, AttrVec attrs) {
             p_skip_newlines(p);
             sep = true;
         }
+        /* A real line break separates too, which matters after a type that
+         * ends in `>` — the lexer cannot emit a terminator there. */
+        if (p_peek(p).nl_before) sep = true;
         if (!sep) break;
         if (p->pos == before) p_next(p);
     }

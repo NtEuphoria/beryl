@@ -273,7 +273,10 @@ Expr *parse_block(P *p) {
 
         if (p_check(p, TK_RBRACE) || p_check(p, TK_EOF)) break;
 
-        if (!p_accept(p, TK_NEWLINE)) {
+        /* A line break terminates a statement even when the lexer suppressed
+         * the virtual newline, which it does after any token that cannot end
+         * an expression — `>` closing a generic type, for instance. */
+        if (!p_accept(p, TK_NEWLINE) && !p_peek(p).nl_before) {
             if (p->pos != p->last_error_pos) {
                 p->last_error_pos = p->pos;
                 Diag *dg          = diag_error(p->d, 201, p_peek(p).span,
