@@ -1,0 +1,916 @@
+<title>Beryl Roadmap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap">
+
+<style>
+:root {
+  /* Heliodor — the golden beryl. Neutrals carry its warmth without being cream. */
+  --ground:    #f6f6f3;
+  --surface:   #ffffff;
+  --surface-2: #ecebe4;
+  --line:      #d8d6ca;
+  --line-soft: #e6e4da;
+  --ink:       #1b1a13;
+  --dim:       #66634f;
+  --gold:      #8a6410;
+  --gold-ink:  #5d430a;
+  --gold-bg:   #f2e7c8;
+  --crit:      #a03325;
+  --crit-bg:   #f6ded9;
+  --warn:      #8a5a12;
+  --warn-bg:   #f6e7cd;
+  --ok:        #2f6b46;
+  --ok-bg:     #d9ecdf;
+  --code-bg:   #f0efe8;
+  color-scheme: light;
+
+  --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --sans:  "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:  "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --measure: 66ch;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:    #14140f;
+    --surface:   #1c1b15;
+    --surface-2: #24231a;
+    --line:      #3a382c;
+    --line-soft: #2b2a20;
+    --ink:       #e8e5d8;
+    --dim:       #9b9682;
+    --gold:      #d9ae4e;
+    --gold-ink:  #f0d391;
+    --gold-bg:   #33290f;
+    --crit:      #e08171;
+    --crit-bg:   #3a1f1a;
+    --warn:      #d9a05b;
+    --warn-bg:   #33280f;
+    --ok:        #79c396;
+    --ok-bg:     #1a2f22;
+    --code-bg:   #191811;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground:    #14140f;
+  --surface:   #1c1b15;
+  --surface-2: #24231a;
+  --line:      #3a382c;
+  --line-soft: #2b2a20;
+  --ink:       #e8e5d8;
+  --dim:       #9b9682;
+  --gold:      #d9ae4e;
+  --gold-ink:  #f0d391;
+  --gold-bg:   #33290f;
+  --crit:      #e08171;
+  --crit-bg:   #3a1f1a;
+  --warn:      #d9a05b;
+  --warn-bg:   #33280f;
+  --ok:        #79c396;
+  --ok-bg:     #1a2f22;
+  --code-bg:   #191811;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1020px; margin: 0 auto; padding: 0 30px; }
+
+/* ---- masthead ---- */
+
+header.mast { padding: 52px 0 26px; }
+.kicker {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 12px;
+}
+h1 {
+  font-family: var(--serif);
+  font-size: 52px;
+  line-height: 1.03;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 14px;
+  text-wrap: balance;
+}
+.standfirst {
+  font-family: var(--serif);
+  font-size: 20px;
+  line-height: 1.5;
+  color: var(--dim);
+  max-width: 58ch;
+  margin: 0;
+}
+.standfirst strong { color: var(--ink); font-weight: 600; }
+
+/* ---- the decisive callout ---- */
+
+.decide {
+  margin: 34px 0 0;
+  border: 1px solid var(--gold);
+  background: var(--surface);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.decide .band {
+  background: var(--gold-bg);
+  color: var(--gold-ink);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 8px 22px;
+  border-bottom: 1px solid var(--gold);
+}
+.decide .inner { padding: 22px 24px 24px; }
+.decide h2 {
+  font-family: var(--serif);
+  font-size: 27px;
+  margin: 0 0 10px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.decide p { margin: 0 0 12px; max-width: var(--measure); }
+.decide p:last-child { margin-bottom: 0; }
+.decide ol { margin: 0 0 14px; padding-left: 20px; max-width: var(--measure); }
+.decide li { margin-bottom: 5px; }
+
+/* ---- nav ---- */
+
+nav {
+  position: sticky; top: 0; z-index: 10;
+  background: var(--ground);
+  border-bottom: 1px solid var(--line);
+  margin-top: 40px;
+}
+nav .wrap { display: flex; gap: 3px; overflow-x: auto; padding-top: 9px; padding-bottom: 9px; }
+nav a {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-decoration: none;
+  padding: 5px 10px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+nav a:hover { color: var(--gold-ink); background: var(--gold-bg); }
+nav a:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+/* ---- sections ---- */
+
+section { padding: 44px 0 8px; }
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 7px;
+}
+h2.sec {
+  font-family: var(--serif);
+  font-size: 33px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  margin: 0 0 12px;
+  text-wrap: balance;
+}
+h3 {
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 600;
+  margin: 30px 0 8px;
+}
+p { max-width: var(--measure); }
+p.note { color: var(--dim); font-size: 15px; }
+
+code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: var(--code-bg);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+pre {
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  background: var(--code-bg);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 14px 0 0;
+}
+pre code { background: none; padding: 0; }
+.k { color: var(--gold-ink); font-weight: 500; }
+.cm { color: var(--dim); font-style: italic; }
+.er { color: var(--crit); }
+
+/* ---- tables ---- */
+
+.tbl { overflow-x: auto; border: 1px solid var(--line-soft); border-radius: 3px; margin-top: 16px; }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 500;
+  padding: 10px 15px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+td { padding: 10px 15px; border-bottom: 1px solid var(--line-soft); background: var(--surface); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.id { font-family: var(--mono); font-weight: 700; white-space: nowrap; }
+td.desc { color: var(--dim); }
+td.m { font-family: var(--mono); white-space: nowrap; font-size: 13px; }
+
+.sev { display:inline-block; white-space:nowrap; font-family: var(--mono); font-size: 10px; letter-spacing:0.06em; text-transform:uppercase; padding:2px 7px; border-radius:9px; }
+.sev.c { background: var(--crit-bg); color: var(--crit); }
+.sev.p { background: var(--warn-bg); color: var(--warn); }
+.sev.e { background: var(--surface-2); color: var(--dim); }
+
+/* ---- release spine ---- */
+
+.spine { margin-top: 22px; border-left: 2px solid var(--line); padding-left: 0; }
+.rel { position: relative; padding: 0 0 30px 30px; }
+.rel::before {
+  content: "";
+  position: absolute;
+  left: -7px; top: 7px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--ground);
+  border: 2px solid var(--line);
+}
+.rel.now::before { background: var(--gold); border-color: var(--gold); }
+.rel .tag {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gold-ink);
+  letter-spacing: 0.04em;
+}
+.rel h3 { font-family: var(--serif); font-size: 22px; margin: 2px 0 6px; font-weight: 600; }
+.rel .why { color: var(--dim); font-size: 15px; margin: 0 0 10px; max-width: var(--measure); }
+.rel ul { margin: 0 0 12px; padding-left: 19px; max-width: var(--measure); font-size: 15px; }
+.rel li { margin-bottom: 3px; }
+.exit {
+  font-size: 14.5px;
+  border-left: 2px solid var(--gold);
+  background: var(--surface);
+  padding: 10px 14px;
+  border-radius: 0 3px 3px 0;
+  max-width: var(--measure);
+}
+.exit b { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); display: block; margin-bottom: 3px; font-weight: 500; }
+.size { font-family: var(--mono); font-size: 12px; color: var(--dim); margin-top: 8px; }
+
+/* ---- idea cards ---- */
+
+.ideas { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+@media (max-width: 780px) { .ideas { grid-template-columns: 1fr; } }
+.idea { background: var(--surface); border: 1px solid var(--line-soft); border-radius: 3px; padding: 18px 20px; }
+.idea h4 { font-family: var(--serif); font-size: 19px; margin: 0 0 6px; font-weight: 600; }
+.idea p { font-size: 14.5px; margin: 0 0 9px; max-width: none; }
+.idea p:last-child { margin-bottom: 0; }
+.idea .payoff { font-family: var(--mono); font-size: 11px; color: var(--gold-ink); letter-spacing: 0.04em; }
+
+blockquote {
+  margin: 18px 0 0;
+  padding: 0 0 0 18px;
+  border-left: 3px solid var(--gold);
+  font-family: var(--serif);
+  font-size: 19px;
+  line-height: 1.5;
+  color: var(--ink);
+  max-width: 58ch;
+}
+
+footer { padding: 40px 0 60px; margin-top: 40px; border-top: 1px solid var(--line); color: var(--dim); font-size: 14.5px; }
+footer strong { color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+@media (max-width: 640px) { h1 { font-size: 36px; } .standfirst { font-size: 18px; } h2.sec { font-size: 27px; } }
+</style>
+
+<header class="mast wrap">
+  <p class="kicker">Beryl &middot; written 2026-09-04 against v0.1</p>
+  <h1>Roadmap</h1>
+  <p class="standfirst">
+    v0.1 works: a 297&nbsp;KB compiler, two back ends, and EnforceScript that
+    compiles cleanly in real Workbench. This is the plan for everything it does
+    not yet do &mdash; ordered by <strong>one argument about what Beryl is
+    for</strong>, and gated on <strong>one experiment that could end the
+    project</strong>.
+  </p>
+
+  <div class="decide">
+    <div class="band">Do this before building anything else</div>
+    <div class="inner">
+      <h2>Port a real SPARKOS MESH class and ship it</h2>
+      <p>Not an example &mdash; a class that is <em>currently in the mod</em>.
+      Take <code>SPK_MeshStore.c</code> and <code>SPK_PID.c</code> out, rewrite
+      them in Beryl, generate, delete the originals, run it in-game.</p>
+      <p>Then answer honestly:</p>
+      <ol>
+        <li>Was the loop actually faster, or did generating and re-generating eat the gain?</li>
+        <li>Did anything break that the type checker should have caught?</li>
+        <li>Was reading the generated script in Workbench tolerable when something <em>did</em> break?</li>
+        <li>Would you do it again for the next class?</li>
+      </ol>
+      <p>If the answer to (4) is no, <strong>stop and reconsider the whole
+      project</strong> before writing another 10,000 lines. Everything else on
+      this page is a plan for a thing that might not need to exist. This is the
+      only part that tells you whether it does.</p>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <div class="wrap">
+    <a href="#thesis">Thesis</a>
+    <a href="#editions">Two editions</a>
+    <a href="#ledger">The ledger</a>
+    <a href="#releases">Releases</a>
+    <a href="#keystones">Keystones</a>
+    <a href="#new">Worth adding</a>
+    <a href="#nongoals">Non-goals</a>
+    <a href="#risks">Risks</a>
+    <a href="#decisions">Decisions</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<section id="thesis">
+  <p class="eyebrow">Why the ordering below is what it is</p>
+  <h2 class="sec">Beryl is two languages sharing one compiler</h2>
+
+  <div class="ideas">
+    <div class="idea">
+      <h4>Beryl&thinsp;/&thinsp;Enfusion</h4>
+      <p class="payoff">(a) &middot; ships first &middot; the wedge</p>
+      <p>A better language for Arma Reforger mod logic. Write it once, test it
+      natively in milliseconds, emit EnforceScript that Workbench compiles.</p>
+    </div>
+    <div class="idea">
+      <h4>Beryl</h4>
+      <p class="payoff">(b) &middot; a stated goal &middot; years out</p>
+      <p>A general-purpose systems language competing with Rust &mdash; without
+      the engine parts, built from the same compiler rather than a fork.</p>
+    </div>
+  </div>
+
+  <p style="margin-top:18px">Both are goals. <strong>(a) ships first, because it
+  is the wedge.</strong> (b) is the harder of the two by a wide margin: it needs
+  generics, traits, concurrency, an ecosystem, a registry, an LSP,
+  cross-platform support, years of hardening &mdash; and a pitch better than
+  &ldquo;like Rust, but younger with fewer libraries,&rdquo; which is a losing
+  one.</p>
+
+  <blockquote>(a) has a moat, and it is a good one: nobody else can give you a
+  fast test loop for EnforceScript. That advantage is structural &mdash; it
+  comes from having a second back end &mdash; and no linter or editor plugin
+  can copy it.</blockquote>
+
+  <p style="margin-top:18px">Taking that seriously reshuffles the obvious
+  priorities considerably:</p>
+
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Item</th><th>Was</th><th>Becomes</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>Engine API bindings</td><td class="desc">not planned</td><td><span class="sev c">highest</span></td><td class="desc">without them you can only write the pure-logic half of a mod</td></tr>
+        <tr><td>Component &amp; RPC scaffolding</td><td class="desc">not planned</td><td><span class="sev c">highest</span></td><td class="desc">same</td></tr>
+        <tr><td>Codegen trust</td><td class="desc">noted as S9</td><td><span class="sev c">highest</span></td><td class="desc">you cannot ship mod code you do not trust</td></tr>
+        <tr><td>Module system</td><td class="desc">believed working</td><td><span class="sev p">high</span></td><td class="desc">it is broken, and it is cheap to fix</td></tr>
+        <tr><td>Generics</td><td class="desc">headline v0.2</td><td><span class="sev e">medium</span></td><td class="desc">containers cover most needs; duplication is annoying, not blocking</td></tr>
+        <tr><td>Self-hosting</td><td class="desc">the answer to S1</td><td><span class="sev e">deferred</span></td><td class="desc">fuzzing buys most of the risk reduction for 5% of the cost</td></tr>
+        <tr><td>Concurrency</td><td class="desc">listed for v0.2</td><td><span class="sev e">deferred to (b)</span></td><td class="desc">Enfusion is single-threaded, so it is a precondition for (b) and irrelevant to (a)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="note" style="margin-top:16px">Note what that reshuffling is
+  <em>not</em>: a demotion of (b). Everything on that list except the two
+  Enfusion rows serves both editions &mdash; a real module system, working
+  generics, a standard library, trustworthy codegen. <strong>The wedge is not a
+  detour, it is the shared foundation with a customer attached.</strong></p>
+</section>
+
+<section id="editions">
+  <p class="eyebrow">How two languages ship from one codebase</p>
+  <h2 class="sec">Editions, not a fork</h2>
+
+  <p>A fork buys separate branding and costs everything else: two bug fixes for
+  every bug, two test suites, two sets of diagnostics drifting apart. For a
+  12,000-line compiler maintained by one person, that is the situation a fork
+  ruins. And it buys nothing that packaging does not already provide.</p>
+
+  <p>The stronger argument is that <strong>the split already exists.</strong>
+  Every line of Enfusion-specific code in v0.1:</p>
+
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Where</th><th>How much</th></tr></thead>
+      <tbody>
+        <tr><td><code>src/back/enforce_*.{c,h}</code></td><td class="desc">1,331 lines</td></tr>
+        <tr><td><code>src/driver/main.c</code></td><td class="desc">~11 lines &mdash; a CLI flag and its dispatch</td></tr>
+        <tr><td><code>src/driver/manifest.{c,h}</code></td><td class="desc">~6 lines &mdash; the <code>[target.enfusion]</code> section</td></tr>
+        <tr><td><code>src/sema/</code></td><td class="desc"><strong>zero.</strong> Every mention is a comment.</td></tr>
+        <tr><td><code>src/lex/</code>, <code>src/parse/</code></td><td class="desc"><strong>zero.</strong> No mention at all.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <blockquote>The general edition is the current compiler minus 1,331 lines
+  &mdash; roughly 11% of it. It already exists: <code>beryl build</code> with no
+  <code>-t enfusion</code> is it.</blockquote>
+
+  <p style="margin-top:18px">The danger was never code coupling. It is
+  <em>design contamination</em> &mdash; choosing a language semantic because
+  Enfusion cannot do otherwise. One rule prevents it:</p>
+
+  <div class="decide" style="margin-top:16px">
+    <div class="band">The rule that keeps the split free</div>
+    <div class="inner">
+      <h2>Design for native first, then ask how it lowers</h2>
+      <p>If a feature cannot lower to EnforceScript, <strong>profile-gate it
+      &mdash; never remove it from the language.</strong> That is what
+      <code>BE0701</code>, <code>BE0703</code>, <code>BE0901</code> and
+      <code>BE0902</code> already do, pointed in both directions: a target
+      profile gates what the target cannot express, and the language keeps it.</p>
+      <p>Auditing v0.1 against that rule, almost nothing has leaked.
+      Monomorphization was forced by Enfusion but is correct anyway;
+      <code>!T</code> losing its tag and value semantics via
+      <code>BerylCopy</code> are lowering compromises, not language rules; the
+      core kept every integer width the engine lacks. The profile-lint mechanism
+      absorbed each constraint instead of the core absorbing it.</p>
+    </div>
+  </div>
+
+  <h3 style="margin-top:34px">What &ldquo;better than Rust&rdquo; has to mean</h3>
+
+  <p>Without a named axis it is not something you can build toward or ever know
+  you have achieved. The axis that fits this design is
+  <strong>systems programming for games and simulations</strong>.</p>
+
+  <div class="ideas">
+    <div class="idea">
+      <h4>Where Beryl is already ahead</h4>
+      <p class="payoff">structural, not aspirational</p>
+      <p><strong>Graphs.</strong> In Rust these mean <code>Rc&lt;RefCell&lt;T&gt;&gt;</code>,
+      an arena crate, or <code>unsafe</code> &mdash; the most common complaint
+      from people writing games in Rust. Second-class references make handles
+      <em>the</em> idiomatic answer, built in rather than bolted on.</p>
+      <p><strong>Compile speed.</strong> 10,000 lines checked in 124&nbsp;ms.
+      Rust's most-complained-about property, and no incremental-compilation work
+      closes a gap that size.</p>
+      <p><strong>No lifetimes</strong> &middot; <strong>determinism</strong>,
+      which Rust has nothing for &middot; <strong>overflow traps in
+      release</strong> &middot; <strong>no build-time code execution</strong>.</p>
+    </div>
+    <div class="idea">
+      <h4>Where Rust keeps winning</h4>
+      <p class="payoff">not gaps a design decision closes</p>
+      <p><strong>crates.io</strong> &mdash; ~180,000 packages, which is a decade
+      of other people's work.</p>
+      <p><strong>Concurrency.</strong> <code>Send</code>/<code>Sync</code> is
+      genuinely excellent, and Beryl has cut concurrency entirely.</p>
+      <p><strong>Tooling</strong> &mdash; cargo, rust-analyzer, clippy, miri.
+      <strong>Ten years of soundness work.</strong> <strong>Platform
+      breadth</strong>: Beryl compiles on one OS today.</p>
+    </div>
+  </div>
+
+  <p class="note" style="margin-top:18px"><strong>&ldquo;Better than Rust&rdquo;
+  is achievable on an axis, not globally</strong> &mdash; where graphs are
+  everywhere and Rust is most painful, where iteration speed dominates and Rust
+  is slowest, where determinism matters and Rust offers nothing, and where the
+  ecosystem gap is smallest because engines bring their own world. That is the
+  same domain as the Enfusion edition: <strong>the two editions share a wedge,
+  not just a compiler.</strong></p>
+</section>
+
+<section id="ledger">
+  <p class="eyebrow">Everything known to be wrong or missing</p>
+  <h2 class="sec">The ledger</h2>
+
+  <h3>Correctness &mdash; these can burn you silently</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>#</th><th>Debt</th><th>Why it matters</th></tr></thead>
+      <tbody>
+        <tr><td class="id" style="color:var(--crit)">C1</td><td>Codegen has <strong>9 end-to-end programs guarding two back ends</strong>.</td><td class="desc">A bug producing <em>valid but wrong</em> C passes clang, passes the type checker, passes every test, and ships. Costs you trust in the whole project.</td></tr>
+        <tr><td class="id" style="color:var(--crit)">C2</td><td><strong><code>pub</code> is not enforced; <code>use</code> is decorative.</strong> Found while writing this document.</td><td class="desc">A private function in another module is callable with no import. Any encapsulation you think you have, you do not have &mdash; and it gets worse the more code exists.</td></tr>
+        <tr><td class="id" style="color:var(--crit)">C3</td><td><strong>Struct fields are not taint-tracked.</strong></td><td class="desc">Store an untrusted value in a field in one function, read it in another, and the security analysis sees nothing. A hole wide enough to defeat the feature's purpose.</td></tr>
+        <tr><td class="id">C4</td><td><code>defer</code> runs where written, not at scope exit.</td><td class="desc">Contradicts the spec. Harmless today; a real bug the moment destructors exist.</td></tr>
+        <tr><td class="id">C5</td><td><code>catch</code> yields a zero value when the handler does not return.</td><td class="desc">Fine for the common shape, quietly wrong otherwise.</td></tr>
+        <tr><td class="id">C6</td><td>The lexer and parser have never been fuzzed.</td><td class="desc">S1's risk is unquantified. A crafted <code>.be</code> file is the compiler's only untrusted input.</td></tr>
+        <tr><td class="id">C7</td><td>No CI.</td><td class="desc">Regressions are found when someone remembers to look.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Capability &mdash; these block real use</h3>
+  <div class="tbl">
+    <table>
+      <tbody>
+        <tr><td class="id">P1</td><td><strong>No engine API bindings.</strong> Beryl knows nothing about <code>IEntity</code>, <code>ScriptComponent</code>, <code>RplComponent</code>. Only the pure-logic half of a mod can be written.</td></tr>
+        <tr><td class="id">P2</td><td><strong>No component or RPC scaffolding.</strong> The paired <code>…ComponentClass</code>, editor attributes and <code>RplRpc</code> decorations are all hand-written.</td></tr>
+        <tr><td class="id">P3</td><td><strong><code>lib/</code> is empty.</strong> There is no standard library written in Beryl at all &mdash; the directories were scaffolded and never filled.</td></tr>
+        <tr><td class="id">P4</td><td>No user-defined generics (<span class="er">BE0508</span>).</td></tr>
+        <tr><td class="id">P5</td><td>No traits &mdash; they parse and are then ignored entirely.</td></tr>
+        <tr><td class="id">P6</td><td><strong><code>Box</code>, <code>Rc</code>, <code>Pool</code>, <code>Handle</code> do not exist</strong> (<span class="er">BE0902</span>). The ownership model is designed around handles as the answer to &ldquo;how do I build a graph&rdquo;, and that answer is not implemented.</td></tr>
+        <tr><td class="id">P7</td><td><code>Map</code> has no native representation and no methods on either target.</td></tr>
+        <tr><td class="id">P8&ndash;P11</td><td>No <code>match</code> or payload enums &middot; no string formatting &middot; no slices &middot; no I/O beyond <code>print</code>.</td></tr>
+        <tr><td class="id">P12</td><td>Windows only. The compiler core is portable C11; three driver files are not.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Ergonomics and strategy</h3>
+  <div class="tbl">
+    <table>
+      <tbody>
+        <tr><td class="id">E1&ndash;E5</td><td class="desc">No LSP &middot; no <code>beryl explain BE0401</code> &middot; no package management &middot; no generated API docs (despite <code>//!</code> comments already being parsed) &middot; no incremental compilation.</td></tr>
+        <tr><td class="id">S1</td><td class="desc">The compiler is written in C &mdash; the largest single item on its own threat model.</td></tr>
+        <tr><td class="id">S2</td><td class="desc">Builds are not reproducible and cannot be while the Smart App Control workaround varies the binary per attempt. Two stated goals in direct conflict.</td></tr>
+        <tr><td class="id">S3</td><td class="desc">Two spec targets measured as failures: hello-world binary (&lt;&nbsp;20&nbsp;KB claimed, 91.6&nbsp;KB measured &mdash; unreachable on this toolchain) and overflow overhead (&lt;&nbsp;3% claimed, +82% measured).</td></tr>
+        <tr><td class="id">S4</td><td class="desc"><code>@constant_time</code> is a source-level lint that clang can undo. No optimization barriers are emitted.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="releases">
+  <p class="eyebrow">Each with an exit criterion that is a fact, not a feeling</p>
+  <h2 class="sec">Release plan</h2>
+
+  <div class="spine">
+
+    <div class="rel now">
+      <div class="tag">v0.2</div>
+      <h3>Trust the output, and prove the thesis</h3>
+      <p class="why">The two things that must be true before more building: you
+      can trust what comes out of the compiler, and the reason for the project
+      is real.</p>
+      <ul>
+        <li><strong>Port a real SPARKOS MESH class end to end and ship it.</strong></li>
+        <li>Fix the module system &mdash; C2, ~300 lines.</li>
+        <li><strong>Build the interpreter</strong> &mdash; ~900 lines, the keystone.</li>
+        <li>Differential and metamorphic testing on top of it &mdash; ~400 lines.</li>
+        <li>Fuzz the lexer and parser &mdash; ~200 lines plus a corpus.</li>
+        <li>CI: build, check-all, bench on every push.</li>
+        <li>Fix <code>defer</code> and <code>catch</code>.</li>
+      </ul>
+      <div class="exit"><b>Exit criterion</b>A real SPARKOS MESH class is running
+      in-game from generated code, and 10,000 randomly generated programs produce
+      identical output through the interpreter and the native back end.</div>
+      <p class="size">~2,000 lines &middot; the release that decides whether this is a project or a hobby</p>
+    </div>
+
+    <div class="rel">
+      <div class="tag">v0.3</div>
+      <h3>Whole mods</h3>
+      <p class="why">Everything needed to write a complete Reforger mod in Beryl,
+      not just its pure logic.</p>
+      <ul>
+        <li><code>extern</code> declarations for engine API surface.</li>
+        <li>Hand-written bindings for what SPARKOS MESH actually uses.</li>
+        <li><code>@component</code> &mdash; emits the paired <code>…ComponentClass</code>.</li>
+        <li><code>@attribute</code> &mdash; editor-exposed properties.</li>
+        <li><code>@rpc(server)</code> &mdash; emits the decoration <strong>and implies <code>@untrusted</code></strong>.</li>
+        <li>Headless in-game testing, asserting on log output.</li>
+      </ul>
+      <div class="exit"><b>Exit criterion</b>An entire small mod &mdash;
+      components, RPCs, editor attributes, logic &mdash; written in Beryl,
+      loading and running in-game.</div>
+      <p class="size">~1,400 lines</p>
+    </div>
+
+    <div class="rel">
+      <div class="tag">v0.4</div>
+      <h3>Expressiveness</h3>
+      <p class="why">The features whose absence causes daily friction.</p>
+      <ul>
+        <li>Generic functions, monomorphized (~600) and generic structs (~400).</li>
+        <li>Traits with bound checking (~500).</li>
+        <li><code>match</code> and payload-carrying enums (~700).</li>
+        <li>Slices, string formatting, <code>Map</code> methods and a native representation.</li>
+        <li>The first real <code>lib/</code>, written in Beryl.</li>
+      </ul>
+      <div class="exit"><b>Exit criterion</b>The standard library is written in
+      Beryl, not C, and compiles for both targets.</div>
+      <p class="size">~3,500 lines</p>
+    </div>
+
+    <div class="rel">
+      <div class="tag">v0.5</div>
+      <h3>Memory</h3>
+      <p class="why">Implement the parts of the ownership model that were
+      designed and then skipped.</p>
+      <ul>
+        <li><code>Box&lt;T&gt;</code>, <code>Rc&lt;T&gt;</code> (free on Enfusion &mdash; the engine already refcounts).</li>
+        <li><code>Pool&lt;T&gt;</code> + generational <code>Handle&lt;T&gt;</code> &mdash; a stale handle is <em>detected</em>, not dangling.</li>
+        <li>Destructors, and real scope-exit <code>defer</code>.</li>
+      </ul>
+      <div class="exit"><b>Exit criterion</b>A linked structure &mdash; a scene
+      graph, an entity store &mdash; is expressible without a hand-managed array
+      index.</div>
+      <p class="size">~1,500 lines</p>
+    </div>
+
+    <div class="rel">
+      <div class="tag">v0.6</div>
+      <h3>Platform</h3>
+      <p class="why">Make it usable by someone who is not you.</p>
+      <ul>
+        <li>Cross-platform &mdash; three driver files, then test on Linux.</li>
+        <li>LSP (~1,500). The front end is already fast enough to run per keystroke.</li>
+        <li><code>beryl explain BE####</code>, <code>beryl doc</code>, <code>beryl bench</code>.</li>
+        <li>Path dependencies actually implemented.</li>
+      </ul>
+      <p class="size">~2,800 lines</p>
+    </div>
+
+    <div class="rel">
+      <div class="tag">v0.7</div>
+      <h3>Determinism</h3>
+      <p class="why">What a networked game actually needs, and what nothing
+      above provides. The genuinely differentiating part.</p>
+      <ul>
+        <li>Fixed-point types (<code>q16.16</code>) for deterministic arithmetic.</li>
+        <li><code>@deterministic</code> &mdash; forbids anything varying across machines.</li>
+        <li><code>@serialize</code> &mdash; compile-time wire format for both targets.</li>
+        <li>Units via newtypes &mdash; <code>type Meters = f32</code>, no implicit conversion.</li>
+      </ul>
+      <p class="size">~1,800 lines</p>
+    </div>
+
+    <div class="rel">
+      <div class="tag">v0.8 &rarr; v1.0</div>
+      <h3>Self-hosting groundwork, then stability</h3>
+      <p class="why">Port the lexer to Beryl as a forcing function and a proof.
+      Then a promise not to break source compatibility &mdash; but not before the
+      language has built something real for a year.</p>
+    </div>
+
+    <div class="rel">
+      <div class="tag">G1 &rarr; G5</div>
+      <h3>The general edition&rsquo;s track</h3>
+      <p class="why">A second track, starting only after v1.0. Everything above
+      except the engine rows is shared work, which is why this begins where it
+      does rather than in parallel.</p>
+      <ul>
+        <li><strong>G1 &middot; Reach</strong> &mdash; macOS and Linux as
+        first-class; real FFI behind <code>@unsafe(ffi)</code>. ~3,000 lines.</li>
+        <li><strong>G2 &middot; Concurrency</strong> &mdash; <code>Send</code>
+        inference, scoped tasks, atomics, channels, and the <code>Pool&lt;T&gt;</code>
+        aliasing question. ~3,500 lines.</li>
+        <li><strong>G3 &middot; Standard library</strong> &mdash; I/O behind
+        capabilities, collections, strings, time &mdash; <em>written in
+        Beryl</em>, which is also the honest test of whether the language is
+        pleasant. 10,000+ lines.</li>
+        <li><strong>G4 &middot; Tooling</strong> &mdash; LSP, debugger, package
+        manager, and a registry only once there is something to put in it.
+        8,000+ lines.</li>
+        <li><strong>G5 &middot; Hardening</strong> &mdash; soundness at scale, a
+        citable specification, a conformance suite.</li>
+      </ul>
+      <div class="exit"><b>Split criterion</b>The general edition ships as its
+      own thing on the day a <code>beryl</code> binary with the Enfusion profile
+      hidden is genuinely useful to someone who has never heard of Arma
+      Reforger. Not before.</div>
+      <p class="size">G3 and G4 dwarf the entire first track &mdash; a standard
+      library and tooling are where language projects actually die, not in the
+      compiler</p>
+    </div>
+
+  </div>
+</section>
+
+<section id="keystones">
+  <p class="eyebrow">The three ideas that carry the most weight</p>
+  <h2 class="sec">Keystones</h2>
+
+  <div class="ideas">
+    <div class="idea">
+      <h4>The interpreter</h4>
+      <p>A tree-walking interpreter over the typed AST, ~900 lines. The best-value
+      item on the roadmap because it solves four problems at once.</p>
+      <p class="payoff">1 &middot; a differential oracle for codegen &mdash; the
+      scariest gap, closed</p>
+      <p class="payoff">2 &middot; a near-instant test loop &mdash; and for the
+      wedge, the test loop <em>is</em> the product</p>
+      <p class="payoff">3 &middot; unifies constant evaluation &mdash;
+      <code>comptime</code> and const generics stop being special cases</p>
+      <p class="payoff">4 &middot; a REPL, nearly free</p>
+    </div>
+
+    <div class="idea">
+      <h4><code>@rpc</code> implies <code>@untrusted</code></h4>
+      <p>An RPC handler's parameters arrive from a client you do not control.
+      That is true <em>by definition</em> &mdash; so it should not depend on a
+      human remembering to annotate it.</p>
+<pre><code><span class="k">@rpc</span>(server)
+<span class="k">pub fn</span> Store.on_update(<span class="k">inout self</span>,
+        <span class="k">let</span> slot: i32, <span class="k">let</span> v: i32) {
+    <span class="k">self</span>.slots[slot] = v  <span class="cm">// <span class="er">BE0601</span>, automatically</span>
+}</code></pre>
+      <p style="margin-top:10px">This turns the most common real vulnerability in
+      networked mods &mdash; trusting an RPC argument &mdash; into a compile error
+      you cannot forget to switch on.</p>
+    </div>
+
+    <div class="idea">
+      <h4>Trusting the code generator</h4>
+      <p>More end-to-end programs is linear effort for linear coverage. Four
+      better approaches:</p>
+      <p><strong>Differential</strong> against the interpreter &mdash; every test
+      program now tests codegen, and a random generator makes that arbitrarily
+      many.</p>
+      <p><strong>Metamorphic</strong> &mdash; rename bindings, reorder independent
+      statements, wrap a body in a function; output must not change. Explores
+      <em>near</em> real programs rather than uniformly.</p>
+      <p><strong>Optimization-level</strong> &mdash; <code>-O0</code> versus
+      <code>-O2</code>. Any difference is a codegen bug or emitted UB.</p>
+      <p><strong>Cross-target</strong> &mdash; run it natively, run the emitted
+      EnforceScript headless in Workbench, compare. The only thing that can prove
+      the two back ends agree.</p>
+    </div>
+
+    <div class="idea">
+      <h4>Why self-hosting waits</h4>
+      <p>It is the only real answer to S1 &mdash; a memory-safety language whose
+      compiler is written in a memory-unsafe one. It is also downstream of almost
+      everything: writing the compiler in Beryl needs generics, traits, a real
+      module system, hashmaps, string building and file I/O.</p>
+      <p>And the risk arithmetic does not favour it:</p>
+      <div class="tbl" style="margin-top:12px">
+        <table>
+          <tbody>
+            <tr><td class="m">fuzz lexer + parser</td><td class="desc">~200 lines</td><td class="desc">most of the risk</td></tr>
+            <tr><td class="m">ASan/UBSan in CI</td><td class="desc">~1 day</td><td class="desc">most of the rest</td></tr>
+            <tr><td class="m">arena-only allocation</td><td class="desc">done</td><td class="desc">the use-after-free class</td></tr>
+            <tr><td class="m">self-hosting</td><td class="desc">~12,000 lines</td><td class="desc">the remainder</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="new">
+  <p class="eyebrow">On no list yet, and filtered by the thesis</p>
+  <h2 class="sec">Worth adding</h2>
+
+  <h3>Determinism, and why it matters here</h3>
+  <p>A networked game where two machines simulate the same thing must get the
+  same answer. Floating point makes that hard, and nothing in Beryl currently
+  helps. <strong>Fixed-point types</strong> are deterministic across machines,
+  compilers and optimization levels by construction &mdash; for a drone mod doing
+  position integration, that is the difference between clients agreeing and
+  clients drifting.</p>
+  <p><code>@deterministic</code> forbids anything that varies: <code>f32</code>
+  arithmetic, <code>sqrt</code>, any non-deterministic <code>extern</code>. It
+  turns &ldquo;is this replay-safe?&rdquo; from a code-review question into a
+  compile error &mdash; and it is the same taint machinery with a different
+  policy, which is the pattern that made the security work affordable in the
+  first place.</p>
+  <p class="note">Rust does not have this. EnforceScript does not have this. It
+  is directly useful to the mod that motivated the project.</p>
+
+  <h3>Compile-time serialization</h3>
+  <p><code>@serialize</code> derives a wire format for both targets. For a mesh
+  networking mod this is enormous &mdash; hand-written pack/unpack is where
+  protocol bugs live, and the two sides drifting apart is the classic failure.
+  It composes with the above: a <code>@serialize @deterministic</code> struct is
+  a network message you can reason about.</p>
+
+  <h3>Units as newtypes</h3>
+  <p><code>type Meters = f32</code> with no implicit conversion to
+  <code>Seconds</code> &mdash; which Beryl's existing strictness makes natural
+  rather than bolted on. Catches the classic flight-code bug of mixing degrees
+  with radians. Cheap, and unusually well matched to the language's personality.</p>
+
+  <h3>Testing beyond <code>assert</code></h3>
+  <p><strong>Snapshot assertions</strong> &mdash; <code>expect(v, "12.5")</code>
+  that self-update, ideal for controller output where the right answer is
+  &ldquo;whatever it was before I refactored&rdquo;.
+  <strong>Property tests</strong> over generated inputs, cheap to run once the
+  interpreter exists. <strong><code>bench</code> as a language construct</strong>
+  &mdash; for a project whose README makes performance claims, benchmarks should
+  not be a shell script.</p>
+
+  <h3>Smaller, disproportionate</h3>
+  <p><code>beryl explain BE0401</code> (~150 lines, embed the docs) &middot;
+  <code>beryl doc</code> (the <code>//!</code> comments are already parsed and
+  stored) &middot; <code>@deprecated</code> &middot; const generics &middot;
+  format-on-save once there is an LSP.</p>
+</section>
+
+<section id="nongoals">
+  <p class="eyebrow">Written down so they are not re-litigated</p>
+  <h2 class="sec">Non-goals</h2>
+  <div class="tbl">
+    <table>
+      <tbody>
+        <tr><td><strong>Concurrency and async <em>in the Enfusion edition</em></strong></td><td class="desc">Enfusion scripting is single-threaded, so it buys nothing there. It is a <strong>precondition for the general edition</strong> &mdash; a scheduling decision, not a rejection.</td></tr>
+        <tr><td><strong>A package registry before the general edition needs one</strong></td><td class="desc">Path and git dependencies are enough for one person and one mod. A registry is a permanent operational commitment, and it is (b)'s problem.</td></tr>
+        <tr><td><strong>Being better than Rust <em>at everything</em></strong></td><td class="desc">The goal is a named axis &mdash; games and simulations &mdash; and honesty about the rest. crates.io, <code>Send</code>/<code>Sync</code> maturity and ten years of soundness work are not gaps a design decision closes.</td></tr>
+        <tr><td><strong><code>dyn</code> / dynamic dispatch</strong></td><td class="desc">Until something concretely needs it.</td></tr>
+        <tr><td><strong>A garbage collector</strong></td><td class="desc">Ever.</td></tr>
+        <tr><td><strong>Build scripts and proc macros</strong></td><td class="desc">Ever. This is the supply-chain guarantee, and it is worth more than the convenience.</td></tr>
+        <tr><td><strong>Backwards compatibility before v1.0</strong></td><td class="desc">Break things while breaking is cheap.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="risks">
+  <p class="eyebrow">And what would make me stop</p>
+  <h2 class="sec">Risks</h2>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr><td><strong>The wedge does not materialize.</strong> If porting a real class is not clearly better than writing EnforceScript directly, the project has no reason to exist.</td><td class="desc">Run that experiment first, in v0.2, before building anything else.</td></tr>
+        <tr><td><strong>A codegen bug erodes trust.</strong> One silently wrong output in shipped mod code and you stop believing the compiler &mdash; and a language you do not trust is worse than no language.</td><td class="desc">Treated as v0.2's main technical work.</td></tr>
+        <tr><td><strong>Maintenance load exceeds value.</strong> Every Reforger update is a potential EnforceScript change; every clang release a potential back-end change.</td><td class="desc">Keep the compiler small. 297&nbsp;KB and ~12,000 lines is an asset, not an accident.</td></tr>
+        <tr><td><strong>Starting the general edition before the wedge is proven.</strong> Now that (b) is a stated goal, everything in &ldquo;worth adding&rdquo; has a justification attached &mdash; and all of it is more fun than fixing the module system.</td><td class="desc">The release ordering, the G-track sitting explicitly after v1.0, and the honest test of &ldquo;does a SPARKOS MESH class benefit from this&rdquo;.</td></tr>
+        <tr><td><strong>Design contamination.</strong> With two editions, any feature shaped by what EnforceScript cannot do becomes a permanent tax on a second language &mdash; and the damage is only visible in aggregate, never in one decision.</td><td class="desc">D14 is the rule; the v0.1 audit is the check. Re-run it at each release, because it is cheap.</td></tr>
+        <tr><td><strong><code>Pool&lt;T&gt;</code> shipped without concurrency in mind.</strong> Handles alias where references cannot, so the wrong API in v0.5 forecloses the cleanest concurrency answer years later.</td><td class="desc">Keep mutation behind methods, do not expose the backing array, and do not promise <code>get</code> returns anything borrow-like.</td></tr>
+        <tr><td><strong>Bus factor of one.</strong> Nobody else has read this code.</td><td class="desc">The docs exist and are honest. Keep them that way; <code>INTERNALS.md</code> is the on-ramp.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="decisions">
+  <p class="eyebrow">So they are not re-opened without new information</p>
+  <h2 class="sec">Decision log</h2>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>#</th><th>Decision</th><th>Why</th><th>Revisit if</th></tr></thead>
+      <tbody>
+        <tr><td class="id">D1</td><td>Mutable value semantics, second-class references, no lifetimes</td><td class="desc">Same memory safety, no annotation burden, far smaller checker</td><td class="desc">someone hits a real problem needing stored references</td></tr>
+        <tr><td class="id">D2</td><td>Both back ends emit from the typed AST; no MIR</td><td class="desc">EnforceScript is high-level; lowering to SSA and rebuilding would destroy the structure it needs</td><td class="desc">a direct machine-code back end is built</td></tr>
+        <tr><td class="id">D3</td><td>Monomorphization, not dictionary passing</td><td class="desc">Mandatory for a target with no generics</td><td class="desc">never &mdash; Enfusion settles it</td></tr>
+        <tr><td class="id">D4</td><td>Overflow traps in every build</td><td class="desc">Release-mode wraparound is a real Rust footgun</td><td class="desc">never; <code>wrapping_*</code> is the answer to the cost</td></tr>
+        <tr><td class="id">D5</td><td>No implicit numeric conversion, ever</td><td class="desc">Catches more real bugs than it costs</td><td class="desc">never</td></tr>
+        <tr><td class="id">D6</td><td>No build scripts, no proc macros</td><td class="desc">The supply-chain guarantee</td><td class="desc">never</td></tr>
+        <tr><td class="id">D7</td><td>Compiler in C, self-hosting deferred</td><td class="desc">Fuzzing and sanitizers buy most of S1's risk reduction for 5% of the cost</td><td class="desc">v0.8, once the language can host a compiler</td></tr>
+        <tr><td class="id">D8</td><td>Method names emitted verbatim, not PascalCased</td><td class="desc">Required for engine callback overrides; 1:1 with source when debugging</td><td class="desc">never</td></tr>
+        <tr><td class="id">D9</td><td><code>!T</code> loses its tag on Enfusion</td><td class="desc">Matches the base game idiom; the alternative pollutes every signature</td><td class="desc">if an enum return proves insufficient</td></tr>
+        <tr><td class="id">D10</td><td>Concurrency cut <strong>from the Enfusion edition</strong></td><td class="desc">Enfusion scripting is single-threaded, so it buys nothing there</td><td class="desc">superseded by D12 &mdash; it is a precondition for the general edition</td></tr>
+        <tr><td class="id">D11</td><td>Reproducibility promised on generated C, not the binary</td><td class="desc">The only promise keepable alongside the Smart App Control workaround</td><td class="desc">if SAC is ever turned off on this machine</td></tr>
+        <tr><td class="id">D12</td><td>General-purpose Beryl is a <strong>stated goal</strong>, sequenced after the Enfusion edition reaches v1.0</td><td class="desc">The wedge funds the shared work; it does not replace the ambition</td><td class="desc">never &mdash; this is the direction. Only the ordering is open</td></tr>
+        <tr><td class="id">D13</td><td>Two editions, <strong>one compiler</strong> &mdash; not a fork</td><td class="desc">Measured: 1,331 lines of back end plus ~17 of wiring, and zero in <code>sema/</code>, <code>lex/</code> or <code>parse/</code>. A fork doubles every bug fix to buy branding that packaging already provides</td><td class="desc">if a <em>core semantic</em> must diverge &mdash; that is a different language, not a variant</td></tr>
+        <tr><td class="id">D14</td><td>Design every feature for the <strong>native</strong> target first, then ask how it lowers; profile-gate what cannot</td><td class="desc">Design contamination, not code coupling, is the real risk to D13</td><td class="desc">never</td></tr>
+        <tr><td class="id">D15</td><td>The general edition's wedge is <strong>games and simulations</strong>, not general systems programming</td><td class="desc">Where Rust is weakest and the ecosystem gap smallest &mdash; and the same domain as the Enfusion edition, so the two share a wedge</td><td class="desc">if a different domain shows a stronger structural advantage</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <p>Roughly <strong>13,000 lines to v0.7</strong>, against ~11,800 today &mdash;
+  and the general edition's track is larger again, most of it standard library
+  and tooling rather than compiler. That is a real project, not a weekend, which
+  is the honest framing and the reason the experiment at the top of this page
+  exists. Everything here &mdash; including the second edition, which is a
+  stated goal and not a daydream &mdash; is bet on the same assumption, and that
+  experiment costs an afternoon.</p>
+  <p style="margin-top:12px">Full detail lives in <code>docs/ROADMAP.md</code>
+  in the repository. Update that document when a decision here turns out to be
+  wrong; the point of a decision log is that it can be amended, not that it is
+  right.</p>
+</footer>

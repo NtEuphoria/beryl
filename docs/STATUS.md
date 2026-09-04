@@ -2,6 +2,11 @@
 
 For where this goes next, see [ROADMAP.md](ROADMAP.md).
 
+This describes **Beryl/Enfusion**, the edition targeting Arma Reforger. A
+general-purpose edition is a stated goal built from the same compiler rather
+than a fork — [ROADMAP.md](ROADMAP.md) §2.1 and §4.2. Nothing below is
+Enfusion-only unless it says so.
+
 A straight inventory, so nobody has to discover a gap by hitting it. Everything
 listed as missing produces a **clear diagnostic**, not odd behaviour.
 
@@ -59,7 +64,7 @@ listed as missing produces a **clear diagnostic**, not odd behaviour.
 | `Map<K,V>` natively | `BE0901` | no native representation yet |
 | `Box` `Rc` `Pool` `Handle` | `BE0902` | designed into the ownership model, not implemented |
 | payload enums, `match` | — | [ROADMAP.md](ROADMAP.md) v0.4 |
-| concurrency, async | — | deliberately cut from v0.1 |
+| concurrency, async | — | cut from the Enfusion edition, which is single-threaded; designed for the general edition in [ROADMAP.md](ROADMAP.md) §5.11 |
 | capability-based I/O | — | designed ([SECURITY.md](SECURITY.md) §6); there is no I/O to protect yet |
 | reproducible builds | — | conflicts with the SAC workaround; unresolved |
 | `@unsafe` machinery | — | parses, audits, and is refused where forbidden; no raw pointers or FFI behind it |

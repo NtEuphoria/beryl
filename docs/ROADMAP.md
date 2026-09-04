@@ -1,9 +1,11 @@
 # Beryl — Roadmap
 
 **Written 2026-09-04, against v0.1.**
-[Browsable version](https://claude.ai/code/artifact/6dc455ec-3425-4828-8b25-5237130f8876). This is the document to re-read before
-starting any significant piece of work on Beryl, and to update when a decision
-here turns out to be wrong.
+[Browsable version](https://claude.ai/code/artifact/6dc455ec-3425-4828-8b25-5237130f8876) — its source is `docs/roadmap.html`, which is a
+curated summary of this file rather than a rendering of it; edit both.
+
+This is the document to re-read before starting any significant piece of work on
+Beryl, and to update when a decision here turns out to be wrong.
 
 ---
 
@@ -13,7 +15,13 @@ Sections **1–3** are the state of the world: what exists, what it is for, and
 everything known to be broken or missing. Read those when returning to the
 project after a gap.
 
-Section **4** is the release plan. Read it to decide what to do next.
+Section **2** also settles the two-edition question: **Beryl/Enfusion** and a
+general-purpose **Beryl**, shipped from one compiler rather than a fork (§2.1),
+with the general edition aimed at games and simulations rather than at Rust in
+general (§2.2).
+
+Section **4** is the release plan — §4 for the Enfusion edition, §4.2 for the
+general edition's later track. Read it to decide what to do next.
 
 Sections **5–6** are design work: the hard problems worked through in enough
 detail to start implementing, plus capabilities not yet on any list. Read the
@@ -23,9 +31,11 @@ Sections **7–9** are the guardrails: what Beryl deliberately will not do, what
 would make it not worth continuing, and a log of decisions already made so they
 are not re-litigated.
 
-**The one thing to take away:** §2 argues Beryl has exactly one defensible
-advantage, and §4.1 proposes a cheap experiment that proves or kills it. Do that
-experiment before building anything else.
+**The one thing to take away:** §2 argues Beryl has exactly one *proven*
+defensible advantage today, and §4.1 proposes a cheap experiment that confirms
+or kills it. Do that experiment before building anything else — including
+anything on the general edition's track, which is bet entirely on the same
+assumption.
 
 ---
 
@@ -61,19 +71,23 @@ all; and the security model has a hole you can walk through.
 This section exists because a roadmap without a north star becomes a wishlist,
 and the order of everything below depends on getting this right.
 
-Beryl is currently two projects wearing one coat:
+Beryl is two languages sharing one compiler:
 
-**(a) A better language for Arma Reforger mod logic.** Write it once, test it
-natively in milliseconds, emit EnforceScript that Workbench compiles.
+**(a) Beryl/Enfusion — a better language for Arma Reforger mod logic.** Write it
+once, test it natively in milliseconds, emit EnforceScript that Workbench
+compiles.
 
-**(b) A general-purpose systems language competing with Rust.**
+**(b) Beryl — a general-purpose systems language competing with Rust.**
 
-**(a) is the wedge. (b) is the ambition. They are not equally real.**
+Both are goals. **(a) ships first, because it is the wedge.**
 
-(b) requires generics, traits, concurrency, an ecosystem, a package registry, an
-LSP, cross-platform support, and a decade of hardening — and at the end of that,
-the honest pitch is "like Rust, but younger and with fewer libraries." There is
-no moat.
+(b) is the harder of the two by a wide margin. It needs generics, traits,
+concurrency, an ecosystem, a package registry, an LSP, cross-platform support,
+and years of hardening — and a pitch better than "like Rust, but younger and
+with fewer libraries," which is a losing one. §2.2 is about finding that pitch,
+and it exists: the honest version of (b) is not a general Rust replacement but
+**systems programming for games and simulations**, where Rust is structurally
+weakest and Beryl's design is structurally strongest.
 
 (a) has a moat, and it is a good one: **nobody else can give you a fast test loop
 for EnforceScript.** Today, verifying pure logic in a Reforger mod costs a 10–15
@@ -91,15 +105,162 @@ obvious priorities considerably:
 |---|---|---|---|
 | Engine API bindings | not planned | **highest** | without them you can only write the pure-logic half of a mod |
 | Component & RPC scaffolding | not planned | **highest** | same |
-| Codegen trust | S9, noted | **highest** | you cannot ship mod code you do not trust |
+| Codegen trust | noted as THREAT-MODEL S9 | **highest** | you cannot ship mod code you do not trust |
 | Module system | working (it isn't) | **high** | it is broken and it is cheap to fix |
 | Generics | headline v0.2 | medium | containers cover most needs; forced duplication is annoying, not blocking |
 | Self-hosting | the answer to S1 | low, deferred | see §5.8 — hardening buys most of the risk reduction for 5% of the cost |
-| Concurrency | listed as v0.2 | **not planned** | Enfusion scripting is single-threaded; it serves (b) only |
+| Concurrency | listed as v0.2 | **deferred to the general edition** | Enfusion scripting is single-threaded, so it is a precondition for (b) and irrelevant to (a) — §5.11 |
 
-**The ambition is not abandoned.** Most of what (a) needs — generics, a real
-module system, a standard library, trustworthy codegen — is also what (b) needs.
-The difference is that (a) supplies the ordering and the stopping criteria.
+Note what that reshuffling is *not*: it is not a demotion of (b). Everything on
+that list except the two Enfusion rows serves both editions — most of what (a)
+needs is a real module system, working generics, a standard library and
+trustworthy codegen, which is also the first half of (b). **The wedge is not a
+detour, it is the shared foundation with a customer attached.** §2.1 covers how
+the two ship from one compiler; §2.2 covers what (b) has to become to be worth
+shipping at all.
+
+---
+
+### 2.1 Two editions, one compiler
+
+The intent is two languages: **Beryl/Enfusion**, the Reforger-targeted one being
+built now, and **Beryl**, a general-purpose systems language without the engine
+parts.
+
+**The mechanism should be editions, not a fork.** That is not a hedge — it is
+what the codebase already is.
+
+#### The measurement
+
+Every line of Enfusion-specific code, as of v0.1:
+
+| | |
+|---|---|
+| `src/back/enforce_*.{c,h}` | 1,331 lines |
+| `src/driver/main.c` | ~11 lines — a CLI flag and its dispatch |
+| `src/driver/manifest.{c,h}` | ~6 lines — the `[target.enfusion]` section |
+| `src/sema/` | **zero.** Every mention is a comment. |
+| `src/lex/`, `src/parse/` | **zero.** No mention at all. |
+
+The two mentions in `src/back/c_backend.c` are diagnostic *text* — the BE0901
+note telling you `Map` works on the other target — not logic.
+
+**The general edition is the current compiler minus 1,331 lines**, or roughly
+11% of it. It already exists; `beryl build` with no `-t enfusion` is it.
+
+#### Why not fork
+
+A fork buys separate branding and costs everything else: two bug fixes for every
+bug, two test suites, two sets of diagnostics drifting apart, and a slow
+divergence that eventually makes the shared work impossible. Beryl is a
+12,000-line compiler maintained by one person — that is exactly the situation a
+fork ruins.
+
+Editions cost almost nothing because the profile mechanism already carries the
+difference. `BE0701` (a type EnforceScript lacks), `BE0703` (`@unsafe`
+forbidden), `BE0901` and `BE0902` (things the native back end lacks) are the
+same idea pointed in both directions: **a target profile gates features the
+target cannot express, and the language keeps them.**
+
+Separate branding, separate documentation, even separate binaries are all
+packaging decisions that sit on top of one compiler. Ship
+`beryl-enfusion.exe` as a build with the native profile hidden if that is what
+the identity calls for.
+
+#### The one rule that keeps this free
+
+> **Design every feature for the native target first. Then ask how it lowers to
+> EnforceScript. If it cannot, profile-gate it — never remove it from the
+> language.**
+
+The danger was never code coupling; it is *design contamination* — choosing a
+language semantic because Enfusion cannot do otherwise. An audit of v0.1 against
+that rule:
+
+| decision | forced by Enfusion? | harms the general edition? |
+|---|---|---|
+| Monomorphization (D3) | yes | **no** — it is the right choice regardless; Rust does the same |
+| `!T` as tag + value | no, that is the native design | no |
+| `!T` loses its tag on Enfusion | lowering only | no — a target compromise, not a language rule |
+| Value semantics via `BerylCopy` | lowering only | no |
+| Full integer set, `i32`-only on Enfusion | profile lint | no — the core kept all widths |
+| Verbatim method names (D8) | yes | marginally — the general edition may want a case convention |
+
+**Almost no contamination so far**, and that is not luck: the profile-lint
+mechanism absorbed each constraint instead of the core absorbing it. Keep doing
+that.
+
+#### When a real fork would be justified
+
+Only if a **core semantic** must diverge — if the general edition wanted
+first-class references, breaking D1, for instance. That would be a different
+language, not a variant, and it should be named and reasoned about as one. Short
+of that, forking is a cost with no matching benefit.
+
+*(If distinct names are wanted later: beryl is a mineral family, and its
+varieties — emerald, aquamarine, heliodor, morganite, goshenite — are sitting
+right there.)*
+
+---
+
+### 2.2 What "better than Rust" has to mean
+
+The goal is stated. This section is about making it a plan rather than an
+aspiration, because "better than Rust" without an axis is not something you can
+build toward or ever know you have achieved.
+
+#### Where Beryl's design is already genuinely ahead
+
+1. **Graphs and cyclic data.** This is the big one. In Rust these mean
+   `Rc<RefCell<T>>`, an arena crate, or `unsafe` — it is the single most common
+   complaint from people writing games in Rust, and it is structural rather than
+   a missing feature. Beryl's second-class references make handles *the*
+   idiomatic answer, and `Pool<T>` + generational `Handle<T>` builds it into the
+   language rather than a crate. **Games and simulations are made of graphs.**
+2. **Compile speed.** Rust's most-complained-about property. Beryl checks 10,000
+   lines in 124 ms. If that holds at 100× the scale, it changes how the language
+   feels to use, and no amount of Rust incremental-compilation work closes a gap
+   of that size.
+3. **No lifetimes.** The same class of memory safety with no annotation burden
+   and a checker small enough to read. That is a real reduction in the cost of
+   entry.
+4. **Determinism.** Rust has nothing for cross-machine float determinism.
+   §6.1's fixed-point types and `@deterministic` are unclaimed ground.
+5. **Overflow traps in release.** A real Rust footgun that Beryl does not have.
+6. **No build-time code execution.** A supply-chain guarantee `cargo` cannot
+   make.
+
+#### Where Rust wins, and will keep winning for years
+
+- **crates.io.** Roughly 180,000 packages. This is not a feature gap, it is a
+  decade of other people's work, and no design decision closes it.
+- **Concurrency.** `Send`/`Sync` is genuinely excellent, and Beryl has *cut*
+  concurrency entirely. Closing this is a precondition for the general edition,
+  not a nice-to-have (see §5.11).
+- **Tooling.** cargo, rust-analyzer, clippy, miri. Years of work each.
+- **Soundness track record.** Ten years of people trying to break it.
+- **Platform breadth.** Beryl compiles on one machine, on one OS, today.
+
+#### The honest conclusion
+
+**"Better than Rust" is achievable on an axis, not globally**, and pretending
+otherwise wastes years. The axis that fits Beryl's design is
+**systems programming for games and simulations**:
+
+- where graphs are everywhere, and Rust is at its most painful;
+- where iteration speed dominates, and Rust is at its slowest;
+- where determinism matters, and Rust offers nothing;
+- and where the ecosystem gap is smallest, because game engines bring their own
+  world rather than pulling 200 crates.
+
+That is a position you can actually win, and it has an elegant property: **it is
+the same domain as the Enfusion edition.** The two editions do not merely share
+a compiler, they share a wedge. Everything learned building for Reforger —
+handles instead of references, determinism, a fast test loop, trustworthy
+codegen — is exactly what the general edition needs.
+
+Aim there. "General purpose" then follows from being genuinely good at
+something, which is how every successful language has actually happened.
 
 ---
 
@@ -154,6 +315,8 @@ Everything known to be wrong or missing, ranked by what it costs you.
 | **S2** | **Builds are not reproducible**, and cannot be while the Smart App Control workaround varies the binary per attempt. Two stated goals in direct conflict; unresolved. See §5.9. |
 | **S3** | **Two spec targets were measured as failures**: hello-world binary (< 20 KB claimed, 91.6 KB measured, unreachable on this toolchain) and overflow overhead (< 3% claimed, +82% measured). Both are documented; neither is fixed. |
 | **S4** | `@constant_time` is a source-level lint that clang can undo. No optimization barriers are emitted. |
+| **S5** | **Design contamination is now a live risk.** With the general edition a stated goal (D12), any feature shaped by what EnforceScript cannot do becomes a permanent tax on a second language. D14 is the rule; §2.1's audit is the check. It should be re-run at each release, because it is cheap and the damage is only visible in aggregate. |
+| **S6** | **`Pool<T>` has not been designed against concurrency** (§5.11): handles alias where references cannot, so a pool shipped in v0.5 with the wrong API forecloses the cleanest concurrency answer years later. Cheap to avoid now, expensive to retrofit. |
 
 ---
 
@@ -302,6 +465,52 @@ writing another 10,000 lines. If it is yes, everything below is justified and
 the ordering in §2 is correct.
 
 This is the highest-value item in this document.
+
+---
+
+### 4.2 The general edition's track
+
+v0.2 through v1.0 above are the **Enfusion edition**. The general edition
+(§2.1, D12) runs on a second track that starts after v1.0, because almost
+everything in the first track is shared work rather than a detour:
+
+| v0.2–v1.0 item | serves |
+|---|---|
+| Codegen trust, differential testing, fuzzing (§5.1) | **both** |
+| Module system (§5.3) | **both** |
+| Generics and traits (§5.4) | **both** |
+| The interpreter (§5.2) | **both** |
+| `Box` `Rc` `Pool` `Handle` (§5.7) | **both** — with the §5.11 caveat |
+| Determinism, fixed-point (§6.1) | **both** |
+| Portability and CI (§5.10) | **both** |
+| Engine bindings, component and RPC scaffolding (§5.5) | Enfusion only |
+| Standard library, I/O, FFI, concurrency, LSP, registry | general only |
+
+Only the last two rows are edition-specific, and only one of them is on the
+first track. **That ratio is the argument for D13.**
+
+The second track, in rough dependency order — sizes are guesses, and the
+ordering inside it is far less settled than the first track's:
+
+| | theme | contains | exit criterion |
+|---|---|---|---|
+| **G1** | Reach | macOS + Linux as first-class, real FFI behind `@unsafe(ffi)` — raw pointers, C ABI, a header binder | Beryl calls into an existing C library and is called from one, on three platforms |
+| **G2** | Concurrency | §5.11 in full: `Send` inference, scoped tasks, atomics, channels, and the `Pool<T>` aliasing decision | A data race is a compile error, and the ownership checker is still under 2,000 lines |
+| **G3** | Standard library | I/O behind capabilities, collections, strings, formatting, time, math — **written in Beryl**, which is also the honest test of whether the language is pleasant | `lib/` is large enough that a non-trivial program needs no C |
+| **G4** | Tooling | LSP, debugger integration, a package manager, and a registry only once there is something to put in it | Someone who has never seen the compiler source can be productive in an hour |
+| **G5** | Hardening | soundness work at scale, a citable specification, a real conformance suite | A determined outsider fails to break it |
+
+**The split criterion.** The general edition ships as its own thing on the day
+a `beryl` binary with the Enfusion profile hidden is genuinely useful to
+someone who has never heard of Arma Reforger. Not before — an early split buys
+a second README and a second set of expectations to disappoint.
+
+**Honest scale.** G1–G5 is years, and most of it is G3 and G4: a standard
+library and tooling are where language projects actually die, not in the
+compiler. Nothing on this track should begin until §4.1's experiment has been
+run and v1.0 has shipped, because everything here is bet on the assumption that
+the language is worth extending — and §4.1 is the cheapest test of that
+assumption that exists.
 
 ---
 
@@ -553,6 +762,15 @@ strange gap to have shipped.
 Doing these needs **destructors** first, which needs **real scope-exit `defer`**
 (C4), which is why they cluster in v0.5.
 
+**One constraint from years away.** `Pool<T>` is the point where the ownership
+model's central bargain gets partially undone: **a handle is an index, and
+indices alias where references cannot.** That is fine single-threaded, and it is
+the whole concurrency problem for the general edition (§5.11, S6). It costs
+nothing today to leave room for a `SyncPool<T>` — keep the pool's mutating
+operations behind methods rather than exposing the backing array, and do not
+promise that `get` returns something borrow-like. Retrofitting that after code
+is written against the API is expensive; anticipating it here is free.
+
 ### 5.8 Self-hosting — and why not yet
 
 Self-hosting is the only real answer to S1: a memory-safety language whose
@@ -620,6 +838,88 @@ numbers recorded so a regression is visible, and the diagnostics-documented
 check. The Workbench proof cannot run in CI and stays a manual gate before
 release — which should be written down as a release checklist rather than
 remembered.
+
+---
+
+### 5.11 Concurrency — the general edition's precondition
+
+Cut from the Enfusion edition (D10) because Enfusion scripting is
+single-threaded. **Required** for the general edition, because a systems
+language competing with Rust in 2026 without threads is not a competitor.
+
+This section is design, not schedule. Nothing here is built.
+
+#### The good news: the hard part is already done
+
+Rust needs `Send` and `Sync` because references are first-class. A `&T` can be
+stored in a struct, returned, and captured, so the compiler must prove that
+sharing is safe across an *arbitrary reference graph*. That proof is what
+`Sync` is, and it is why the trait is hard to teach.
+
+**Beryl's second-class references delete most of that problem by
+construction.** A borrow cannot be stored, returned, or captured — so it cannot
+cross a thread boundary at all, and there is no shared-reference graph to
+reason about. What is left:
+
+| Rust concept | Beryl equivalent | why |
+|---|---|---|
+| `&mut T` aliasing rules | **already enforced** | the exclusivity checker (BE0401) proves no two live `inout` borrows overlap. That is precisely the data-race-freedom property |
+| `&T` shared across threads | **does not exist** | `let` parameters are values; there is nothing shared to race on |
+| `Sync` | *possibly unnecessary* | there is no first-class shared reference for it to be about |
+| `Send` | **needed** | which types may cross a thread boundary at all |
+| `Rc<T>` vs `Arc<T>` | **needed** | the same split, for the same reason: non-atomic refcounts |
+
+The claim that `Sync` may be unnecessary is a **hypothesis, not a result.** It
+should be attacked before it is relied on.
+
+#### The genuine problem: handles reintroduce aliasing
+
+This is the one that matters, and it is worth writing down now, years early,
+because it constrains §5.7.
+
+`Pool<T>` + generational `Handle<T>` is Beryl's answer to graphs — the whole
+reason second-class references are affordable. But **a handle is not a
+reference; it is an index, and indices alias freely.** Two threads holding
+handles into the same pool, both calling `pool.get(h)`, is exactly the aliasing
+that banning stored references was supposed to prevent, rebuilt one layer up.
+
+So the pool becomes the shared mutable object, and it needs what `RefCell` and
+`Mutex` give Rust: a runtime discipline, because the static one does not reach
+through an index. Options, in rough order of preference:
+
+1. **The pool is `sink`-passed into a scope, not shared.** Structured
+   concurrency over disjoint sub-pools. Cleanest; not always expressible.
+2. **A `SyncPool<T>` distinct type** with internal locking, so the cost is
+   visible in the type and the single-threaded `Pool<T>` stays free.
+3. **Per-handle borrow tracking at runtime**, which is `RefCell` with extra
+   steps and a panic surface.
+
+Do not pick now. Do note that **§5.7 should not ship a `Pool<T>` whose API
+forecloses (2)** — leaving room for a locking variant costs nothing today and
+is expensive to retrofit.
+
+#### What concurrency would actually be
+
+- **Structured only.** A scope owns its tasks and joins them; no detached
+  threads, no droppable join handle. This fits second-class references exactly:
+  a borrow may be passed *into* a scoped task because the scope's extent is the
+  call's extent — the existing rule, unchanged.
+- **`Send` as an auto-derived property**, not a hand-written trait impl.
+  With value semantics and no stored references, nearly everything qualifies;
+  the exceptions are OS handles and `Rc<T>`.
+- **Channels and atomics** in the standard library, not the language.
+- **No `async`/`await`.** Function colouring infects an entire language, it is
+  the part of Rust people complain about most, and the games-and-simulation
+  wedge (§2.2) wants job systems and frame-structured parallelism rather than
+  futures. Declining async is a *feature* of the pitch, not a gap in it.
+
+#### Cost
+
+Perhaps 2,500–4,000 lines across `Send` inference, the scope primitive,
+atomics, channels, and the pool question — but the schedule risk is not the
+line count. It is that this is the first feature that could genuinely
+compromise the small ownership checker (D1), and it must be designed against
+that constraint rather than bolted beside it.
 
 ---
 
@@ -711,13 +1011,17 @@ The current test story is `assert(cond)`. For numeric game code that is weak.
 
 Writing these down prevents re-litigating them.
 
-- **Concurrency and async.** Enfusion scripting is single-threaded; concurrency
-  serves ambition (b) only, and it would compromise the exclusivity model that
-  makes the ownership checker small. Revisit only if the native side becomes the
-  primary use, which is not the plan.
-- **A package registry.** Path and git dependencies are enough for one person and
-  one mod. A registry is a permanent operational commitment.
-- **Competing with Rust on general systems programming.** See §2.
+- **Concurrency and async *in the Enfusion edition*.** Enfusion scripting is
+  single-threaded, so it buys nothing there. It is a **precondition for the
+  general edition** and is designed for in §5.11 — this is a scheduling
+  decision, not a rejection.
+- **A package registry before the general edition needs one.** Path and git
+  dependencies are enough for one person and one mod. A registry is a permanent
+  operational commitment, and it is (b)'s problem, not (a)'s.
+- **Being better than Rust *at everything*.** The goal is to be better on a
+  named axis — games and simulations — and honest about the rest. crates.io,
+  `Send`/`Sync` maturity, miri and ten years of soundness work are not gaps a
+  design decision closes. See §2.2.
 - **`dyn` / dynamic dispatch**, until something concretely needs it.
 - **A garbage collector**, ever.
 - **Build scripts and procedural macros**, ever. This is the supply-chain
@@ -769,8 +1073,12 @@ new information.
 | D7 | Compiler in C, self-hosting deferred | Fuzzing and sanitizers buy most of S1's risk reduction for 5% of the cost | v0.8, once the language can host a compiler |
 | D8 | Method names emitted verbatim, not PascalCased | Required for engine callback overrides, and 1:1 with source when debugging in Workbench | Never |
 | D9 | `!T` loses its tag on Enfusion | Matches the base game idiom; the alternative pollutes every signature | If a real case needs to distinguish errors and an enum return is not enough |
-| D10 | Concurrency cut | Serves ambition (b) only, and would compromise the exclusivity model | If the native side ever becomes primary |
+| D10 | Concurrency cut **from the Enfusion edition** | Enfusion scripting is single-threaded, so it buys nothing there | Superseded by D12 — it is a precondition for the general edition, scheduled in §5.11 |
 | D11 | Reproducibility promised on generated C, not on the binary | The only promise that can be kept alongside the SAC workaround | If SAC is ever turned off on this machine |
+| D12 | General-purpose Beryl is a **stated goal**, sequenced after the Enfusion edition reaches v1.0 | User decision, 2026-09-04. The wedge funds the shared work; it does not replace the ambition | Never — this is the direction. Only the ordering is open |
+| D13 | Two editions, **one compiler** — not a fork | Measured: Enfusion is 1,331 lines of back end plus ~17 lines of wiring, and zero lines in `sema/`, `lex/` or `parse/`. A fork would double every bug fix to buy branding that packaging already provides | If a **core semantic** must diverge (e.g. the general edition wanting first-class references, breaking D1). That is a different language, not a variant |
+| D14 | Design every feature for the **native** target first, then ask how it lowers; profile-gate what cannot | Design contamination — not code coupling — is the real risk to D13. The v0.1 audit in §2.1 shows the profile-lint mechanism has absorbed every Enfusion constraint so far | Never |
+| D15 | The general edition's wedge is **games and simulations**, not general systems programming | It is where Rust is weakest (graphs, compile times, determinism) and where the ecosystem gap is smallest — and it is the same domain as the Enfusion edition, so the two share a wedge and not just a compiler | If a different domain shows a stronger structural advantage |
 
 ---
 
@@ -790,6 +1098,21 @@ new information.
 Roughly 13,000 lines to v0.7, against ~11,800 today. That is a real project, not
 a weekend — which is the honest framing, and the reason §4.1 exists.
 
+The general edition's track (§4.2) sits after all of that:
+
+| release | theme | ~lines | the point of it |
+|---|---|---|---|
+| G1 | Reach | 3,000 | three platforms and real FFI |
+| G2 | Concurrency | 3,500 | the precondition for competing at all |
+| G3 | Standard library | 10,000+ | mostly Beryl, not C — and where language projects die |
+| G4 | Tooling | 8,000+ | LSP, package manager, debugger |
+| G5 | Hardening | — | ongoing, forever |
+
+Those numbers are guesses with wide error bars, and G3 and G4 dwarf the entire
+first track. **That is the real cost of the second edition** — not the compiler
+work, which §2.1 shows is nearly done, but the library and tooling surface that
+"general purpose" actually means.
+
 ---
 
 ## 11. If you read only one thing
@@ -797,5 +1120,7 @@ a weekend — which is the honest framing, and the reason §4.1 exists.
 Do the experiment in **§4.1**. Port a real SPARKOS MESH class, ship it, and see
 whether it was worth it.
 
-Everything else in this document is a plan for a thing that might not need to
-exist. That experiment is the only part that tells you whether it does.
+Everything else in this document — including the general edition, which is a
+stated goal and not a daydream — is a plan for a thing that might not need to
+exist. That experiment is the only part that tells you whether it does, and it
+costs an afternoon.
