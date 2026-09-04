@@ -300,6 +300,23 @@ static Field *find_field(Type *t, Str name) {
 
 /* Checks the arguments of a call against a function item. */
 static Type *chk_call_item(C *c, Expr *e, Item *fn, bool has_self) {
+    if (fn->fn.generics.len > 0) {
+        /* Monomorphization is v0.2. Saying so plainly beats letting the call
+         * type-check against unsubstituted parameters and fail somewhere
+         * downstream with no obvious cause. */
+        Diag *dg = diag_error(c->d, 508, e->span,
+                              "`%.*s` is generic, and v0.1 does not instantiate "
+                              "user-defined generics",
+                              (int)fn->name.len, fn->name.ptr);
+        diag_label(dg, fn->span, "declared with type parameters here");
+        diag_note(dg, "the built-in generic containers — List, Map, Box, Rc, Pool, "
+                      "Handle — are intrinsic and fully supported");
+        diag_help(dg, "write a concrete version for now, or use `min`/`max`/`clamp` "
+                      "if that is what you needed");
+        for (uint32_t i = 0; i < e->call.args.len; i++)
+            chk(c, e->call.args.data[i].value, NULL);
+        return chk_err(c);
+    }
     ArgVec  args   = e->call.args;
     uint32_t formal = fn->fn.params.len;
     uint32_t first  = has_self ? 1 : 0;

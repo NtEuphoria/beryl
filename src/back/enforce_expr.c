@@ -175,12 +175,28 @@ Str ef_expr(E *e, Expr *x) {
         case EX_SELF: sb_cstr(&sb, "this"); break;
 
         case EX_PATH:
-            if (x->res_kind == RES_LOCAL) sb_str(&sb, ef_ident(e, ((Local *)x->res)->name));
-            else if (x->res_kind == RES_CONST) sb_str(&sb, ef_prefixed(e, x->res
-                                                                          ? ((Item *)x->res)->name
-                                                                          : STR_EMPTY));
-            else if (x->path.segs.len) sb_str(&sb, x->path.segs.data[0]);
-            else sb_cstr(&sb, "0");
+            if (x->res_kind == RES_LOCAL) {
+                sb_str(&sb, ef_ident(e, ((Local *)x->res)->name));
+            } else if (x->res_kind == RES_CONST) {
+                /* Constants are folded to a literal. EnforceScript has no
+                 * module-level constant to bind the name to, and folding is
+                 * always correct where a constant is legal at all. */
+                Item *it = (Item *)x->res;
+                ConstVal v = it && it->konst.value
+                                 ? const_eval(e->a, e->d, e->p, it->konst.value, false)
+                                 : (ConstVal){0};
+                switch (v.kind) {
+                    case CV_INT: sb_fmt(&sb, "%lld", (long long)v.i); break;
+                    case CV_FLOAT: sb_fmt(&sb, "%g", v.f); break;
+                    case CV_BOOL: sb_cstr(&sb, v.b ? "true" : "false"); break;
+                    case CV_STR: sb_fmt(&sb, "\"%.*s\"", S(v.s)); break;
+                    default: sb_cstr(&sb, "0"); break;
+                }
+            } else if (x->path.segs.len) {
+                sb_str(&sb, x->path.segs.data[0]);
+            } else {
+                sb_cstr(&sb, "0");
+            }
             break;
 
         case EX_FIELD:

@@ -1,6 +1,8 @@
 /* check.c — scopes, statements, functions, and the checking entry point. */
 #include "check.h"
 
+#include "constfold.h"
+
 void chk_push_scope(C *c) { vec_push(c->a, c->scopes, map_new(c->a)); }
 
 void chk_pop_scope(C *c) {
@@ -317,6 +319,10 @@ bool check_program(DiagBag *d, Program *p) {
                         chk_expect_type(&c, it->konst.value->span, it->rtype, vt,
                                         "in this constant");
                     else it->rtype = vt;
+                    /* Evaluate eagerly at the declaration. Otherwise a bad
+                     * constant is only caught where it happens to be used,
+                     * and one that is never used is never checked at all. */
+                    const_eval(c.a, d, p, it->konst.value, true);
                     chk_pop_scope(&c);
                     break;
                 }

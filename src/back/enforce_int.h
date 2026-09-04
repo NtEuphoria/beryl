@@ -4,6 +4,7 @@
 
 #include "../common/map.h"
 #include "../sema/intrinsic.h"
+#include "../sema/constfold.h"
 #include "../sema/types.h"
 #include "enforce_backend.h"
 

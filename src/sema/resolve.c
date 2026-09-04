@@ -1,6 +1,6 @@
 #include "resolve.h"
 
-#include "../parse/print.h"
+#include "constfold.h"
 
 Program *prog_new(Arena *a) {
     Program *p = ARENA_NEW(a, Program);
@@ -118,11 +118,9 @@ Type *resolve_type_expr(Program *p, DiagBag *d, TypeExpr *te) {
         case TE_OPTION: return ty_option(p->types, resolve_type_expr(p, d, te->elem));
         case TE_ERRUNION: return ty_errunion(p->types, resolve_type_expr(p, d, te->elem));
         case TE_ARRAY: {
-            Type *elem = resolve_type_expr(p, d, te->elem);
-            /* The length is const-evaluated in Task 6; a literal covers v0.1's
-             * declared surface and anything else is reported there. */
-            uint64_t n = 0;
-            if (te->len && te->len->kind == EX_INT) n = te->len->int_lit.val;
+            Type    *elem = resolve_type_expr(p, d, te->elem);
+            uint64_t n    = 0;
+            const_eval_len(p->a, d, p, te->len, &n);
             return ty_array(p->types, elem, n);
         }
         case TE_PATH: break;

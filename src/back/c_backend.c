@@ -3,6 +3,7 @@
 
 #include "../common/map.h"
 #include "../sema/intrinsic.h"
+#include "../sema/constfold.h"
 #include "../sema/types.h"
 
 typedef struct {
@@ -712,6 +713,34 @@ static Str gen_expr(G *g, Expr *e) {
     return sb_finish(&sb);
 }
 
+/* Renders a folded constant as a literal. A constant must be folded rather
+ * than emitted as an expression: C requires a compile-time constant in an
+ * initializer, and `WIDTH * HEIGHT` would otherwise become a call to the
+ * checked-multiply helper. */
+static Str const_literal(G *g, Expr *e, Type *want) {
+    ConstVal v = const_eval(g->a, g->d, g->p, e, true);
+    SB       sb;
+    sb_init(&sb, g->a);
+    switch (v.kind) {
+        case CV_INT:
+            if (want && want->kind == TY_FLOAT)
+                sb_fmt(&sb, "%lld.0%s", (long long)v.i, want->bits == 32 ? "f" : "");
+            else sb_fmt(&sb, "%lldLL", (long long)v.i);
+            break;
+        case CV_FLOAT:
+            sb_fmt(&sb, "%.17g%s", v.f, (want && want->bits == 32) ? "f" : "");
+            break;
+        case CV_BOOL: sb_cstr(&sb, v.b ? "true" : "false"); break;
+        case CV_STR:
+            sb_cstr(&sb, "BE_STR(");
+            emit_c_string(&sb, v.s);
+            sb_char(&sb, ')');
+            break;
+        default: sb_cstr(&sb, "0"); break;
+    }
+    return sb_finish(&sb);
+}
+
 /* ---- statements -------------------------------------------------------- */
 
 static const char *assign_op(TokKind k) {
@@ -945,8 +974,9 @@ Str cgen_program(Arena *a, SourceMap *sm, DiagBag *d, Program *p, CgenMode mode)
             if (it->kind != IT_CONST || !it->konst.value) continue;
             Str ct = ctype(&g, it->rtype);
             Str nm = mangle(&g, it->qual_name);
-            Str v  = gen_expr(&g, it->konst.value);
-            line(&g, "static const %.*s %.*s = %.*s;", S(ct), S(nm), S(v));
+            /* folded below */
+            line(&g, "static const %.*s %.*s = %.*s;", S(ct), S(nm),
+                 S(const_literal(&g, it->konst.value, it->rtype)));
         }
     }
 

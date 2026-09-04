@@ -243,6 +243,50 @@ static void test_diagnostics(void) {
                 "fractional literal");
 }
 
+static void test_const_eval(void) {
+    CASE("const: literals, arithmetic and other constants fold");
+    uint32_t errs = 0;
+    Str      out  = sema1("module t\n"
+                          "const W: i32 = 4\n"
+                          "const H: i32 = 3\n"
+                          "const CELLS: i32 = W * H\n"
+                          "fn m() {\n"
+                          "    let grid: [i32; CELLS] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n"
+                          "}\n",
+                          &errs);
+    if (errs) printf("%.*s\n", (int)out.len, out.ptr);
+    CHECK_EQ_I(errs, 0);
+
+    expect_diag("const: a non-constant array length is BE0505",
+                "module t\nfn m(let n: i32) {\n    let a: [i32; n] = [0]\n}\n", "BE0505",
+                "must be a constant integer");
+
+    expect_diag("const: a negative array length is BE0505",
+                "module t\nfn m() {\n    let a: [i32; 3 - 9] = [0]\n}\n", "BE0505",
+                "cannot be negative");
+
+    expect_diag("const: division by zero in a constant is BE0502",
+                "module t\nconst BAD: i32 = 4 / 0\nfn m() {\n    let q = BAD\n}\n",
+                "BE0502", "division by zero");
+
+    expect_diag("const: constant overflow is BE0503",
+                "module t\n"
+                "const HUGE: i64 = 9223372036854775807\n"
+                "const OVER: i64 = HUGE * 2\n"
+                "fn m() {\n    let q = OVER\n}\n",
+                "BE0503", "overflows a 64-bit value");
+
+    CASE("const: the evaluator has no I/O to reach for, by construction");
+    /* A call is simply not a constant expression; there is no sandbox to
+     * escape because nothing beyond pure arithmetic is implemented. */
+    out = sema1("module t\n"
+                "fn side() -> i32 {\n    return 1\n}\n"
+                "fn m() {\n    let a: [i32; side()] = [0]\n}\n",
+                &errs);
+    CHECK(errs >= 1);
+    CHECK_CONTAINS(out, "BE0505");
+}
+
 static void test_warnings(void) {
     CASE("sema: unreachable code after return is a warning, not an error");
     Fx f = fx_new();
@@ -273,6 +317,7 @@ static void test_module_cycle(void) {
 void run_sema_tests(void) {
     test_positive();
     test_diagnostics();
+    test_const_eval();
     test_warnings();
     test_module_cycle();
 }
