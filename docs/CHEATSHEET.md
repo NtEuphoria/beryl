@@ -57,7 +57,28 @@ List<T>          Map<K,V>         Box<T> Rc<T> Pool<T> Handle<T>  ✗ (native)
 - `T?` — optional. **There is no null.**
 - `!T` — error union: a tag plus a value, no allocation, no unwinding
 - `Map<K,V>` works on the enfusion target; native is v0.2
+- `Quat`/`Mat3`/`Mat4` are reserved names with **no operations at all**
 - **No implicit conversion, ever.** `a as i64` is how you convert.
+
+## Vectors
+
+```beryl
+let v = Vec3(1.0, 2.0, 3.0)      // components are always f32
+v.x  v.y  v.z  v.w               // named — checked against the arity
+v[i]                             // indexed — bounds-checked
+v.y = 1.0        v[2] = 3.0      // both spellings assign
+
+a + b   a - b   a * b   a / b    // component-wise
+a * s   s * a   a / s   -a       // scale by an f32  (s / a is not accepted)
+a == b                           // component-wise, exact
+
+a.length()   a.length_sq()   a.dot(b)   a.distance(b)
+a.normalized()                   // zero-length gives zero, never NaN
+a.cross(b)                       // Vec3 only (BE0319)
+```
+
+`Vec2` and `Vec4` are native-only — EnforceScript's `vector` is exactly three
+floats, so both are BE0701 on the enfusion target.
 
 ## Control flow
 

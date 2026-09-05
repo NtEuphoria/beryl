@@ -79,6 +79,8 @@ Str ef_type(E *e, Type *t) {
         case TY_CHAR: return str_from("int");
         case TY_INT: return str_from("int");
         case TY_FLOAT: return str_from("float");
+        /* Vec2 and Vec4 are rejected by lint_type before they reach here; the
+         * mapping is kept so a program with that error still renders. */
         case TY_VEC2:
         case TY_VEC3:
         case TY_VEC4: return str_from("vector");
@@ -213,6 +215,19 @@ static void lint_type(L *l, Type *t, Span at, const char *what) {
                 diag_help(dg, "use `f32` for %s", what);
             }
             break;
+        /* EnforceScript's `vector` is exactly three floats. Mapping Vec2 and
+         * Vec4 onto it — which v0.1 did — silently gives a Vec2 a third
+         * component and drops a Vec4's fourth. */
+        case TY_VEC2:
+        case TY_VEC4: {
+            Diag *dg = diag_error(l->d, 701, at,
+                                  "`%.*s` is not supported on the enfusion target",
+                                  (int)ty_name(l->a, t).len, ty_name(l->a, t).ptr);
+            diag_note(dg, "EnforceScript has one vector type, `vector`, which is "
+                          "exactly three floats");
+            diag_help(dg, "use `Vec3` for %s, or two `f32` fields", what);
+            break;
+        }
         case TY_ARRAY:
         case TY_LIST:
         case TY_BOX:
@@ -555,6 +570,7 @@ static E ef_new(Arena *a, SourceMap *sm, DiagBag *d, Program *p, EnfusionOpts o)
     e.p   = p;
     e.prefix       = o.prefix;
     e.helpers_done = map_new(a);
+    e.memo         = map_new(a);
     sb_init(&e.out, a);
     sb_init(&e.helper, a);
     return e;

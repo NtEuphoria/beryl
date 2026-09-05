@@ -134,7 +134,7 @@ error[BE0312]: expected `f32`, found `i64` on the right of this operator
 ```
 
 ### BE0313 — this type cannot be indexed
-Indexable: `[T; N]`, `List<T>`, `Map<K,V>`.
+Indexable: `[T; N]`, `List<T>`, `Map<K,V>`, `Vec2`/`Vec3`/`Vec4`.
 
 ### BE0314 — missing field in a struct literal
 Only fields with no default must be given. Container fields default to empty.
@@ -148,6 +148,15 @@ Change the return type, or handle the error with `orelse` or `catch`.
 
 ### BE0318 — unreachable code *(warning)*
 Statements after a `return`.
+
+### BE0319 — `cross` is only defined on `Vec3`
+The cross product exists only in three dimensions. For `Vec2`, the scalar
+`a.x*b.y - a.y*b.x` is usually what is wanted; write it out.
+
+### BE0320 — this vector has no such component
+`Vec2` has `x` and `y`; `Vec3` adds `z`; `Vec4` adds `w`. Naming a component
+is checked against the arity, which is why `v.z` on a `Vec2` is an error where
+`v[2]` could only trap at run time.
 
 ---
 

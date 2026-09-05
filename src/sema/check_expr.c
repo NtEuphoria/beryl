@@ -250,13 +250,40 @@ static Type *chk_binary(C *c, Expr *e, Type *expected) {
         return bt;
     }
 
-    Type *want = (is_arith(op) && expected && ty_is_numeric(expected)) ? expected : NULL;
-    Type *lt   = chk(c, e->binary.lhs, want);
-    Type *rt   = chk(c, e->binary.rhs, lt);
+    Type *want  = (is_arith(op) && expected && ty_is_numeric(expected)) ? expected : NULL;
+    Type *lt    = chk(c, e->binary.lhs, want);
+    bool  scale = (op == TK_STAR || op == TK_SLASH);
+
+    /* A vector scales by an `f32`, so that is what the right-hand side is
+     * offered. It is only a hint — `v * w` still checks as component-wise —
+     * but without it a literal in `v * 2.0` defaults to f64 and the operand
+     * types never line up. */
+    Type *rwant = (scale && ty_is_vec(lt)) ? ty_float(c->tc, 32) : lt;
+    Type *rt    = chk(c, e->binary.rhs, rwant);
 
     if (ty_is_error(lt) || ty_is_error(rt)) return chk_err(c);
 
     if (!ty_eq(lt, rt)) {
+        /* Scaling a vector by a scalar. Accepted on either side for `*`, and
+         * on the left only for `/`, because `2.0 / v` is not a scaling — it
+         * is a component-wise reciprocal, and spelling that as a division
+         * would hide what it does. */
+        Type *f32 = ty_float(c->tc, 32);
+        if (scale && ty_is_vec(lt) && ty_eq(rt, f32)) return lt;
+        if (op == TK_STAR && ty_eq(lt, f32) && ty_is_vec(rt)) return rt;
+
+        /* `2.0 * v`. The left operand was checked before the right was known,
+         * so a bare literal defaulted to f64. A literal has no runtime value
+         * yet, so re-fixing it as f32 is not a conversion — the same rule
+         * that lets `let x: f32 = 1` work. A typed f64 *value* still fails,
+         * which is D5 doing its job. */
+        if (op == TK_STAR && ty_is_float(lt) && ty_is_vec(rt) &&
+            (e->binary.lhs->kind == EX_FLOAT || e->binary.lhs->kind == EX_INT)) {
+            chk(c, e->binary.lhs, f32);
+            e->binary.lhs->type = f32;
+            return rt;
+        }
+
         chk_expect_type(c, e->binary.rhs->span, lt, rt, "on the right of this operator");
         return is_cmp_op(op) ? ty_prim(c->tc, TY_BOOL) : lt;
     }
@@ -277,8 +304,7 @@ static Type *chk_binary(C *c, Expr *e, Type *expected) {
     }
 
     if (is_arith(op)) {
-        bool vecish = lt->kind == TY_VEC2 || lt->kind == TY_VEC3 || lt->kind == TY_VEC4;
-        if (!ty_is_numeric(lt) && !vecish) {
+        if (!ty_is_numeric(lt) && !ty_is_vec(lt)) {
             diag_error(c->d, 303, e->span, "`%s` requires a number, found `%.*s`",
                        tok_name(op), (int)ty_name(c->a, lt).len, ty_name(c->a, lt).ptr);
             return chk_err(c);
@@ -302,8 +328,7 @@ static Type *chk_unary(C *c, Expr *e, Type *expected) {
     }
     Type *t = chk(c, e->unary.operand, expected);
     if (ty_is_error(t)) return t;
-    if (op == TK_MINUS && !ty_is_numeric(t) && t->kind != TY_VEC2 && t->kind != TY_VEC3 &&
-        t->kind != TY_VEC4) {
+    if (op == TK_MINUS && !ty_is_numeric(t) && !ty_is_vec(t)) {
         diag_error(c->d, 303, e->span, "cannot negate `%.*s`", (int)ty_name(c->a, t).len,
                    ty_name(c->a, t).ptr);
         return chk_err(c);
@@ -322,6 +347,51 @@ static Field *find_field(Type *t, Str name) {
     for (uint32_t i = 0; i < it->strukt.fields.len; i++)
         if (str_eq(it->strukt.fields.data[i].name, name)) return &it->strukt.fields.data[i];
     return NULL;
+}
+
+/* `v.x` / `.y` / `.z` / `.w` on Vec2/3/4.
+ *
+ * Components are named rather than only indexed because that is how vector
+ * code is actually written, and because a name can be checked against the
+ * arity: `.z` on a `Vec2` is a compile error, where `v[2]` could only trap at
+ * run time. Both spellings are accepted; this is the one that catches more. */
+static Type *chk_vec_component(C *c, Expr *e, Type *vt) {
+    Str      name  = e->field.name;
+    uint32_t arity = ty_vec_arity(vt);
+    uint32_t idx   = 4;
+
+    if (name.len == 1) {
+        switch (name.ptr[0]) {
+            case 'x': idx = 0; break;
+            case 'y': idx = 1; break;
+            case 'z': idx = 2; break;
+            case 'w': idx = 3; break;
+            default: break;
+        }
+    }
+
+    if (idx == 4) {
+        Diag *dg = diag_error(c->d, 305, e->span, "no component `%.*s` on `%.*s`",
+                              (int)name.len, name.ptr, (int)ty_name(c->a, vt).len,
+                              ty_name(c->a, vt).ptr);
+        diag_help(dg, "components are %s", arity == 2   ? "`x` and `y`"
+                                           : arity == 3 ? "`x`, `y` and `z`"
+                                                        : "`x`, `y`, `z` and `w`");
+        return chk_err(c);
+    }
+
+    if (idx >= arity) {
+        Diag *dg = diag_error(c->d, 320, e->span, "`%.*s` has no `%.*s` component",
+                              (int)ty_name(c->a, vt).len, ty_name(c->a, vt).ptr,
+                              (int)name.len, name.ptr);
+        diag_note(dg, "`%.*s` has %u components", (int)ty_name(c->a, vt).len,
+                  ty_name(c->a, vt).ptr, arity);
+        return chk_err(c);
+    }
+
+    e->res_kind  = RES_VEC_COMP;
+    e->intrinsic = (uint8_t)idx;
+    return ty_float(c->tc, 32);
 }
 
 /* Checks the arguments of a call against a function item. */
@@ -442,6 +512,89 @@ static Type *chk_list_method(C *c, Expr *e, Type *lt, Str name) {
     }
 }
 
+/* `Vec3(x, y, z)`. Every component is `f32` on both targets, so a float
+ * literal argument adopts f32 rather than defaulting to f64 — which is the
+ * whole reason the expected type is threaded through here. */
+static Type *chk_vec_new(C *c, Expr *e, Type *vt) {
+    uint32_t arity = ty_vec_arity(vt);
+    uint32_t n     = e->call.args.len;
+    Type    *f32   = ty_float(c->tc, 32);
+
+    e->res_kind  = RES_INTRINSIC;
+    e->intrinsic = (uint8_t)(INTR_VEC2_NEW + (arity - 2));
+
+    if (n != arity) {
+        Diag *dg = diag_error(c->d, 304, e->span, "`%.*s` takes %u arguments, found %u",
+                              (int)ty_name(c->a, vt).len, ty_name(c->a, vt).ptr, arity, n);
+        diag_help(dg, "one `f32` per component");
+        for (uint32_t i = 0; i < n; i++) chk(c, e->call.args.data[i].value, f32);
+        return vt;
+    }
+
+    for (uint32_t i = 0; i < n; i++) {
+        Type *at = chk(c, e->call.args.data[i].value, f32);
+        chk_expect_type(c, e->call.args.data[i].value->span, f32, at,
+                        "as a vector component");
+    }
+    return vt;
+}
+
+/* Methods on Vec2/3/4. Like the list methods these are intrinsic, because the
+ * Enfusion target has them on its own `vector` and a Beryl reimplementation
+ * would be both slower and subtly different. */
+static Type *chk_vec_method(C *c, Expr *e, Type *vt, Str name) {
+    Intrinsic id    = intrinsic_vec_method(name);
+    uint32_t  arity = ty_vec_arity(vt);
+    Type     *f32   = ty_float(c->tc, 32);
+
+    if (id == INTR_NONE) {
+        Diag *dg = diag_error(c->d, 306, e->call.callee->span, "no method `%.*s` on `%.*s`",
+                              (int)name.len, name.ptr, (int)ty_name(c->a, vt).len,
+                              ty_name(c->a, vt).ptr);
+        diag_help(dg, "`%.*s` has length, length_sq, dot, distance and normalized%s",
+                  (int)ty_name(c->a, vt).len, ty_name(c->a, vt).ptr,
+                  arity == 3 ? ", plus cross" : "");
+        for (uint32_t i = 0; i < e->call.args.len; i++)
+            chk(c, e->call.args.data[i].value, NULL);
+        return chk_err(c);
+    }
+
+    /* The cross product is only defined in three dimensions. Rejecting it by
+     * arity rather than by omitting it from the table means the message can
+     * name the type the caller actually has. */
+    if (id == INTR_VEC_CROSS && arity != 3) {
+        Diag *dg = diag_error(c->d, 319, e->call.callee->span,
+                              "`cross` is only defined on `Vec3`, found `%.*s`",
+                              (int)ty_name(c->a, vt).len, ty_name(c->a, vt).ptr);
+        diag_note(dg, "the cross product exists only in three dimensions");
+        for (uint32_t i = 0; i < e->call.args.len; i++)
+            chk(c, e->call.args.data[i].value, NULL);
+        return chk_err(c);
+    }
+
+    e->res_kind  = RES_INTRINSIC;
+    e->intrinsic = (uint8_t)id;
+
+    bool     binary = (id == INTR_VEC_DOT || id == INTR_VEC_DISTANCE ||
+                   id == INTR_VEC_CROSS);
+    uint32_t want   = binary ? 1 : 0;
+    uint32_t n      = e->call.args.len;
+    Type    *ret    = (id == INTR_VEC_NORMALIZED || id == INTR_VEC_CROSS) ? vt : f32;
+
+    if (n != want) {
+        diag_error(c->d, 304, e->span, "`%.*s` takes %u argument%s, found %u",
+                   (int)name.len, name.ptr, want, want == 1 ? "" : "s", n);
+        for (uint32_t i = 0; i < n; i++) chk(c, e->call.args.data[i].value, NULL);
+        return ret;
+    }
+
+    if (binary) {
+        Type *at = chk(c, e->call.args.data[0].value, vt);
+        chk_expect_type(c, e->call.args.data[0].value->span, vt, at, "in this call");
+    }
+    return ret;
+}
+
 static Type *chk_call(C *c, Expr *e) {
     Expr *callee = e->call.callee;
 
@@ -463,6 +616,12 @@ static Type *chk_call(C *c, Expr *e) {
                            "`%.*s` is a type, not a function", (int)name.len, name.ptr);
                 return chk_err(c);
             }
+            TypeKind vk = str_eq_c(name, "Vec2")   ? TY_VEC2
+                          : str_eq_c(name, "Vec3") ? TY_VEC3
+                          : str_eq_c(name, "Vec4") ? TY_VEC4
+                                                   : TY_ERROR;
+            if (vk != TY_ERROR) return chk_vec_new(c, e, ty_prim(c->tc, vk));
+
             Intrinsic id = intrinsic_from_name(name);
             if (id != INTR_NONE) return chk_intrinsic(c, e, id);
 
@@ -506,6 +665,7 @@ static Type *chk_call(C *c, Expr *e) {
         }
 
         if (bt->kind == TY_LIST) return chk_list_method(c, e, bt, callee->field.name);
+        if (ty_is_vec(bt)) return chk_vec_method(c, e, bt, callee->field.name);
 
         Str   tname = (bt->kind == TY_STRUCT || bt->kind == TY_ENUM) ? bt->name
                                                                     : ty_name(c->a, bt);
@@ -585,13 +745,16 @@ static Type *chk_index(C *c, Expr *e) {
         chk_expect_type(c, e->index.index->span, bt->key, kt, "as a map key");
         return bt->elem;
     }
-    if (bt->kind == TY_ARRAY || bt->kind == TY_LIST || bt->kind == TY_POOL) {
+    if (bt->kind == TY_ARRAY || bt->kind == TY_LIST || bt->kind == TY_POOL ||
+        ty_is_vec(bt)) {
         Type *it = chk(c, e->index.index, ty_int(c->tc, 32, true));
         if (!ty_is_integer(it) && !ty_is_error(it))
             diag_error(c->d, 303, e->index.index->span,
                        "an index must be an integer, found `%.*s`",
                        (int)ty_name(c->a, it).len, ty_name(c->a, it).ptr);
-        return bt->elem;
+        /* A vector's elements are f32 and it carries no `elem`, so the type
+         * comes from the arity rather than from the type node. */
+        return ty_is_vec(bt) ? ty_float(c->tc, 32) : bt->elem;
     }
     diag_error(c->d, 313, e->span, "`%.*s` cannot be indexed",
                (int)ty_name(c->a, bt).len, ty_name(c->a, bt).ptr);
@@ -649,6 +812,10 @@ Type *chk(C *c, Expr *e, Type *expected) {
             Type *bt = chk(c, e->field.base, NULL);
             if (ty_is_error(bt)) {
                 t = chk_err(c);
+                break;
+            }
+            if (ty_is_vec(bt)) {
+                t = chk_vec_component(c, e, bt);
                 break;
             }
             Field *fl = find_field(bt, e->field.name);

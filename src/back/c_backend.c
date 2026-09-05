@@ -16,6 +16,7 @@ typedef struct {
     SB         out;   /* function bodies */
     SB        *cur;   /* where statements are currently written */
     Map       *emitted;
+    Map       *memo; /* Expr* -> already-rendered text; see gen_expr */
     int        indent;
     int        tmp;
     Item      *fn;      /* function being emitted */
@@ -106,7 +107,21 @@ static void line(G *g, const char *fmt, ...) {
     sb_char(g->cur, '\n');
 }
 
+/* CAUTION: `S` expands its argument TWICE. Passing a generator call directly
+ * — `S(gen_expr(g, e))` — therefore runs it twice, and any statement that
+ * generator emitted lands in the output twice. `gen_expr` is memoized so the
+ * existing call sites of that shape stay correct; a new generator that emits
+ * lines must be memoized the same way, or hoisted into a local first. */
 #define S(x) (int)(x).len, (x).ptr
+
+/* The bytes of a pointer, as a map key — exact identity, not a hash. */
+static Str ptr_key(Arena *a, const void *p) {
+    char *b = ARENA_ARRAY(a, char, sizeof p);
+    for (size_t i = 0; i < sizeof p; i++) b[i] = (char)(((uintptr_t)p >> (i * 8)) & 0xff);
+    return (Str){b, (uint32_t)sizeof p};
+}
+
+static Str gen_expr_gen(G *g, Expr *e);
 
 static uint32_t line_of(G *g, Span sp) { return srcmap_linecol(g->sm, sp).line; }
 
@@ -142,6 +157,11 @@ static Str ctype(G *g, Type *t) {
             return sb_finish(&sb);
         }
         case TY_FLOAT: return str_from(t->bits == 32 ? "float" : "double");
+        /* Declared by the runtime header, so nothing is generated for them.
+         * Components are f32 on both targets — see beryl_rt.h. */
+        case TY_VEC2: return str_from("BeVec2");
+        case TY_VEC3: return str_from("BeVec3");
+        case TY_VEC4: return str_from("BeVec4");
         case TY_STRUCT:
         case TY_ENUM: {
             ensure_type(g, t);
@@ -259,6 +279,15 @@ static void ensure_type(G *g, Type *t) {
 static Str gen_expr(G *g, Expr *e);
 static void gen_block(G *g, Expr *b);
 
+/* `vec2` / `vec3` / `vec4` — the middle of every `be_vec3_add` style helper. */
+static const char *vec_suffix(const Type *t) {
+    switch (ty_vec_arity(t)) {
+        case 2: return "vec2";
+        case 4: return "vec4";
+        default: return "vec3";
+    }
+}
+
 static const char *int_suffix(const Type *t) {
     switch (t->bits) {
         case 8: return t->is_signed ? "i8" : "u8";
@@ -326,6 +355,31 @@ static Str gen_binary(G *g, Expr *e) {
     SB sb;
     sb_init(&sb, g->a);
 
+    /* Vectors first, because C has no operators on them and the fall-through
+     * at the bottom of this function would otherwise emit `(a + b)` on a
+     * struct — which is what v0.1 did. */
+    Type *rtv = e->binary.rhs->type;
+    if (ty_is_vec(t) || ty_is_vec(rtv)) {
+        bool        lv = ty_is_vec(t);
+        const char *s  = vec_suffix(lv ? t : rtv);
+        switch (op) {
+            case TK_EQ: sb_fmt(&sb, "be_%s_eq(%.*s, %.*s)", s, S(l), S(r)); break;
+            case TK_NE: sb_fmt(&sb, "(!be_%s_eq(%.*s, %.*s))", s, S(l), S(r)); break;
+            case TK_PLUS: sb_fmt(&sb, "be_%s_add(%.*s, %.*s)", s, S(l), S(r)); break;
+            case TK_MINUS: sb_fmt(&sb, "be_%s_sub(%.*s, %.*s)", s, S(l), S(r)); break;
+            case TK_SLASH:
+                if (lv && ty_is_vec(rtv)) sb_fmt(&sb, "be_%s_div(%.*s, %.*s)", s, S(l), S(r));
+                else sb_fmt(&sb, "be_%s_unscale(%.*s, %.*s)", s, S(l), S(r));
+                break;
+            default: /* TK_STAR */
+                if (lv && ty_is_vec(rtv)) sb_fmt(&sb, "be_%s_mul(%.*s, %.*s)", s, S(l), S(r));
+                else if (lv) sb_fmt(&sb, "be_%s_scale(%.*s, %.*s)", s, S(l), S(r));
+                else sb_fmt(&sb, "be_%s_scale(%.*s, %.*s)", s, S(r), S(l));
+                break;
+        }
+        return sb_finish(&sb);
+    }
+
     const char *cop = NULL;
     switch (op) {
         case TK_EQ: cop = "=="; break;
@@ -384,6 +438,48 @@ static Str gen_binary(G *g, Expr *e) {
 
 /* Container methods are emitted against the helpers generated with the list's
  * type, so the receiver has to be rendered as storage rather than a value. */
+/* Vector methods are plain calls on values — unlike the list methods, which
+ * need the receiver as storage because they mutate it. */
+static Str gen_vec_method(G *g, Expr *e) {
+    Expr *recv = e->call.callee->field.base;
+    Str   s    = str_from(vec_suffix(recv->type));
+    Str   r    = gen_expr(g, recv);
+
+    SB sb;
+    sb_init(&sb, g->a);
+
+    const char *fn = "length";
+    switch ((Intrinsic)e->intrinsic) {
+        case INTR_VEC_LENGTH_SQ: fn = "length_sq"; break;
+        case INTR_VEC_DOT: fn = "dot"; break;
+        case INTR_VEC_DISTANCE: fn = "distance"; break;
+        case INTR_VEC_NORMALIZED: fn = "normalized"; break;
+        case INTR_VEC_CROSS: fn = "cross"; break;
+        default: break;
+    }
+
+    if (e->call.args.len == 1) {
+        Str a = gen_expr(g, e->call.args.data[0].value);
+        sb_fmt(&sb, "be_%.*s_%s(%.*s, %.*s)", S(s), fn, S(r), S(a));
+    } else {
+        sb_fmt(&sb, "be_%.*s_%s(%.*s)", S(s), fn, S(r));
+    }
+    return sb_finish(&sb);
+}
+
+static Str gen_vec_new(G *g, Expr *e) {
+    SB sb;
+    sb_init(&sb, g->a);
+    sb_fmt(&sb, "be_%s(", vec_suffix(e->type));
+    for (uint32_t i = 0; i < e->call.args.len; i++) {
+        if (i) sb_cstr(&sb, ", ");
+        Str a = gen_expr(g, e->call.args.data[i].value);
+        sb_fmt(&sb, "%.*s", S(a));
+    }
+    sb_char(&sb, ')');
+    return sb_finish(&sb);
+}
+
 static Str gen_list_method(G *g, Expr *e) {
     Expr  *recv = e->call.callee->field.base;
     Type  *lt   = recv->type;
@@ -421,6 +517,8 @@ static Str gen_list_method(G *g, Expr *e) {
 
 static Str gen_call_intrinsic(G *g, Expr *e) {
     if (intrinsic_is_list_method((Intrinsic)e->intrinsic)) return gen_list_method(g, e);
+    if (intrinsic_is_vec_method((Intrinsic)e->intrinsic)) return gen_vec_method(g, e);
+    if (intrinsic_is_vec_new((Intrinsic)e->intrinsic)) return gen_vec_new(g, e);
 
     SB sb;
     sb_init(&sb, g->a);
@@ -560,7 +658,24 @@ static Str gen_call(G *g, Expr *e) {
     return sb_finish(&sb);
 }
 
+/* Memoized for the same reason as `ef_expr`: `S` expands its argument twice,
+ * so a generator passed straight into it runs twice and re-emits whatever
+ * statements it needed. See the caution at the `S` definition above. */
 static Str gen_expr(G *g, Expr *e) {
+    if (e) {
+        Str  key = ptr_key(g->a, e);
+        Str *hit = (Str *)map_get(g->memo, key);
+        if (hit) return *hit;
+        Str  r   = gen_expr_gen(g, e);
+        Str *box = ARENA_NEW(g->a, Str);
+        *box     = r;
+        map_put(g->memo, key, box);
+        return r;
+    }
+    return gen_expr_gen(g, e);
+}
+
+static Str gen_expr_gen(G *g, Expr *e) {
     SB sb;
     sb_init(&sb, g->a);
     if (!e) {
@@ -576,10 +691,22 @@ static Str gen_expr(G *g, Expr *e) {
             else sb_fmt(&sb, "%lluLL", (unsigned long long)e->int_lit.val);
             break;
 
-        case EX_FLOAT:
-            sb_fmt(&sb, "%.17g%s", e->float_lit.val,
+        case EX_FLOAT: {
+            /* `%g` drops a trailing `.0`, and `1f` is not a float literal in
+             * C — it lexes as an integer with a stray suffix. Nothing caught
+             * this before because no f32 literal had ever reached the C back
+             * end; `Vec3(1.0, 2.0, 3.0)` is the first. */
+            SB tmp;
+            sb_init(&tmp, g->a);
+            sb_fmt(&tmp, "%.17g", e->float_lit.val);
+            Str  d     = sb_finish(&tmp);
+            bool fract = false;
+            for (uint32_t i = 0; i < d.len && !fract; i++)
+                fract = d.ptr[i] == '.' || d.ptr[i] == 'e' || d.ptr[i] == 'E';
+            sb_fmt(&sb, "%.*s%s%s", S(d), fract ? "" : ".0",
                    (e->type && e->type->bits == 32) ? "f" : "");
             break;
+        }
 
         case EX_STR:
             sb_cstr(&sb, "BE_STR(");
@@ -617,6 +744,8 @@ static Str gen_expr(G *g, Expr *e) {
                 Str f = file_of(g, e->span);
                 sb_fmt(&sb, "be_neg_%s(%.*s, \"%.*s\", %u)", int_suffix(t), S(v), S(f),
                        line_of(g, e->span));
+            } else if (ty_is_vec(t)) {
+                sb_fmt(&sb, "be_%s_neg(%.*s)", vec_suffix(t), S(v));
             } else sb_fmt(&sb, "(-%.*s)", S(v));
             break;
         }
@@ -635,7 +764,11 @@ static Str gen_expr(G *g, Expr *e) {
             Str   ix = gen_expr(g, e->index.index);
             Type *bt = e->index.base->type;
             Str   f  = file_of(g, e->span);
-            uint64_t n = (bt && bt->kind == TY_ARRAY) ? bt->array_len : 0;
+            /* A vector's length is its arity; `.v[]` is the union member that
+             * makes `v[i]` and `v.x` the same storage. */
+            uint64_t n = ty_is_vec(bt) ? ty_vec_arity(bt)
+                         : (bt && bt->kind == TY_ARRAY) ? bt->array_len
+                                                        : 0;
             sb_fmt(&sb, "%.*s.v[be_idx((int64_t)%.*s, %llu, \"%.*s\", %u)]", S(b), S(ix),
                    (unsigned long long)n, S(f), line_of(g, e->span));
             break;
@@ -1101,6 +1234,7 @@ Str cgen_program(Arena *a, SourceMap *sm, DiagBag *d, Program *p, CgenMode mode)
     g.d = d;
     g.p = p;
     g.emitted = map_new(a);
+    g.memo    = map_new(a);
     sb_init(&g.types, a);
     sb_init(&g.protos, a);
     sb_init(&g.out, a);

@@ -18,6 +18,8 @@ void t_check_(bool ok, const char *expr, const char *file, int line);
 void t_check_eq_i_(long long a, long long b, const char *ea, const char *eb,
                    const char *file, int line);
 void t_check_eq_s_(Str a, const char *b, const char *ea, const char *file, int line);
+void t_check_missing_(Str hay, const char *needle, const char *ea, const char *file,
+                      int line);
 void t_check_contains_(Str hay, const char *needle, const char *ea, const char *file,
                        int line);
 int  t_summary(void);
@@ -27,5 +29,8 @@ int  t_summary(void);
 #define CHECK_EQ_I(a, b)    t_check_eq_i_((long long)(a), (long long)(b), #a, #b, __FILE__, __LINE__)
 #define CHECK_EQ_S(a, b)    t_check_eq_s_((a), (b), #a, __FILE__, __LINE__)
 #define CHECK_CONTAINS(h, n) t_check_contains_((h), (n), #h, __FILE__, __LINE__)
+/* For asserting a lowering did NOT take a shortcut — that the output avoids a
+ * construct the target does not actually support. */
+#define CHECK_MISSING(h, n)  t_check_missing_((h), (n), #h, __FILE__, __LINE__)
 
 #endif /* BERYL_TEST_H */

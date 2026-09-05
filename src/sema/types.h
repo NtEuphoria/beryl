@@ -74,6 +74,13 @@ Str  ty_name(Arena *a, const Type *t);
 bool ty_is_numeric(const Type *t);
 bool ty_is_integer(const Type *t);
 bool ty_is_float(const Type *t);
+
+/* Vec2/3/4. Quat and Mat3/4 are deliberately excluded: they lower to a type
+ * name but have no component or arithmetic semantics defined yet, and
+ * pretending otherwise is how a back end ends up emitting a zero value for
+ * an operation nobody implemented. */
+bool     ty_is_vec(const Type *t);
+uint32_t ty_vec_arity(const Type *t); /* 2, 3, 4 — or 0 if not a vector */
 /* Scalars and small aggregates with no destructor: copied rather than moved. */
 bool ty_is_copy(const Type *t);
 bool ty_is_error(const Type *t);

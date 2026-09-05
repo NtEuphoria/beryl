@@ -41,6 +41,23 @@ void t_check_eq_s_(Str a, const char *b, const char *ea, const char *file, int l
             a.ptr ? a.ptr : "", b);
 }
 
+static bool contains_(Str hay, const char *needle) {
+    size_t n = strlen(needle);
+    if (n > hay.len) return false;
+    for (uint32_t i = 0; i + n <= hay.len; i++)
+        if (memcmp(hay.ptr + i, needle, n) == 0) return true;
+    return false;
+}
+
+void t_check_missing_(Str hay, const char *needle, const char *ea, const char *file,
+                      int line) {
+    t_checks++;
+    if (!contains_(hay, needle)) return;
+    fail_header(file, line);
+    fprintf(stderr, "  %s should NOT contain \"%s\"\n  actual:\n%.*s\n", ea, needle,
+            (int)hay.len, hay.ptr ? hay.ptr : "");
+}
+
 void t_check_contains_(Str hay, const char *needle, const char *ea, const char *file,
                        int line) {
     t_checks++;

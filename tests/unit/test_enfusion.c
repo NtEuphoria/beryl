@@ -267,6 +267,36 @@ static void test_lint(void) {
     CHECK_CONTAINS(out, "error[BE0701]");
     CHECK_CONTAINS(out, "use `f32`");
 
+    CASE("enfusion: Vec2 and Vec4 are refused, naming Vec3");
+    out = enf("module t\n"
+              "fn f(let v: Vec2) -> f32 {\n"
+              "    return v.x\n"
+              "}\n",
+              &errs);
+    CHECK(errs >= 1);
+    CHECK_CONTAINS(out, "error[BE0701]");
+    CHECK_CONTAINS(out, "exactly three floats");
+    CHECK_CONTAINS(out, "use `Vec3`");
+
+    CASE("enfusion: Vec3 is accepted, with the whole method surface");
+    out = enf("module t\n"
+              "fn f(let a: Vec3, let b: Vec3, let s: f32) -> Vec3 {\n"
+              "    let m = a.length() + a.length_sq() + a.dot(b) + a.distance(b)\n"
+              "    return a.normalized() + a.cross(b) + a / b + a * s + s * a "
+              "+ Vec3(m, 0.0, 0.0)\n"
+              "}\n",
+              &errs);
+    CHECK_EQ_I(errs, 0);
+    /* Spellings confirmed against EnforceScript that compiles in Workbench. */
+    CHECK_CONTAINS(out, "vector.Dot(");
+    CHECK_CONTAINS(out, "vector.Distance(");
+    CHECK_CONTAINS(out, ".Length()");
+    CHECK_CONTAINS(out, ".LengthSq()");
+    CHECK_CONTAINS(out, ".Normalized()");
+    CHECK_CONTAINS(out, "Vector(");
+    /* The engine has no `/` on two vectors, so it must be written out. */
+    CHECK_MISSING(out, "(a / b)");
+
     CASE("enfusion: @unsafe is forbidden by construction, BE0703");
     out = enf("module t\n"
               "fn f() {\n"

@@ -220,6 +220,35 @@ static void test_diagnostics(void) {
     expect_diag("sema: break outside a loop is BE0316",
                 "module t\nfn m() {\n    break\n}\n", "BE0316", "outside of a loop");
 
+    expect_diag("sema: cross on a non-Vec3 is BE0319",
+                "module t\nfn m() {\n    let a = Vec2(1.0, 2.0)\n"
+                "    let b = a.cross(a)\n}\n",
+                "BE0319", "only defined on `Vec3`");
+
+    expect_diag("sema: a component past the arity is BE0320",
+                "module t\nfn m() {\n    let a = Vec2(1.0, 2.0)\n"
+                "    let b = a.z\n}\n",
+                "BE0320", "has no `z` component");
+
+    expect_diag("sema: an unknown vector component is BE0305",
+                "module t\nfn m() {\n    let a = Vec3(1.0, 2.0, 3.0)\n"
+                "    let b = a.q\n}\n",
+                "BE0305", "no component `q`");
+
+    expect_diag("sema: an unknown vector method is BE0306",
+                "module t\nfn m() {\n    let a = Vec3(1.0, 2.0, 3.0)\n"
+                "    let b = a.magnitude()\n}\n",
+                "BE0306", "no method `magnitude`");
+
+    expect_diag("sema: the wrong component count is BE0304",
+                "module t\nfn m() {\n    let a = Vec3(1.0, 2.0)\n}\n",
+                "BE0304", "takes 3 arguments");
+
+    expect_diag("sema: dividing a scalar by a vector is not scaling",
+                "module t\nfn m() {\n    let a = Vec3(1.0, 2.0, 3.0)\n"
+                "    let b = 2.0f32 / a\n}\n",
+                "BE0303", "on the right of this operator");
+
     expect_diag("sema: try without an error-union return is BE0317",
                 "module t\nfn p() -> !i32 {\n    return 0\n}\n"
                 "fn m() -> i32 {\n    let a = try p()\n    return a\n}\n",

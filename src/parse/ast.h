@@ -42,6 +42,7 @@ typedef enum {
     RES_FIELD,   /* res -> Field*  */
     RES_VARIANT, /* res -> EnumVariant* */
     RES_INTRINSIC,
+    RES_VEC_COMP, /* `v.x` on Vec2/3/4 — the component index is in `intrinsic` */
 } ResKind;
 
 const char *conv_name(Conv c); /* "let" / "inout" / "sink" / "set" */

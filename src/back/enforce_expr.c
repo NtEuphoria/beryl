@@ -128,8 +128,68 @@ static Str gen_list_method(E *e, Expr *x) {
     return sb_finish(&sb);
 }
 
+/* Vector methods and construction.
+ *
+ * Every spelling here is taken from EnforceScript that already compiles in
+ * Workbench, which is why `Dot` and `Distance` are static calls on `vector`
+ * while `Length` and `Normalized` are instance methods — the engine is not
+ * consistent about it and guessing would cost a Workbench round trip each.
+ */
+static Str gen_vec(E *e, Expr *x) {
+    SB sb;
+    sb_init(&sb, e->a);
+    ArgVec args = x->call.args;
+
+    if (intrinsic_is_vec_new((Intrinsic)x->intrinsic)) {
+        /* `vector` is three floats, so a Vec2 or Vec4 never reaches here —
+         * the enfusion profile lint rejects them at BE0701. */
+        sb_cstr(&sb, "Vector(");
+        for (uint32_t i = 0; i < args.len; i++) {
+            if (i) sb_cstr(&sb, ", ");
+            sb_fmt(&sb, "%.*s", S(ef_expr(e, args.data[i].value)));
+        }
+        sb_char(&sb, ')');
+        return sb_finish(&sb);
+    }
+
+    Str recv = ef_expr(e, x->call.callee->field.base);
+
+    switch ((Intrinsic)x->intrinsic) {
+        case INTR_VEC_LENGTH: sb_fmt(&sb, "%.*s.Length()", S(recv)); break;
+        case INTR_VEC_LENGTH_SQ: sb_fmt(&sb, "%.*s.LengthSq()", S(recv)); break;
+        case INTR_VEC_NORMALIZED: sb_fmt(&sb, "%.*s.Normalized()", S(recv)); break;
+        case INTR_VEC_DOT:
+            sb_fmt(&sb, "vector.Dot(%.*s, %.*s)", S(recv),
+                   S(ef_expr(e, args.data[0].value)));
+            break;
+        case INTR_VEC_DISTANCE:
+            sb_fmt(&sb, "vector.Distance(%.*s, %.*s)", S(recv),
+                   S(ef_expr(e, args.data[0].value)));
+            break;
+        default: { /* INTR_VEC_CROSS */
+            /* Spelled out rather than called, because no cross product could
+             * be confirmed on the engine's `vector` and the formula needs
+             * only indexing and arithmetic, both of which are confirmed.
+             * The temporaries keep each operand evaluated exactly once. */
+            Str a = ef_tmp(e), b = ef_tmp(e);
+            ef_line(e, "vector %.*s = %.*s;", S(a), S(recv));
+            ef_line(e, "vector %.*s = %.*s;", S(b), S(ef_expr(e, args.data[0].value)));
+            sb_fmt(&sb,
+                   "Vector(%.*s[1] * %.*s[2] - %.*s[2] * %.*s[1], "
+                   "%.*s[2] * %.*s[0] - %.*s[0] * %.*s[2], "
+                   "%.*s[0] * %.*s[1] - %.*s[1] * %.*s[0])",
+                   S(a), S(b), S(a), S(b), S(a), S(b), S(a), S(b), S(a), S(b), S(a), S(b));
+            break;
+        }
+    }
+    return sb_finish(&sb);
+}
+
 static Str gen_intrinsic(E *e, Expr *x) {
     if (intrinsic_is_list_method((Intrinsic)x->intrinsic)) return gen_list_method(e, x);
+    if (intrinsic_is_vec_method((Intrinsic)x->intrinsic) ||
+        intrinsic_is_vec_new((Intrinsic)x->intrinsic))
+        return gen_vec(e, x);
 
     SB sb;
     sb_init(&sb, e->a);
@@ -203,7 +263,36 @@ static Str gen_intrinsic(E *e, Expr *x) {
     }
 }
 
+static Str ef_expr_gen(E *e, Expr *x);
+
+Str ef_ptr_key(Arena *a, const void *p) {
+    char *b = ARENA_ARRAY(a, char, sizeof p);
+    for (size_t i = 0; i < sizeof p; i++) b[i] = (char)(((uintptr_t)p >> (i * 8)) & 0xff);
+    return (Str){b, (uint32_t)sizeof p};
+}
+
+/* Renders one expression, emitting any statements it needs first.
+ *
+ * Memoized on the node, because `S` (enforce_int.h) expands its argument
+ * twice and nearly every call site passes `ef_expr(...)` straight into it.
+ * Without the memo a nested `try f()` emitted the call four times instead of
+ * once, and a struct literal emitted `new` eight times — the values used were
+ * right, so nothing failed loudly; the extra calls simply happened. */
 Str ef_expr(E *e, Expr *x) {
+    if (x) {
+        Str  key = ef_ptr_key(e->a, x);
+        Str *hit = (Str *)map_get(e->memo, key);
+        if (hit) return *hit;
+        Str  r   = ef_expr_gen(e, x);
+        Str *box = ARENA_NEW(e->a, Str);
+        *box     = r;
+        map_put(e->memo, key, box);
+        return r;
+    }
+    return ef_expr_gen(e, x);
+}
+
+static Str ef_expr_gen(E *e, Expr *x) {
     SB sb;
     sb_init(&sb, e->a);
     if (!x) {
@@ -259,6 +348,13 @@ Str ef_expr(E *e, Expr *x) {
             break;
 
         case EX_FIELD:
+            /* `v.x` on a vector. EnforceScript's `vector` has no named
+             * components, only indices — which is why Beryl checks the name
+             * against the arity before it gets here. */
+            if (x->res_kind == RES_VEC_COMP) {
+                sb_fmt(&sb, "%.*s[%u]", S(ef_expr(e, x->field.base)), x->intrinsic);
+                break;
+            }
             /* Inside a method, `self.kp` is just `kp`, matching how the base
              * game's own classes are written. */
             if (x->field.base && x->field.base->kind == EX_SELF) sb_str(&sb, ef_ident(e, x->field.name));
@@ -278,10 +374,56 @@ Str ef_expr(E *e, Expr *x) {
             break;
         }
 
-        case EX_BINARY:
+        case EX_BINARY: {
+            Type *lt = x->binary.lhs->type;
+            Type *rt = x->binary.rhs->type;
+
+            /* `2.0 * v` is written `v * 2.0` on the way out. Scaling is
+             * commutative, and only the vector-on-the-left form is confirmed
+             * against the engine. */
+            if (x->binary.op == TK_STAR && !ty_is_vec(lt) && ty_is_vec(rt)) {
+                sb_fmt(&sb, "(%.*s * %.*s)", S(ef_expr(e, x->binary.rhs)),
+                       S(ef_expr(e, x->binary.lhs)));
+                break;
+            }
+
+            /* Component-wise vector division. The engine has no `/` taking
+             * two vectors — Workbench rejects it with "Unknown operator '/'"
+             * — but it does have `/` by a float, so only this form needs
+             * spelling out. Doing that rather than profile-gating it keeps
+             * the operator meaning the same on both targets. */
+            if (x->binary.op == TK_SLASH && ty_is_vec(lt) && ty_is_vec(rt)) {
+                Str a = ef_tmp(e), b = ef_tmp(e);
+                ef_line(e, "vector %.*s = %.*s;", S(a), S(ef_expr(e, x->binary.lhs)));
+                ef_line(e, "vector %.*s = %.*s;", S(b), S(ef_expr(e, x->binary.rhs)));
+                sb_fmt(&sb, "Vector(%.*s[0] / %.*s[0], %.*s[1] / %.*s[1], %.*s[2] / %.*s[2])",
+                       S(a), S(b), S(a), S(b), S(a), S(b));
+                break;
+            }
+
+            /* Vector equality is spelled out component-wise. `==` on the
+             * engine's `vector` could not be confirmed, and this is exactly
+             * what the native back end computes, so the two agree by
+             * construction rather than by assumption. */
+            if ((x->binary.op == TK_EQ || x->binary.op == TK_NE) && ty_is_vec(lt)) {
+                Str a = ef_tmp(e), b = ef_tmp(e);
+                ef_line(e, "vector %.*s = %.*s;", S(a), S(ef_expr(e, x->binary.lhs)));
+                ef_line(e, "vector %.*s = %.*s;", S(b), S(ef_expr(e, x->binary.rhs)));
+                const char *cmp = x->binary.op == TK_EQ ? "==" : "!=";
+                const char *join = x->binary.op == TK_EQ ? " && " : " || ";
+                sb_char(&sb, '(');
+                for (uint32_t i = 0; i < ty_vec_arity(lt); i++) {
+                    if (i) sb_cstr(&sb, join);
+                    sb_fmt(&sb, "%.*s[%u] %s %.*s[%u]", S(a), i, cmp, S(b), i);
+                }
+                sb_char(&sb, ')');
+                break;
+            }
+
             sb_fmt(&sb, "(%.*s %s %.*s)", S(ef_expr(e, x->binary.lhs)),
                    bin_op(x->binary.op), S(ef_expr(e, x->binary.rhs)));
             break;
+        }
 
         case EX_CAST: {
             Type *t = x->type;

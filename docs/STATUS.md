@@ -87,8 +87,9 @@ listed as missing produces a **clear diagnostic**, not odd behaviour.
   the common `catch |e| { log(e); return }`, loose otherwise.
 - **Struct fields are not taint-tracked**, so taint laundered through a field is
   invisible ([THREAT-MODEL.md](THREAT-MODEL.md) §2).
-- **`Vec2/3/4`, `Quat`, `Mat3/4`** are type names that lower correctly, but have
-  no operations beyond arithmetic on the vector types.
+- **`Quat` and `Mat3/4`** are type names that lower to a target type but have
+  no operations at all, not even component access. `Vec2/3/4` are complete
+  ([SPEC.md](SPEC.md) §3.1.1); `Vec2` and `Vec4` are native-only.
 - **The lexer is ASCII-only** for identifiers, and diagnostic columns count
   bytes, so a multi-byte character before a caret shifts it.
 - **No incremental compilation.** Every build is from scratch — which at 124 ms

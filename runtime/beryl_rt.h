@@ -170,4 +170,136 @@ static inline float  be_sqrt_f32(float x) { return __builtin_sqrtf(x); }
 static inline double be_abs_f64(double x) { return __builtin_fabs(x); }
 static inline float  be_abs_f32(float x) { return __builtin_fabsf(x); }
 
+/* ---- vectors ----------------------------------------------------------- */
+/* Components are f32 on both targets, because EnforceScript's `vector` is
+ * three 32-bit floats and a native/Enfusion mismatch in width would make the
+ * two back ends disagree on rounding — which is precisely the class of
+ * difference differential testing exists to catch.
+ *
+ * The anonymous struct/union member is C11 (6.7.2.1p13). It buys `.x` and
+ * `.v[i]` over one representation, so generated C reads the way the source
+ * did rather than turning every component access into an index. */
+
+typedef union {
+    struct {
+        float x, y;
+    };
+    float v[2];
+} BeVec2;
+
+typedef union {
+    struct {
+        float x, y, z;
+    };
+    float v[3];
+} BeVec3;
+
+typedef union {
+    struct {
+        float x, y, z, w;
+    };
+    float v[4];
+} BeVec4;
+
+static inline BeVec2 be_vec2(float x, float y) {
+    BeVec2 r;
+    r.x = x;
+    r.y = y;
+    return r;
+}
+static inline BeVec3 be_vec3(float x, float y, float z) {
+    BeVec3 r;
+    r.x = x;
+    r.y = y;
+    r.z = z;
+    return r;
+}
+static inline BeVec4 be_vec4(float x, float y, float z, float w) {
+    BeVec4 r;
+    r.x = x;
+    r.y = y;
+    r.z = z;
+    r.w = w;
+    return r;
+}
+
+/* Component-wise arithmetic and scaling. Float arithmetic is unchecked
+ * IEEE-754 here exactly as it is for scalars (SPEC §9), so a zero divisor
+ * yields an infinity rather than trapping. */
+#define BE_VEC_OPS(T, S, N)                                                                \
+    static inline T be_##S##_add(T a, T b) {                                               \
+        T r;                                                                               \
+        for (int i = 0; i < (N); i++) r.v[i] = a.v[i] + b.v[i];                            \
+        return r;                                                                          \
+    }                                                                                      \
+    static inline T be_##S##_sub(T a, T b) {                                               \
+        T r;                                                                               \
+        for (int i = 0; i < (N); i++) r.v[i] = a.v[i] - b.v[i];                            \
+        return r;                                                                          \
+    }                                                                                      \
+    static inline T be_##S##_mul(T a, T b) {                                               \
+        T r;                                                                               \
+        for (int i = 0; i < (N); i++) r.v[i] = a.v[i] * b.v[i];                            \
+        return r;                                                                          \
+    }                                                                                      \
+    static inline T be_##S##_div(T a, T b) {                                               \
+        T r;                                                                               \
+        for (int i = 0; i < (N); i++) r.v[i] = a.v[i] / b.v[i];                            \
+        return r;                                                                          \
+    }                                                                                      \
+    static inline T be_##S##_scale(T a, float s) {                                         \
+        T r;                                                                               \
+        for (int i = 0; i < (N); i++) r.v[i] = a.v[i] * s;                                 \
+        return r;                                                                          \
+    }                                                                                      \
+    static inline T be_##S##_unscale(T a, float s) {                                       \
+        T r;                                                                               \
+        for (int i = 0; i < (N); i++) r.v[i] = a.v[i] / s;                                 \
+        return r;                                                                          \
+    }                                                                                      \
+    static inline T be_##S##_neg(T a) {                                                    \
+        T r;                                                                               \
+        for (int i = 0; i < (N); i++) r.v[i] = -a.v[i];                                    \
+        return r;                                                                          \
+    }                                                                                      \
+    static inline bool be_##S##_eq(T a, T b) {                                             \
+        for (int i = 0; i < (N); i++)                                                      \
+            if (a.v[i] != b.v[i]) return false;                                            \
+        return true;                                                                       \
+    }                                                                                      \
+    static inline float be_##S##_dot(T a, T b) {                                           \
+        float s = 0;                                                                       \
+        for (int i = 0; i < (N); i++) s += a.v[i] * b.v[i];                                \
+        return s;                                                                          \
+    }                                                                                      \
+    static inline float be_##S##_length_sq(T a) { return be_##S##_dot(a, a); }             \
+    static inline float be_##S##_length(T a) {                                             \
+        return be_sqrt_f32(be_##S##_dot(a, a));                                            \
+    }                                                                                      \
+    static inline float be_##S##_distance(T a, T b) {                                      \
+        return be_##S##_length(be_##S##_sub(a, b));                                        \
+    }                                                                                      \
+    /* Zero-length normalizes to zero rather than to NaN. IEEE would give      \
+     * 0.0/0.0 here, but the Enfusion target's own Normalized() returns zero,  \
+     * and two back ends that disagree on a value is worse than either rule. */\
+    static inline T be_##S##_normalized(T a) {                                             \
+        float len = be_##S##_length(a);                                                    \
+        if (len == 0.0f) {                                                                 \
+            T z;                                                                           \
+            for (int i = 0; i < (N); i++) z.v[i] = 0.0f;                                   \
+            return z;                                                                      \
+        }                                                                                  \
+        return be_##S##_unscale(a, len);                                                   \
+    }
+
+BE_VEC_OPS(BeVec2, vec2, 2)
+BE_VEC_OPS(BeVec3, vec3, 3)
+BE_VEC_OPS(BeVec4, vec4, 4)
+
+#undef BE_VEC_OPS
+
+static inline BeVec3 be_vec3_cross(BeVec3 a, BeVec3 b) {
+    return be_vec3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+}
+
 #endif /* BERYL_RT_H */

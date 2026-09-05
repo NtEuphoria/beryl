@@ -181,6 +181,18 @@ bool ty_is_float(const Type *t) { return t && t->kind == TY_FLOAT; }
 bool ty_is_numeric(const Type *t) { return ty_is_integer(t) || ty_is_float(t); }
 bool ty_is_error(const Type *t) { return !t || t->kind == TY_ERROR; }
 
+uint32_t ty_vec_arity(const Type *t) {
+    if (!t) return 0;
+    switch (t->kind) {
+        case TY_VEC2: return 2;
+        case TY_VEC3: return 3;
+        case TY_VEC4: return 4;
+        default: return 0;
+    }
+}
+
+bool ty_is_vec(const Type *t) { return ty_vec_arity(t) != 0; }
+
 bool ty_is_copy(const Type *t) {
     if (!t) return true;
     switch (t->kind) {

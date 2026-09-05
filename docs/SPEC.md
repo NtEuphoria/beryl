@@ -109,8 +109,50 @@ Vec2 Vec3 Vec4 Quat Mat3 Mat4
 
 `str` is an immutable UTF-8 slice. There is **no null**.
 
-`Vec2/3/4` support arithmetic operators; `Quat` and `Mat3/4` are names that
-lower correctly but have no operations in v0.1.
+`Quat` and `Mat3/4` are names that lower to a target type but have **no
+operations at all** — not even component access. Treat them as reserved.
+
+### 3.1.1 Vectors
+
+`Vec2`, `Vec3` and `Vec4` are aggregates of 2, 3 and 4 **`f32`** components.
+The width is `f32` on both targets, because EnforceScript's `vector` is three
+32-bit floats and a wider native component would make the two back ends
+disagree on rounding.
+
+```beryl
+let v = Vec3(1.0, 2.0, 3.0)     // positional construction
+v.x   v.y   v.z   v.w           // named components, checked against the arity
+v[i]                            // indexed, bounds-checked like an array
+```
+
+Both spellings are assignable (`v.y = 1.0`, `v[2] = 3.0`). A name is checked at
+compile time, so `v.z` on a `Vec2` is `BE0320`, where `v[2]` could only trap.
+
+| operator | meaning |
+|---|---|
+| `a + b`, `a - b` | component-wise |
+| `a * b`, `a / b` | component-wise |
+| `a * s`, `s * a` | scale by an `f32` |
+| `a / s` | scale by the reciprocal — `s / a` is **not** accepted |
+| `-a` | negate |
+| `a == b`, `a != b` | component-wise, exact |
+
+| method | on | result |
+|---|---|---|
+| `.length()` | all | `f32` |
+| `.length_sq()` | all | `f32` — no square root |
+| `.dot(b)` | all | `f32` |
+| `.distance(b)` | all | `f32` |
+| `.normalized()` | all | the vector, scaled to unit length |
+| `.cross(b)` | `Vec3` only | `Vec3` (`BE0319` otherwise) |
+
+**A zero-length vector normalizes to zero, not to NaN.** IEEE would give
+`0.0/0.0` per component; both back ends special-case it instead, so the two
+targets agree and the common "direction to a coincident point" case does not
+poison everything downstream.
+
+`Vec2` and `Vec4` are **native-only**: EnforceScript's `vector` is exactly
+three floats, so both are `BE0701` on the enfusion target.
 
 ### 3.2 Compound
 

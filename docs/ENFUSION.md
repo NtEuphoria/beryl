@@ -128,7 +128,7 @@ exactly.
 | `f32` | `float` |
 | `bool` `str` | `bool` `string` |
 | `char` | `int` |
-| `Vec2` `Vec3` `Vec4` | `vector` |
+| `Vec3` | `vector` |
 | `List<T>` / `[T; N]` | `array<T>` |
 | `Map<K,V>` | `map<K, ref V>` |
 | `Box<T>` `Rc<T>` | `ref T` — **`Rc` costs nothing here**, the engine already refcounts |
@@ -138,8 +138,33 @@ exactly.
 | free function | a static method on a per-module holder class |
 | module doc, field doc | `//!` |
 | `i64 u64 u32 u16 u8 i16 i8 f64` | **BE0701** — refused |
+| `Vec2` `Vec4` | **BE0701** — refused; `vector` is exactly three floats |
 | `@unsafe(...)` | **BE0703** — refused |
 | `@server_only` misuse | **BE0705** |
+
+### How vectors lower
+
+Most of it is direct. Three forms are spelled out instead, because the engine
+does not have the operator:
+
+| Beryl | EnforceScript |
+|---|---|
+| `v.x` `v.y` `v.z` | `v[0]` `v[1]` `v[2]` |
+| `Vec3(x, y, z)` | `Vector(x, y, z)` |
+| `v.length()` `v.length_sq()` `v.normalized()` | instance methods, same names |
+| `v.dot(w)` `v.distance(w)` | `vector.Dot(v, w)`, `vector.Distance(v, w)` — **static** |
+| `s * v` | `v * s` — scaling is commutative, and only this order is confirmed |
+| `a / b` | `Vector(a[0]/b[0], …)` — the engine has **no `/` on two vectors** |
+| `a == b` | `a[0] == b[0] && …` |
+| `a.cross(b)` | the determinant, written out |
+
+The last three take two temporaries so each operand is evaluated exactly once.
+
+Why written out rather than called: Workbench rejects `vector / vector` with
+`Unknown operator '/'`, and no cross product or `==` could be confirmed on the
+engine's `vector`. Every spelling in the table above is taken from
+EnforceScript that already compiles — guessing an API name costs a Workbench
+round trip each time.
 
 ## The three things worth knowing
 

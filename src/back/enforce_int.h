@@ -17,13 +17,24 @@ typedef struct {
     SB         out;    /* the class currently being written */
     SB         helper; /* generated helper classes, emitted before it */
     Map       *helpers_done;
+    Map       *memo;    /* Expr* -> already-rendered text; see ef_expr */
     int        indent;
     int        tmp;
     Item      *fn;      /* function being emitted */
     bool       fn_is_err; /* its return type is an error union */
 } E;
 
+/* CAUTION: `S` expands its argument TWICE. Passing a generator call directly
+ * — `S(ef_expr(e, x))` — therefore runs it twice, and any statement that
+ * generator emitted lands in the output twice. `ef_expr` and `gen_expr` are
+ * memoized precisely so the ~50 existing call sites of that shape stay
+ * correct; a new generator that emits lines must be memoized the same way or
+ * hoisted into a local before it reaches `S`. */
 #define S(x) (int)(x).len, (x).ptr
+
+/* The bytes of a pointer, as a map key. Two distinct nodes never share an
+ * address, so this is exact identity rather than a hash of anything. */
+Str ef_ptr_key(Arena *a, const void *p);
 
 /* Bohemia indents with tabs, so generated script does too. */
 void ef_line(E *e, const char *fmt, ...) BE_PRINTF(2, 3);
