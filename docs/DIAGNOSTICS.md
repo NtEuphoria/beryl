@@ -288,3 +288,9 @@ It works today on the enfusion target, where it lowers to the engine's own
 ### BE0902 — `Box<T>`, `Rc<T>`, `Pool<T>` and `Handle<T>` are not implemented
 The ownership model is designed around these, but v0.1 ships only value types,
 arrays and `List`. Use a value or an array index.
+
+### BE0903 — the native back end cannot lower this construct
+The type checker accepts more than the back end emits. Where that gap exists it
+must be an error, because the alternative is worse: a `for` over a `List` used
+to emit **no loop at all**, so the program compiled, ran, and quietly returned
+the wrong answer. If you see this, the program is fine and the compiler is not.

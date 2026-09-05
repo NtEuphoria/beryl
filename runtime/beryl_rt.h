@@ -23,6 +23,15 @@ typedef struct {
 
 #define BE_STR(lit) ((BeStr){(lit), (uint32_t)(sizeof(lit) - 1)})
 
+/* `str` is a slice, so `==` on the struct is not equality — and C rejects it
+ * outright. Comparison is by content, which is what the language promises. */
+static inline bool be_str_eq(BeStr a, BeStr b) {
+    if (a.len != b.len) return false;
+    for (uint32_t i = 0; i < a.len; i++)
+        if (a.ptr[i] != b.ptr[i]) return false;
+    return true;
+}
+
 /* ---- traps ------------------------------------------------------------- */
 
 _Noreturn void beryl_trap_overflow(const char *file, int line, const char *op);

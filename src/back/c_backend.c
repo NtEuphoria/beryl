@@ -123,6 +123,18 @@ static Str ptr_key(Arena *a, const void *p) {
 
 static Str gen_expr_gen(G *g, Expr *e);
 
+/* The type checker accepts more than this back end can lower. Where that is
+ * true the gap must be a diagnostic, never silence and never a zero value: a
+ * `for` over a list used to emit no loop at all, so the program compiled, ran
+ * and returned the wrong answer. Failing here is the whole point. */
+static void unsupported(G *g, Span at, const char *what) {
+    Diag *dg = diag_error(g->d, 903, at, "%s is not yet supported by the native back end",
+                          what);
+    diag_note(dg, "it type-checks, so this is a gap in code generation rather than a "
+                  "mistake in your program");
+    diag_help(dg, "build for the enfusion target, or open an issue with this program");
+}
+
 static uint32_t line_of(G *g, Span sp) { return srcmap_linecol(g->sm, sp).line; }
 
 static Str file_of(G *g, Span sp) {
@@ -377,6 +389,13 @@ static Str gen_binary(G *g, Expr *e) {
                 else sb_fmt(&sb, "be_%s_scale(%.*s, %.*s)", s, S(r), S(l));
                 break;
         }
+        return sb_finish(&sb);
+    }
+
+    /* Strings compare by content. `==` on the slice struct is not equality,
+     * and C will not compile it at all. */
+    if (t && t->kind == TY_STR && (op == TK_EQ || op == TK_NE)) {
+        sb_fmt(&sb, "%sbe_str_eq(%.*s, %.*s)", op == TK_NE ? "!" : "", S(l), S(r));
         return sb_finish(&sb);
     }
 
@@ -764,6 +783,17 @@ static Str gen_expr_gen(G *g, Expr *e) {
             Str   ix = gen_expr(g, e->index.index);
             Type *bt = e->index.base->type;
             Str   f  = file_of(g, e->span);
+            /* A list keeps its elements behind a pointer and its length in a
+             * field, so it indexes differently from an array or a vector —
+             * which both store inline as `.v[]`. Emitting the array form for
+             * a list produced `xs.v[be_idx(i, 0, ...)]`: the wrong member,
+             * and a bound of zero. */
+            if (bt && bt->kind == TY_LIST) {
+                Str bn = temp_of(g, bt, b);
+                sb_fmt(&sb, "%.*s.data[be_idx((int64_t)%.*s, %.*s.len, \"%.*s\", %u)]",
+                       S(bn), S(ix), S(bn), S(f), line_of(g, e->span));
+                break;
+            }
             /* A vector's length is its arity; `.v[]` is the union member that
              * makes `v[i]` and `v.x` the same storage. */
             uint64_t n = ty_is_vec(bt) ? ty_vec_arity(bt)
@@ -1075,6 +1105,26 @@ static void gen_stmt(G *g, Stmt *s) {
                 gen_block(g, s->for_st.body);
                 g->indent--;
                 line(g, "}");
+            } else if (it && it->type && it->type->kind == TY_LIST) {
+                /* A list's length is a runtime field, so the bound is read
+                 * once into a temporary rather than re-evaluated per step —
+                 * the loop iterates the list as it was on entry. */
+                Str av = gen_expr(g, it);
+                Str an = temp_of(g, it->type, av);
+                Str ct = ctype(g, it->type->elem);
+                Str ix = tmp_name(g);
+                line(g, "for (int32_t %.*s = 0; %.*s < %.*s.len; %.*s++) {", S(ix), S(ix),
+                     S(an), S(ix));
+                g->indent++;
+                line(g, "%.*s %.*s = %.*s.data[%.*s];", S(ct), S(nm), S(an), S(ix));
+                gen_block(g, s->for_st.body);
+                g->indent--;
+                line(g, "}");
+            } else {
+                /* Never emit nothing. A `for` the checker accepted but this
+                 * function cannot lower used to vanish silently, which is how
+                 * `for v in xs` over a list compiled, ran, and returned zero. */
+                unsupported(g, s->span, "this `for` iterable");
             }
             break;
         }
