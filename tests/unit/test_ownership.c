@@ -240,6 +240,76 @@ static void test_init(void) {
            "    return x\n"
            "}\n");
 
+    /* Four holes that all let a read of uninitialized memory through. The
+     * native back end emits a bare `int32_t x;` for these, so each one was a
+     * genuine read of whatever was on the stack. */
+
+    bad_src("ownership: a loop may run zero times, so its body cannot initialize",
+            "module t\n"
+            "fn m() -> i32 {\n"
+            "    var x: i32\n"
+            "    while false {\n"
+            "        x = 1\n"
+            "    }\n"
+            "    return x\n"
+            "}\n",
+            "BE0405", "used before it is initialized");
+
+    ok_src("ownership: a loop body still initializes for reads inside it",
+           "module t\n"
+           "fn m() -> i32 {\n"
+           "    var x: i32\n"
+           "    x = 0\n"
+           "    for i in 0..3 {\n"
+           "        x += i\n"
+           "    }\n"
+           "    return x\n"
+           "}\n");
+
+    bad_src("ownership: compound assignment reads before it writes",
+            "module t\n"
+            "fn m() -> i32 {\n"
+            "    var y: i32\n"
+            "    y += 1\n"
+            "    return y\n"
+            "}\n",
+            "BE0405", "used before it is initialized");
+
+    bad_src("ownership: `inout` lends a value, it does not promise to create one",
+            "module t\n"
+            "fn bump(inout n: i32) {\n"
+            "    n += 1\n"
+            "}\n"
+            "fn m() -> i32 {\n"
+            "    var z: i32\n"
+            "    bump(inout z)\n"
+            "    return z\n"
+            "}\n",
+            "BE0405", "passed `inout` before it is initialized");
+
+    ok_src("ownership: `set` does promise it, so an uninitialized argument is fine",
+           "module t\n"
+           "fn fill(set n: i32) {\n"
+           "    n = 7\n"
+           "}\n"
+           "fn m() -> i32 {\n"
+           "    var a: i32\n"
+           "    fill(set a)\n"
+           "    return a\n"
+           "}\n");
+
+    bad_src("ownership: a catch handler runs only on the error path",
+            "module t\n"
+            "fn f() -> !i32 {\n"
+            "    return 1\n"
+            "}\n"
+            "fn m() -> i32 {\n"
+            "    var w: i32\n"
+            "    let r = f() catch |e| { w = 1 }\n"
+            "    return w\n"
+            "}\n",
+            "BE0405", "used before it is initialized");
+
     bad_src("ownership: initialized on only one branch is still BE0405",
             "module t\n"
             "fn m(let c: bool) -> i32 {\n"

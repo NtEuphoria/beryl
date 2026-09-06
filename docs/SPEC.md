@@ -217,6 +217,12 @@ var c: i32       // declared; must be assigned before any read
 A binding declared without a value is checked by definite-initialization
 analysis (`BE0405`). A container declared without a value starts **empty**.
 
+A binding counts as initialized only where every path reaching that point
+assigns it. A loop body, one branch of an `if`, a `catch` handler and an
+`orelse` fallback are all conditional, so none of them alone is enough.
+`x += 1` reads `x` before writing it, and `inout x` lends a value the callee
+may read — only `set x` promises the callee will assign one.
+
 ### 4.2 Passing conventions
 
 | | meaning | lowers to (C) | lowers to (EnforceScript) |

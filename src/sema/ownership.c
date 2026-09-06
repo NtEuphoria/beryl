@@ -252,7 +252,7 @@ static void check_call_exclusivity(O *o, Expr *call) {
     }
 }
 
-static void check_inout_arg(O *o, Access ac, Span at) {
+static void check_inout_arg(O *o, Access ac, Span at, Conv conv) {
     if (!ac.valid) return;
     Local *l = ac.root;
 
@@ -275,8 +275,43 @@ static void check_inout_arg(O *o, Access ac, Span at) {
         }
         return;
     }
-    /* Writing through an `inout` counts as initializing the whole binding. */
-    if (ac.nfields == 0 && !ac.has_index && l->state == OS_UNINIT) l->state = OS_INIT;
+    if (ac.nfields != 0 || ac.has_index) return;
+
+    /* The two conventions differ exactly here, and conflating them was a hole
+     * you could read uninitialized memory through.
+     *
+     * `set` promises the callee assigns before returning — BE0404 enforces
+     * that on the callee side — so passing an uninitialized binding is the
+     * normal way to use it, and it comes back initialized.
+     *
+     * `inout` promises nothing of the sort: the callee may read first. So an
+     * uninitialized argument is a read before initialization, and saying so
+     * here is the only place it can be caught. */
+    if (conv == CONV_SET) {
+        if (l->state == OS_UNINIT || l->state == OS_MOVED) l->state = OS_INIT;
+        return;
+    }
+
+    if (l->state == OS_UNINIT) {
+        Diag *dg = err(o, 405, at, "`%.*s` is passed `inout` before it is initialized",
+                       (int)l->name.len, l->name.ptr);
+        if (dg) {
+            diag_label(dg, l->span, "declared here without a value");
+            diag_label(dg, at, "borrowed exclusively here, and the callee may read it");
+            diag_note(dg, "`inout` lends an existing value; only `set` promises the "
+                          "callee will assign one");
+            diag_help(dg, "give it a value first, or declare the parameter `set`");
+        }
+        l->state = OS_INIT; /* reported once; do not cascade */
+    } else if (l->state == OS_MOVED) {
+        Diag *dg = err(o, 403, at, "use of `%.*s` after it was moved",
+                       (int)l->name.len, l->name.ptr);
+        if (dg) {
+            diag_label(dg, l->moved_at, "moved here");
+            diag_label(dg, at, "borrowed exclusively here after the move");
+        }
+        l->state = OS_INIT;
+    }
 }
 
 static void walk_expr(O *o, Expr *e) {
@@ -307,7 +342,8 @@ static void walk_expr(O *o, Expr *e) {
 
             if (callee && callee->kind == EX_FIELD) {
                 if (has_self && target->fn.params.data[0].conv == CONV_INOUT)
-                    check_inout_arg(o, path_of(callee->field.base), callee->field.base->span);
+                    check_inout_arg(o, path_of(callee->field.base), callee->field.base->span,
+                                    CONV_INOUT);
                 else walk_expr(o, callee->field.base);
             }
 
@@ -318,7 +354,7 @@ static void walk_expr(O *o, Expr *e) {
                 } else if (ar.conv == CONV_INOUT || ar.conv == CONV_SET) {
                     Access ac = path_of(ar.value);
                     if (ac.valid) {
-                        check_inout_arg(o, ac, ar.span);
+                        check_inout_arg(o, ac, ar.span, ar.conv);
                         if (ar.conv == CONV_INOUT && (ac.nfields || ac.has_index))
                             check_read(o, ar.value);
                     } else {
@@ -374,17 +410,29 @@ static void walk_expr(O *o, Expr *e) {
         case EX_BLOCK: walk_block(o, e); break;
         case EX_TRY: walk_expr(o, e->try_expr.inner); break;
 
-        case EX_CATCH:
+        /* A handler and a fallback run only when the value is an error or
+         * empty, so anything they initialize is initialized on one path out
+         * of two. Walking them as though they always ran credited
+         * `f() catch |e| { x = 1 }` with initializing `x` on the success path
+         * too. Merging with the state from before is what makes the "maybe"
+         * visible; the walk still happens, so reads inside are still checked. */
+        case EX_CATCH: {
             walk_expr(o, e->catch_expr.value);
+            uint8_t *before = snapshot(o);
             if (!str_empty(e->catch_expr.binding))
                 mark_init(o, e->span, e->catch_expr.binding);
             walk_expr(o, e->catch_expr.handler);
+            merge_into(o, before);
             break;
+        }
 
-        case EX_ORELSE:
+        case EX_ORELSE: {
             walk_expr(o, e->orelse_expr.value);
+            uint8_t *before = snapshot(o);
             walk_expr(o, e->orelse_expr.fallback);
+            merge_into(o, before);
             break;
+        }
 
         case EX_UNSAFE: walk_expr(o, e->unsafe_expr.body); break;
 
@@ -399,6 +447,11 @@ static void walk_expr(O *o, Expr *e) {
 
 static void walk_assign(O *o, Stmt *s) {
     walk_expr(o, s->assign.value);
+
+    /* `x += 1` reads `x` before it writes it, so it cannot be the thing that
+     * initializes `x`. Checking the read first is what makes that true; the
+     * write below then finds the binding already reported and moves on. */
+    if (s->assign.op != TK_ASSIGN) check_read(o, s->assign.target);
 
     Access ac = path_of(s->assign.target);
     if (!ac.valid) {
@@ -453,7 +506,13 @@ static void walk_assign(O *o, Stmt *s) {
     check_read(o, s->assign.target);
 }
 
-/* Runs a loop body to a fixpoint quietly, then once more with diagnostics. */
+/* Runs a loop body to a fixpoint quietly, then once more with diagnostics.
+ *
+ * Both the fixpoint passes and the final one merge with the state on entry,
+ * because a loop may run zero times. Without that merge on the *final* pass,
+ * `var x: i32` followed by `while false { x = 1 }` left `x` initialized, and
+ * the read after the loop was accepted — the C back end then emitted a bare
+ * `int32_t x;` and the program read whatever was on the stack. */
 static void walk_loop_body(O *o, Expr *body) {
     bool saved = o->quiet;
     o->quiet   = true;
@@ -464,7 +523,10 @@ static void walk_loop_body(O *o, Expr *body) {
         if (states_equal(o, before)) break;
     }
     o->quiet = saved;
+
+    uint8_t *entry = snapshot(o);
     walk_expr(o, body);
+    merge_into(o, entry);
 }
 
 static void walk_stmt(O *o, Stmt *s) {

@@ -186,7 +186,17 @@ A `sink` argument consumed the binding. The move site is labelled.
 The callee must assign it before every `return`, and before falling off the end.
 
 ### BE0405 — used before initialized
-Includes the case where only one branch of an `if` assigns it.
+A binding is initialized only on paths that certainly reach an assignment:
+
+- one branch of an `if` assigning it is not enough;
+- **a loop body is not enough** — `while c { x = 1 }` may run zero times;
+- **a `catch` handler or an `orelse` fallback is not enough** — they run only
+  when the value is an error or empty;
+- `x += 1` **reads** `x` first, so it cannot be what initializes it;
+- passing `inout x` is not enough. `inout` lends an existing value and the
+  callee may read it; only `set` promises the callee will assign one.
+
+The last four each let a program read uninitialized stack memory in v0.1.
 
 ### BE0406 — cannot move out
 Either out of a field (`sink o.i`), which would leave the parent in a state with
