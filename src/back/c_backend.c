@@ -16,7 +16,8 @@ typedef struct {
     SB         out;   /* function bodies */
     SB        *cur;   /* where statements are currently written */
     Map       *emitted;
-    Map       *memo; /* Expr* -> already-rendered text; see gen_expr */
+    Map       *memo;  /* (Expr*, epoch) -> rendered text; see gen_expr */
+    uint32_t   epoch; /* bumped per statement so a memo never crosses one */
     int        indent;
     int        tmp;
     Item      *fn;      /* function being emitted */
@@ -115,10 +116,12 @@ static void line(G *g, const char *fmt, ...) {
 #define S(x) (int)(x).len, (x).ptr
 
 /* The bytes of a pointer, as a map key — exact identity, not a hash. */
-static Str ptr_key(Arena *a, const void *p) {
-    char *b = ARENA_ARRAY(a, char, sizeof p);
+static Str ptr_key(Arena *a, const void *p, uint32_t epoch) {
+    char *b = ARENA_ARRAY(a, char, sizeof p + sizeof epoch);
     for (size_t i = 0; i < sizeof p; i++) b[i] = (char)(((uintptr_t)p >> (i * 8)) & 0xff);
-    return (Str){b, (uint32_t)sizeof p};
+    for (size_t i = 0; i < sizeof epoch; i++)
+        b[sizeof p + i] = (char)((epoch >> (i * 8)) & 0xff);
+    return (Str){b, (uint32_t)(sizeof p + sizeof epoch)};
 }
 
 static Str gen_expr_gen(G *g, Expr *e);
@@ -682,7 +685,7 @@ static Str gen_call(G *g, Expr *e) {
  * statements it needed. See the caution at the `S` definition above. */
 static Str gen_expr(G *g, Expr *e) {
     if (e) {
-        Str  key = ptr_key(g->a, e);
+        Str  key = ptr_key(g->a, e, g->epoch);
         Str *hit = (Str *)map_get(g->memo, key);
         if (hit) return *hit;
         Str  r   = gen_expr_gen(g, e);
@@ -1003,6 +1006,10 @@ static const char *assign_op(TokKind k) {
 }
 
 static void gen_stmt(G *g, Stmt *s) {
+    /* See ef_stmt: a shared node such as a parameter default is rendered at
+     * more than one site, and a memo that outlived the statement let the
+     * second site reference the first site's temporaries. */
+    g->epoch++;
     if (!s) return;
 
     switch (s->kind) {

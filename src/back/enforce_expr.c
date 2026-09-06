@@ -84,12 +84,28 @@ static Str call_args(E *e, Expr *x, Item *fn, Str extra_out) {
     bool first    = true;
 
     for (uint32_t i = 0; i < x->call.args.len; i++) {
-        uint32_t slot = i + (has_self ? 1 : 0);
-        (void)slot;
         if (!first) sb_cstr(&sb, ", ");
         first = false;
         sb_str(&sb, ef_expr(e, x->call.args.data[i].value));
     }
+
+    /* Fill every omitted default here rather than leaning on the signature.
+     *
+     * Two things go wrong otherwise. A default needing statements — a struct
+     * literal, say — emitted them into the class body, which Workbench
+     * rejects outright ("Unexpected scope"). And an omitted default left the
+     * synthetic `out result` of an error union sitting in the wrong argument
+     * slot. Filling them at the call site is also what the native back end
+     * already does, so the two targets agree. */
+    uint32_t base = x->call.args.len + (has_self ? 1 : 0);
+    for (uint32_t i = base; i < fn->fn.params.len; i++) {
+        Param *pm = &fn->fn.params.data[i];
+        if (!pm->deflt) continue;
+        if (!first) sb_cstr(&sb, ", ");
+        first = false;
+        sb_str(&sb, ef_expr(e, pm->deflt));
+    }
+
     if (!str_empty(extra_out)) {
         if (!first) sb_cstr(&sb, ", ");
         sb_str(&sb, extra_out);
@@ -265,10 +281,12 @@ static Str gen_intrinsic(E *e, Expr *x) {
 
 static Str ef_expr_gen(E *e, Expr *x);
 
-Str ef_ptr_key(Arena *a, const void *p) {
-    char *b = ARENA_ARRAY(a, char, sizeof p);
+Str ef_ptr_key(Arena *a, const void *p, uint32_t epoch) {
+    char *b = ARENA_ARRAY(a, char, sizeof p + sizeof epoch);
     for (size_t i = 0; i < sizeof p; i++) b[i] = (char)(((uintptr_t)p >> (i * 8)) & 0xff);
-    return (Str){b, (uint32_t)sizeof p};
+    for (size_t i = 0; i < sizeof epoch; i++)
+        b[sizeof p + i] = (char)((epoch >> (i * 8)) & 0xff);
+    return (Str){b, (uint32_t)(sizeof p + sizeof epoch)};
 }
 
 /* Renders one expression, emitting any statements it needs first.
@@ -280,7 +298,7 @@ Str ef_ptr_key(Arena *a, const void *p) {
  * right, so nothing failed loudly; the extra calls simply happened. */
 Str ef_expr(E *e, Expr *x) {
     if (x) {
-        Str  key = ef_ptr_key(e->a, x);
+        Str  key = ef_ptr_key(e->a, x, e->epoch);
         Str *hit = (Str *)map_get(e->memo, key);
         if (hit) return *hit;
         Str  r   = ef_expr_gen(e, x);
@@ -601,6 +619,12 @@ static const char *assign_op_str(TokKind k) {
 }
 
 void ef_stmt(E *e, Stmt *s) {
+    /* A new statement is a new evaluation site. The memo exists only to
+     * neutralize `S()` rendering its argument twice inside one expression;
+     * letting it live longer made a shared node — a parameter default, which
+     * every call site points at — render once and be reused elsewhere, so the
+     * second call site referenced a temporary declared in the first. */
+    e->epoch++;
     if (!s) return;
 
     switch (s->kind) {

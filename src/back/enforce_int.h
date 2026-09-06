@@ -17,7 +17,8 @@ typedef struct {
     SB         out;    /* the class currently being written */
     SB         helper; /* generated helper classes, emitted before it */
     Map       *helpers_done;
-    Map       *memo;    /* Expr* -> already-rendered text; see ef_expr */
+    Map       *memo;    /* (Expr*, epoch) -> rendered text; see ef_expr */
+    uint32_t   epoch;   /* bumped per statement so a memo never crosses one */
     int        indent;
     int        tmp;
     Item      *fn;      /* function being emitted */
@@ -34,7 +35,7 @@ typedef struct {
 
 /* The bytes of a pointer, as a map key. Two distinct nodes never share an
  * address, so this is exact identity rather than a hash of anything. */
-Str ef_ptr_key(Arena *a, const void *p);
+Str ef_ptr_key(Arena *a, const void *p, uint32_t epoch);
 
 /* Bohemia indents with tabs, so generated script does too. */
 void ef_line(E *e, const char *fmt, ...) BE_PRINTF(2, 3);
@@ -50,6 +51,11 @@ Str ef_method_name(Str name);
 Str  ef_expr(E *e, Expr *x);
 void ef_stmt(E *e, Stmt *s);
 void ef_block(E *e, Expr *b);
+
+/* True for an expression that renders to a self-contained constant, emitting
+ * no statements along the way. Only these are safe in a position with nowhere
+ * to put a temporary, such as a parameter default in a signature. */
+bool ef_is_literal(const Expr *x);
 
 /* True when the expression names storage rather than producing a fresh value,
  * which is what decides whether a copy is needed for value semantics. */

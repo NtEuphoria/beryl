@@ -297,6 +297,43 @@ static void test_lint(void) {
     /* The engine has no `/` on two vectors, so it must be written out. */
     CHECK_MISSING(out, "(a / b)");
 
+    CASE("enfusion: omitted defaults are filled at the call site, not the signature");
+    out = enf("module t\n"
+              "struct P {\n"
+              "    x: i32\n"
+              "}\n"
+              "fn take(let p: P = P{ x: 7 }, let tag: i32 = 0) -> i32 {\n"
+              "    return p.x + tag\n"
+              "}\n"
+              "fn a() -> i32 {\n"
+              "    return take()\n"
+              "}\n"
+              "fn b() -> i32 {\n"
+              "    return take()\n"
+              "}\n",
+              &errs);
+    CHECK_EQ_I(errs, 0);
+    /* A default needing statements must not put them in the class body: they
+     * landed outside any method, and Workbench answered "Unexpected scope". */
+    CHECK_MISSING(out, "static int take(SPK_P p = ");
+    /* Each call site builds its own, so neither borrows the other's temporary. */
+    CHECK_CONTAINS(out, "SPK_P _t0 = new SPK_P();");
+    CHECK_CONTAINS(out, "take(_t0, 0)");
+    /* A literal default still reads naturally in the signature. */
+    CHECK_CONTAINS(out, "int tag = 0");
+
+    CASE("enfusion: an omitted default does not displace the error-union out slot");
+    out = enf("module t\n"
+              "fn parse(let s: str, let radix: i32 = 10) -> !i32 {\n"
+              "    return radix\n"
+              "}\n"
+              "fn m() -> !i32 {\n"
+              "    return try parse(\"x\")\n"
+              "}\n",
+              &errs);
+    CHECK_EQ_I(errs, 0);
+    CHECK_CONTAINS(out, "parse(\"x\", 10, _t0)");
+
     CASE("enfusion: @unsafe is forbidden by construction, BE0703");
     out = enf("module t\n"
               "fn f() {\n"

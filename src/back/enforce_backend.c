@@ -136,6 +136,20 @@ bool ef_needs_copy(Type *t) {
                  t->kind == TY_MAP || t->kind == TY_OPTION);
 }
 
+bool ef_is_literal(const Expr *x) {
+    if (!x) return false;
+    switch (x->kind) {
+        case EX_INT:
+        case EX_FLOAT:
+        case EX_STR:
+        case EX_CHAR:
+        case EX_BOOL: return true;
+        /* `-1` is still a literal; `-f()` is not. */
+        case EX_UNARY: return x->unary.op == TK_MINUS && ef_is_literal(x->unary.operand);
+        default: return false;
+    }
+}
+
 bool ef_is_place(const Expr *x) {
     if (!x) return false;
     switch (x->kind) {
@@ -400,10 +414,14 @@ static void emit_signature(E *e, Item *it, bool is_static) {
         sb_str(&sb, ef_type(e, pm->rtype));
         sb_char(&sb, ' ');
         sb_str(&sb, ef_ident(e, pm->name));
-        if (pm->deflt) {
+        /* Only a literal default goes in the signature. Anything else may
+         * need statements to build, and there is nowhere to put them here —
+         * rendering one emitted `_t0.x = 7;` into the class body, which is
+         * not valid EnforceScript. Call sites fill every omitted argument
+         * (see call_args), so a missing signature default costs nothing;
+         * keeping the literal ones just makes the script read naturally. */
+        if (pm->deflt && ef_is_literal(pm->deflt)) {
             sb_cstr(&sb, " = ");
-            /* Defaults must be literals in EnforceScript, which the checker
-             * has already restricted them to in practice. */
             sb_str(&sb, ef_expr(e, pm->deflt));
         }
     }
