@@ -5,6 +5,8 @@
  * which is what makes the round-trip test meaningful rather than trivial.
  */
 #include "print.h"
+#include <stdio.h>
+#include <string.h>
 
 #define IND "    "
 
@@ -91,10 +93,18 @@ static void f_expr(F *f, const Expr *e, int parent_prec) {
             sb_fmt(&f->sb, "%llu", (unsigned long long)e->int_lit.val);
             if (!str_empty(e->int_lit.suffix)) sb_str(&f->sb, e->int_lit.suffix);
             break;
-        case EX_FLOAT:
-            sb_fmt(&f->sb, "%g", e->float_lit.val);
+        case EX_FLOAT: {
+            char value[64];
+            snprintf(value, sizeof value, "%.17g", e->float_lit.val);
+            Str digits=e->float_lit.spelling.len ? e->float_lit.spelling : str_from(value);
+            sb_str(&f->sb,digits);
+            bool fractional=false;
+            for (uint32_t i=0;i<digits.len;i++)
+                if (digits.ptr[i]=='.' || digits.ptr[i]=='e' || digits.ptr[i]=='E') fractional=true;
+            if (!fractional) sb_cstr(&f->sb,".0");
             if (!str_empty(e->float_lit.suffix)) sb_str(&f->sb, e->float_lit.suffix);
             break;
+        }
         case EX_STR: {
             sb_char(&f->sb, '"');
             for (uint32_t i = 0; i < e->str_lit.len; i++) {
@@ -105,13 +115,31 @@ static void f_expr(F *f, const Expr *e, int parent_prec) {
                     case '\r': sb_cstr(&f->sb, "\\r"); break;
                     case '"': sb_cstr(&f->sb, "\\\""); break;
                     case '\\': sb_cstr(&f->sb, "\\\\"); break;
-                    default: sb_char(&f->sb, c); break;
+                    default:
+                        if ((unsigned char)c < 32 || (unsigned char)c == 127)
+                            sb_fmt(&f->sb, "\\x%02X", (unsigned char)c);
+                        else sb_char(&f->sb, c);
+                        break;
                 }
             }
             sb_char(&f->sb, '"');
             break;
         }
-        case EX_CHAR: sb_fmt(&f->sb, "'%c'", (char)e->char_lit); break;
+        case EX_CHAR:
+            sb_char(&f->sb, '\'');
+            switch (e->char_lit) {
+                case '\n': sb_cstr(&f->sb, "\\n"); break;
+                case '\r': sb_cstr(&f->sb, "\\r"); break;
+                case '\t': sb_cstr(&f->sb, "\\t"); break;
+                case '\'': sb_cstr(&f->sb, "\\'"); break;
+                case '\\': sb_cstr(&f->sb, "\\\\"); break;
+                default:
+                    if (e->char_lit < 32 || e->char_lit >= 127)
+                        sb_fmt(&f->sb, "\\x%02X", e->char_lit);
+                    else sb_char(&f->sb, (char)e->char_lit);
+            }
+            sb_char(&f->sb, '\'');
+            break;
         case EX_BOOL: sb_cstr(&f->sb, e->bool_lit ? "true" : "false"); break;
         case EX_SELF: sb_cstr(&f->sb, "self"); break;
         case EX_PATH:

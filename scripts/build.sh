@@ -3,8 +3,8 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-# shellcheck source=scripts/sac.sh
-. scripts/sac.sh
+# shellcheck source=scripts/compile-once.sh
+. scripts/compile-once.sh
 
 mkdir -p build
 
@@ -30,12 +30,13 @@ fi
 SRC=()
 while IFS= read -r f; do SRC+=("$f"); done < <(find src -name '*.c' | sort)
 
-# Build with SAC retry, probing with `version` because it exits 0.
-SAC_PROBE_ARGS=version sac_build_run build/beryl.exe \
+# Probe the exact candidate before publication.
+RUN_ARGS=(version)
+compile_once_run build/beryl.exe \
   clang -std=c11 -Wall -Wextra -Werror -Wno-unused-parameter "${OPT[@]}" -Isrc \
   -- "${SRC[@]}" >/dev/null
 rc=$?
-if [ $rc -ne 0 ] && [ $rc -ne 126 ]; then
+if [ $rc -ne 0 ]; then
   echo "build: compile failed" >&2
   exit $rc
 fi

@@ -57,16 +57,20 @@ What you get for it: no `'a`, no variance, no `PhantomData`, no
 `E0597 borrowed value does not live long enough`, and a checker small enough to
 read in an afternoon.
 
-The guarantees you keep: no use-after-free, no double-free, no null, no
-use-after-move, no data race from aliasing. `f(inout p, inout p.x)` is refused
-just as `&mut` aliasing would be, while `f(inout p.x, inout p.y)` is allowed,
-because the paths are disjoint.
+The current checker rejects uninitialized reads, use-after-move, and overlapping
+binding accesses such as `f(inout p, inout p.x)`, while allowing disjoint fields.
+Complete owning-container lifecycle and backing-storage alias guarantees remain
+Stage E work in the [advanced plan](BERYL_ADVANCED_IMPLEMENTATION_PLAN.md).
+Do not infer complete memory safety from binding-level checks.
 
 ## Where Beryl is stricter
 
-**Overflow traps in release.** Rust wraps silently there, which is a real source
-of vulnerabilities. Beryl traps in every build; `wrapping_add` and
-`saturating_add` are the opt-out and they cost nothing measurable.
+**Checked arithmetic on the native target.** Beryl's native checked integer
+operations trap in debug and release; explicit wrapping/saturating operations have
+different specified behavior. Rust's overflow checks are configurable, including
+in release. Their costs require workload measurements under matched settings;
+see [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html).
+The Enfusion integer profile has a separate, still incomplete parity gate.
 
 **No implicit numeric conversion, not even widening.** Rust already requires
 `as` between integer types; Beryl extends that to every numeric pair and to
@@ -74,10 +78,11 @@ literals in ambiguous positions.
 
 **No chained comparison.** `a < b < c` is an error, not a parse.
 
-**`@unsafe` is granular.** Rust's `unsafe` suspends every invariant at once,
-which is why auditing it is miserable. Beryl splits it into `raw_ptr`,
-`unchecked_index`, `ffi` and `transmute`, so an audit reads as a set rather than
-a line count — and `forbid_unsafe = true` in `beryl.toml` refuses all four.
+**`@unsafe` capability names.** Beryl parses/audits granular capability names and
+`forbid_unsafe = true` rejects unsafe annotations; the underlying raw-pointer/FFI
+features are not implemented. Rust's `unsafe` permits specific operations and
+does not disable borrowing or other invariants; see
+[Unsafe Rust](https://doc.rust-lang.org/book/ch20-01-unsafe-rust.html).
 
 **No build-time code execution.** No `build.rs`, no procedural macros. A
 dependency cannot run anything while you build. `comptime` evaluation is a pure
@@ -90,11 +95,11 @@ concurrency, no async, no ecosystem, no LSP, and a compiler written in C that is
 the largest single item on its own [threat model](THREAT-MODEL.md). Rust has all
 of those solved and a decade of hardening behind them.
 
-On generated code quality, both are AOT, GC-free, monomorphized, and both hand
-off to LLVM. Expect **parity on hot loops**. The one structural edge Beryl has
-is that every `inout` lowers to a `restrict` pointer with a compiler-proven
-exclusivity guarantee — the aliasing information LLVM most wants, and the thing
-Rust shipped with `noalias` disabled for years while it got it right.
+Native Beryl emits C11 and delegates machine-code optimization to Clang. It does
+not yet implement generic monomorphization. Global `restrict` is disabled because
+binding exclusivity does not prove backing-storage disjointness. Hot-loop parity
+or superiority over Rust must be measured on equivalent workloads; neither is
+established by the backend architecture alone.
 
 ## Habits to unlearn
 

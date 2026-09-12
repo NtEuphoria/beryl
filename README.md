@@ -1,5 +1,17 @@
 # Beryl
 
+**Active delivery work:** [approved program](docs/BERYL_DELIVERY_PLAN.md) and
+[implementation state](docs/BERYL_DELIVERY_STATE.md). New working-tree changes
+are not covered automatically by the installed checkpoint's receipts.
+
+**September 7 delivery update:** the compiler/tool checkpoint is installed and
+verified: 496 cases / 10,285 checks, 18 native regressions at O0/O2, 867 engine
+integer/order checks and 65,850 PID comparisons. It adds safety containment,
+capability context, `doctor`, exact-snapshot analysis and an optional local MCP
+bridge. Read [the current state and open gates](docs/BERYL_DELIVERY_STATE.md).
+Public IR lowering, full ownership, the tablet migration and whole-mod authoring
+remain unfinished. No game frame-rate or native Rust advantage is claimed.
+
 A systems language named for beryllium: stiffer than steel per unit weight, very
 light, and dimensionally stable at temperature. That is the thesis — **stiff**
 (strong static guarantees), **light** (small binaries, fast builds), **hot**
@@ -12,9 +24,10 @@ One source, two targets:
      └─→ EnforceScript ──→ Arma Reforger Workbench
 ```
 
-Which means you can write mod logic once, test it natively in **milliseconds**,
-and ship EnforceScript that Workbench compiles — instead of paying a 10–15 second
-Workbench build to find out whether your PID controller works.
+Write admitted mod logic once, test it natively, and generate EnforceScript for
+Workbench. Pure logic changes can be checked without launching an editor for
+every test. Target support and current bounds are listed in
+[the generated capability catalogue](docs/FEATURES.md).
 
 ```bash
 beryl new mymod
@@ -32,25 +45,29 @@ or put in a container. So a borrow can never outlive the call it was passed to,
 there is nothing to annotate, and what remains is ordinary flow analysis rather
 than a borrow checker.
 
+The ownership implementation is still incomplete. The current compiler rejects
+unsupported owning copies and transfers; general recursive storage cleanup is a
+separate delivery gate.
+
 ```beryl
 fn publish(inout store: MeshStore, sink e: Entity) -> bool
 //         ^^^^^ exclusive, non-aliasing   ^^^^ ownership moves in
 ```
 
-**Overflow traps in every build.** Rust wraps silently in release, which is a
-real source of vulnerabilities. Beryl traps — and when you actually need the
-speed, `wrapping_add` and friends say so at the call site. On the worst case we
-could construct, checking costs +82% and the opt-out costs nothing
-([BENCHMARKS](docs/BENCHMARKS.md)).
+**Checked native integer arithmetic by default.** Explicit `wrapping_add` and
+related operations state a different policy at the call site. Rust also supports
+checked release arithmetic through [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html).
+Historical overhead figures are unverified; see [benchmark status](docs/BENCHMARKS.md).
 
 **No implicit numeric conversion, ever.** Not even widening. `i32 + i64` is an
 error with the cast in the help line.
 
-**Security is a compile-time property.** `@untrusted` marks RPC parameters as
-attacker-controlled and refuses to let them index anything unbounded.
-`@server_only` refuses to be called from client context. `@secret` refuses to
-drive a branch. All compile-time, all zero runtime cost — and
-[honestly bounded](docs/THREAT-MODEL.md): it is a strong lint, never a proof.
+**Declared provenance is checked at compile time.** `@untrusted` tracks untrusted
+values through the admitted analysis; numeric clamping does not erase that
+provenance. `@server_only` restricts source calls, while real server execution
+requires a verified engine boundary. `@secret` and `@constant_time` enforce
+bounded source restrictions. These are [documented checks](docs/THREAT-MODEL.md),
+not a whole-program security or machine-code timing proof.
 
 **No build scripts, no procedural macros.** A dependency cannot execute code at
 build time. That is not a feature that was added; it is one that was never
@@ -103,12 +120,12 @@ mysterious behaviour. [STATUS](docs/STATUS.md) is the full list.
 
 ## Honesty about "better than Rust"
 
-Both are AOT, GC-free, monomorphized, and both hand off to LLVM, so on hot loops
-expect **parity, not a miracle**. Where Beryl genuinely differs:
+Beryl's native backend generates C for Clang. User-defined generic instantiation
+and complete owned-storage semantics are still missing. No equivalent-workload
+performance advantage over Rust has been established. Current design priorities:
 
-- **Stricter arithmetic** — release-mode wraparound is a real Rust footgun, and
-  Beryl does not have it.
-- **No lifetime annotations** for the same class of memory safety.
+- **Checked arithmetic by default**, with explicitly selected alternatives.
+- **No lifetime annotations**, with ownership correctness still under development.
 - **No build-time code execution**, structurally.
 - **Compile speed** — a design constraint rather than an accident.
 

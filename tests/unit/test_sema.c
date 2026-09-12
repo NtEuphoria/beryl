@@ -1,5 +1,6 @@
 /* Tests for name resolution and type checking. */
 #include "../../src/sema/check.h"
+#include "../../src/sema/constfold.h"
 #include "../../src/parse/parser.h"
 #include "test.h"
 
@@ -347,7 +348,7 @@ static void test_const_eval(void) {
                 "const HUGE: i64 = 9223372036854775807\n"
                 "const OVER: i64 = HUGE * 2\n"
                 "fn m() {\n    let q = OVER\n}\n",
-                "BE0503", "overflows a 64-bit value");
+                "BE0503", "overflows its integer type");
 
     CASE("const: the evaluator has no I/O to reach for, by construction");
     /* A call is simply not a constant expression; there is no sandbox to
@@ -374,9 +375,9 @@ static void test_warnings(void) {
 static void test_module_cycle(void) {
     CASE("sema: circular module imports are BE0309");
     Fx f = fx_new();
-    add_src(&f, "module a\nuse b.thing\nfn f() {\n    let q = 1\n}\n");
+    add_src(&f, "module a\nuse b.thing\npub fn f() {\n    let q = 1\n}\n");
     uint32_t file = srcmap_add(f.sm, str_from("b.be"),
-                               str_from("module b\nuse a.f\nfn thing() {\n    let q = 1\n}\n"));
+                               str_from("module b\nuse a.f\npub fn thing() {\n    let q = 1\n}\n"));
     TokenVec toks = lex_file(f.a, f.sm, f.d, f.in, file);
     prog_add_module(f.p, parse_file(f.a, f.d, f.in, toks, file));
 
@@ -387,7 +388,104 @@ static void test_module_cycle(void) {
     fx_free(&f);
 }
 
+static void test_foundation_regressions(void) {
+    expect_diag("defaults: parameter references are rejected explicitly",
+        "module t\nfn f(let x: i32, let y: i32 = x) -> i32 { return y }\n",
+        "BE0322", NULL);
+    expect_diag("defaults: nonlocal try is not expanded into caller",
+        "module t\nfn g() -> !i32 { return 1 }\n"
+        "fn f(let x: i32 = try g()) -> !i32 { return x }\n",
+        "BE0322", NULL);
+    expect_diag("defaults: recursive omission terminates",
+        "module t\nfn f(let x: i32 = f()) -> i32 { return x }\n",
+        "BE0504", NULL);
+    expect_diag("defaults: field defaults must be constant",
+        "module t\nfn g() -> i32 { return 1 }\nstruct P { x: i32 = g() }\n",
+        "BE0501", NULL);
+    expect_diag("return: error cannot inhabit i32",
+        "module t\nfn f() -> i32 { return error.Bad }\n", "BE0303", NULL);
+    expect_diag("return: error cannot inhabit void",
+        "module t\nfn f() { return error.Bad }\n", "BE0303", NULL);
+    expect_diag("return: error union payload is required",
+        "module t\nfn f() -> !i32 { return }\n", "BE0303", "needs a value");
+    expect_diag("catch: scalar operand is rejected",
+        "module t\nfn f() { let x = 1 catch |e| { print(e) } }\n", "BE0303", "error union");
+    expect_diag("literal: narrow positive overflow",
+        "module t\nconst X: i8 = 128\n", "BE0321", NULL);
+    expect_diag("literal: narrow negative overflow",
+        "module t\nconst X: i8 = -129\n", "BE0321", NULL);
+    expect_diag("literal: signed maximum plus one",
+        "module t\nconst X: i64 = 9223372036854775808\n", "BE0321", NULL);
+    expect_diag("const: inferred self cycle terminates",
+        "module t\nconst X = X\n", "BE0504", NULL);
+    expect_diag("const: inferred mutual cycle terminates",
+        "module t\nconst X = Y\nconst Y = X\n", "BE0504", NULL);
+    expect_diag("const: typed value cycle terminates",
+        "module t\nconst X: i32 = X\n", "BE0504", NULL);
+    expect_diag("const: checked narrow arithmetic",
+        "module t\nconst X: i8 = 127 + 1\n", "BE0503", NULL);
+    expect_diag("const: unsigned subtraction underflows",
+        "module t\nconst X: u64 = 0u64 - 1\n", "BE0503", NULL);
+    expect_diag("const: minimum division does not crash compiler",
+        "module t\nconst X: i64 = -9223372036854775808 / -1\n", "BE0503", NULL);
+    expect_diag("const: negating minimum overflows",
+        "module t\nconst X: i64 = -(-9223372036854775808)\n", "BE0503", NULL);
+    expect_diag("const: shifts use source width",
+        "module t\nconst X: i8 = 1i8 << 8\n", "BE0503", NULL);
+    expect_diag("const: huge float-to-int cast is checked",
+        "module t\nconst X = 1e100 as i64\n", "BE0503", NULL);
+    expect_diag("const: initializer cannot capture caller local",
+        "module t\nfn f() { let local = 7\nprint(X) }\nconst X = local\n",
+        "BE0301", NULL);
+
+    CASE("const: exact minima, unsigned maximum, casts and short circuit");
+    Fx f = fx_new();
+    Str out = sema(&f,
+        "module t\nconst A: i8 = -128\nconst B: i64 = -9223372036854775808\n"
+        "const C: u64 = 18446744073709551615u64\nconst D = C > 1u64\n"
+        "const E: bool = false && E\nconst F = true || (1 / 0 == 1)\n"
+        "const G = 255 as i8\nconst H: u8 = ~0u8\n"
+        "const I: f32 = 16777216f32 + 1f32\n"
+        "const J: i64 = -9223372036854775808 % -1\nfn f() -> !void { return }\n");
+    if (diag_errors(f.d)) printf("%.*s\n", (int)out.len, out.ptr);
+    CHECK_EQ_I(diag_errors(f.d), 0);
+    const char *names[] = {"A", "B", "C", "D", "E", "F", "G", "H", "I"};
+    ConstVal vals[9];
+    for (unsigned i = 0; i < 9; i++) {
+        SB key; sb_init(&key, f.a); sb_cstr(&key, "t."); sb_cstr(&key, names[i]);
+        Item *it = prog_item(f.p, sb_finish(&key));
+        vals[i] = const_eval(f.a, f.d, f.p, it->konst.value, true);
+    }
+    CHECK_EQ_I(vals[0].i, -128);
+    CHECK(vals[1].i == INT64_MIN);
+    CHECK(vals[2].kind == CV_UINT && vals[2].u == UINT64_MAX);
+    CHECK(vals[3].b); CHECK(!vals[4].b); CHECK(vals[5].b);
+    CHECK_EQ_I(vals[6].i, -1); CHECK_EQ_I(vals[7].u, 255);
+    CHECK(vals[8].f == 16777216.0);
+    Item *rem = prog_item(f.p, str_from("t.J"));
+    CHECK_EQ_I(const_eval(f.a, f.d, f.p, rem->konst.value, true).i, 0);
+    fx_free(&f);
+
+    CASE("defaults: occurrences are distinct and retain declaration binding");
+    f = fx_new();
+    out = sema(&f, "module t\nconst N: i32 = 7\n"
+        "fn value(let x: i32 = N) -> i32 { return x }\n"
+        "fn run() -> i32 { let N = 99\nreturn value() + value() }\n");
+    CHECK_EQ_I(diag_errors(f.d), 0);
+    Item *run = prog_item(f.p, str_from("t.run"));
+    Expr *sum = run->fn.body->block.stmts.data[1]->expr;
+    CHECK_EQ_I(sum->binary.lhs->call.args.len, 1);
+    CHECK_EQ_I(sum->binary.rhs->call.args.len, 1);
+    Expr *lhs = sum->binary.lhs->call.args.data[0].value;
+    Expr *rhs = sum->binary.rhs->call.args.data[0].value;
+    CHECK(lhs != rhs);
+    CHECK(lhs->res_kind == RES_CONST && rhs->res_kind == RES_CONST);
+    CHECK(lhs->res == prog_item(f.p, str_from("t.N")));
+    fx_free(&f);
+}
+
 void run_sema_tests(void) {
+    test_foundation_regressions();
     test_positive();
     test_diagnostics();
     test_const_eval();

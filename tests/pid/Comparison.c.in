@@ -1,0 +1,123 @@
+// Isolated verification fixture. Never included in production MESH scripts.
+class BerylPidComparisonRequest : JsonApiStruct
+{
+    string token;
+    void BerylPidComparisonRequest() { RegV("token"); }
+}
+class BerylPidComparisonResponse : JsonApiStruct
+{
+    int ok;
+    int operations;
+    int checks;
+    float maxDifference;
+    string detail;
+    string token;
+    void BerylPidComparisonResponse()
+    {
+        RegV("ok"); RegV("operations"); RegV("checks");
+        RegV("maxDifference"); RegV("detail"); RegV("token");
+    }
+}
+class BerylPidComparison : NetApiHandler
+{
+    ref SPK_PID m_Generated;
+    ref SPK_PID_Original m_Original;
+    ref BerylPidComparisonResponse m_Response;
+    float m_OutputGenerated;
+    float m_OutputOriginal;
+
+    override JsonApiStruct GetRequest() { return new BerylPidComparisonRequest(); }
+    override JsonApiStruct GetResponse(JsonApiStruct request)
+    {
+        BerylPidComparisonRequest req = BerylPidComparisonRequest.Cast(request);
+        m_Response = new BerylPidComparisonResponse();
+        m_Response.token = "@TOKEN@";
+        if (!req || req.token != m_Response.token)
+        {
+            m_Response.detail = "compiled artifact token mismatch";
+            return m_Response;
+        }
+        @RUN@
+        m_Response.ok = 1;
+        m_Response.detail = "original/generated/reference state comparisons passed";
+        return m_Response;
+    }
+
+    void Apply(int op, float a = 0, float b = 0, float c = 0, float d = 0, float e = 0, bool saturated = false)
+    {
+        m_OutputGenerated = 0;
+        m_OutputOriginal = 0;
+        if (op == 0)
+        {
+            m_Generated = new SPK_PID(a, b, c, d, e);
+            m_Original = new SPK_PID_Original(a, b, c, d, e);
+        }
+        else if (op == 1)
+        {
+            m_OutputGenerated = m_Generated.Step(a, b, c, saturated);
+            m_OutputOriginal = m_Original.Step(a, b, c, saturated);
+        }
+        else if (op == 2) { m_Generated.Reset(); m_Original.Reset(); }
+        else if (op == 3) { m_Generated.SetGains(a, b, c); m_Original.SetGains(a, b, c); }
+        else if (op == 4) { m_Generated.SetIntegralLimit(a); m_Original.SetIntegralLimit(a); }
+        else if (op == 5) { m_Generated.SetDerivativeTau(a); m_Original.SetDerivativeTau(a); }
+        else if (op == 6)
+        {
+            m_OutputGenerated = m_Generated.GetIntegral();
+            m_OutputOriginal = m_Original.GetIntegral();
+        }
+        else if (op == 7)
+        {
+            m_Generated = new SPK_PID();
+            m_Original = new SPK_PID_Original();
+        }
+        m_Response.operations++;
+    }
+
+    float Generated(int field)
+    {
+        if (field == 0) return m_OutputGenerated;
+        if (field == 1) return m_Generated.be_f_kp;
+        if (field == 2) return m_Generated.be_f_ki;
+        if (field == 3) return m_Generated.be_f_kd;
+        if (field == 4) return m_Generated.be_f_integral_5flimit;
+        if (field == 5) return m_Generated.be_f_integral;
+        if (field == 6) return m_Generated.be_f_last_5fmeasurement;
+        if (field == 7)
+        {
+            if (m_Generated.be_f_has_5flast) return 1;
+            return 0;
+        }
+        if (field == 8) return m_Generated.be_f_derivative_5ftau;
+        return m_Generated.be_f_derivative_5ffiltered;
+    }
+
+    bool Compare(float a, float b, int field, string pair)
+    {
+        m_Response.checks++;
+        float difference = Math.AbsFloat(a - b);
+        m_Response.maxDifference = Math.Max(m_Response.maxDifference, difference);
+        float tolerance = Math.Max(0.000001, 0.00001 * Math.Max(Math.AbsFloat(a), Math.AbsFloat(b)));
+        if (field == 7) tolerance = 0;
+        // Negated <= also rejects NaN; an unordered difference cannot pass.
+        if (!(difference <= tolerance))
+        {
+            m_Response.detail = string.Format("op=%1 field=%2 pair=%3 a=%4 b=%5", m_Response.operations, field, pair, a, b);
+            return false;
+        }
+        return true;
+    }
+
+    bool Expect(int field, float expected)
+    {
+        float generated = Generated(field);
+        float original;
+        if (field == 0) original = m_OutputOriginal;
+        else original = m_Original.BerylObserve(field);
+        if (!Compare(generated, original, field, "generated/original")) return false;
+        if (!Compare(generated, expected, field, "generated/reference")) return false;
+        return Compare(original, expected, field, "original/reference");
+    }
+
+    @BATCHES@
+}

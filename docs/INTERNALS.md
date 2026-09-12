@@ -6,8 +6,9 @@ this is the map.
 ## Pipeline
 
 ```
-.be ─→ lex ─→ parse ─→ resolve ─→ check ─→ ownership ─→ taint ─┬─→ C ─→ clang ─→ .exe
-                                                                └─→ EnforceScript ─→ Workbench
+.be → lex → parse → resolve → check/default expansion → ownership → taint
+                                                                  ├→ C → clang
+                                                                  └→ EnforceScript → Workbench
 ```
 
 Each stage runs only when the previous one was clean. That is why a syntax error
@@ -27,7 +28,7 @@ debugged inside Workbench. Both back ends emit from the **typed AST**.
 | `src/common/` | arena, `Str`, vec, map, source map, diagnostics |
 | `src/lex/` | tokens, scanner, the newline rule |
 | `src/parse/` | AST, recursive-descent items and statements, Pratt expressions, printer, formatter |
-| `src/sema/` | types, resolve, check, constfold, ownership, taint, intrinsics |
+| `src/sema/` | types, resolve, check, defaults, constfold, ownership, taint, intrinsics |
 | `src/back/` | C emission, EnforceScript emission, the two profile lints |
 | `src/driver/` | CLI, manifest, build orchestration, audit |
 | `runtime/` | ~200 lines: traps, checked arithmetic, `List` growth, test harness |
@@ -46,10 +47,21 @@ canonical rendering, which is unique per type.
 **Interned identifiers.** Equal strings share a pointer after `intern()`.
 
 **Structural analysis, not a CFG.** Beryl has no `goto`, so ownership and taint
-walk the AST directly: sequence composes, `if` merges both branches
-conservatively, loops iterate to a fixpoint (bounded at 8 passes). Loop bodies
+walk the AST directly. Ownership merges continuing paths and tracks loop breaks
+and continues separately, iterating the finite state lattice to a fixpoint. Loop bodies
 run *quietly* to the fixpoint and then once more with diagnostics enabled, so a
 problem in a loop is reported once rather than once per iteration.
+
+**Default expansion precedes access/security analysis.** `defaults.c` clones each
+omitted parameter default into its call, retaining declaration resolution. The
+bounded subset rejects formal references and nonlocal exits. Generated code and
+the analyses now see the same explicit arguments. Details, verified repairs and
+remaining limits are in [FOUNDATION_IMPLEMENTATION.md](FOUNDATION_IMPLEMENTATION.md).
+
+**Constant checking has separate phases.** `chk_const` tracks type resolution and
+does not borrow a caller's local scope. `constfold.c` evaluates typed values with
+separate signed/unsigned representations and depth/work budgets. Its short-circuit
+value dependencies are not the same as the dependencies needed to infer a type.
 
 **Diagnostics are a first-class subsystem.** Caret spans, multiple labels on one
 line with connector rows, tab-aware alignment, notes and helps, stable

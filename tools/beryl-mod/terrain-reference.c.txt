@@ -1,0 +1,632 @@
+//! A map the tablet draws itself, from terrain the engine will hand us.
+//!
+//! WHY NOT THE ENGINE'S MAP. SCR_MapEntity accepts a MINIMAP configuration,
+//! reports success, and composites nothing into a caller-supplied widget - six
+//! separate approaches were tried and recorded in docs/reference/unknowns.md.
+//! A secondary world camera into a RenderTargetWidget does render, but only
+//! sky. Both are engine internals we do not control.
+//!
+//! This is the third answer, and it cannot be blocked: every piece belongs to
+//! us. BaseWorld.GetSurfaceY(x, z) returns terrain height at any point, and
+//! CanvasWidget.SetDrawCommands paints whatever we want. So the tablet samples
+//! the ground on a grid and draws relief, water and contours from the real
+//! world - the same terrain the drone is flying over, not a picture of it.
+//!
+//! IT IS ALSO THE ONLY VERSION THAT CAN BE INTERACTIVE. We own the
+//! world-to-pixel transform, so turning a click back into a world position is
+//! inverting our own arithmetic rather than asking the engine to project for
+//! us. Pan, zoom and "fly there" all follow from that.
+//!
+//! COST IS PAID ONCE, NOT PER FRAME. Sampling the grid is thousands of
+//! GetSurfaceY calls, so it happens only when the view actually changes -
+//! panned, zoomed, or first opened - and the draw commands are cached in
+//! between. A tablet that re-sampled terrain every frame would be a
+//! framerate bug wearing a map's clothes.
+class SPK_TerrainMap
+{
+	//! Grid resolution. 80 x 80 is 6,400 height samples and 12,800 triangles,
+	//! which reads as terrain rather than as a mosaic while staying cheap
+	//! enough to rebuild on demand.
+	static const int GRID = 80;
+
+	//! Elevation bands. Each becomes ONE TriMeshDrawCommand holding every
+	//! triangle at that height, so the whole relief costs a handful of draw
+	//! calls instead of one per cell.
+	static const int BANDS = 7;
+
+	//! Quads per draw command. Kept well under any plausible engine ceiling.
+	static const int MAX_QUADS_PER_MESH = 240;
+
+	//! Metres of world across the pane at default zoom.
+	static const float DEFAULT_SPAN_M = 2400.0;
+	static const float MIN_SPAN_M = 300.0;
+	static const float MAX_SPAN_M = 12000.0;
+
+	//! Anything at or below this is water.
+	static const float SEA_LEVEL_M = 0.5;
+
+	protected CanvasWidget m_wCanvas;
+
+	protected vector m_vCentre;
+	protected float m_fSpanM;
+
+	//! Cached sample grid and the view it was taken for.
+	protected ref array<float> m_aHeights;
+	protected vector m_vSampledAt;
+	protected float m_fSampledSpan;
+	protected float m_fMinH;
+	protected float m_fMaxH;
+
+	protected int m_iPaneW;
+	protected int m_iPaneH;
+
+	//! HELD, not local. The canvas keeps whatever was handed to
+	//! SetDrawCommands, and a list that only a local variable referenced is
+	//! collected the moment the call returns - the same lifetime trap that
+	//! silently kills a widget event handler nobody holds.
+	protected ref array<ref CanvasWidgetCommand> m_aCommands;
+
+	protected vector m_vOwnship;
+	protected float m_fOwnHeading;
+	protected bool m_bHasOwnship;
+
+	void SPK_TerrainMap()
+	{
+		m_fSpanM = DEFAULT_SPAN_M;
+		m_aHeights = new array<float>();
+		m_fSampledSpan = -1;
+	}
+
+	//--- lifecycle -----------------------------------------------------------
+
+	bool Attach(CanvasWidget canvas)
+	{
+		if (!canvas)
+			return false;
+
+		m_wCanvas = canvas;
+		return true;
+	}
+
+	void Detach()
+	{
+		m_wCanvas = null;
+	}
+
+	bool IsAttached()
+	{
+		return m_wCanvas != null;
+	}
+
+	//--- view ----------------------------------------------------------------
+
+	vector GetCentre()
+	{
+		return m_vCentre;
+	}
+
+	float GetSpan()
+	{
+		return m_fSpanM;
+	}
+
+	void SetCentre(vector worldPos)
+	{
+		m_vCentre = worldPos;
+	}
+
+	//! Zoom about the centre. Factor below 1 zooms in.
+	void Zoom(float factor)
+	{
+		if (factor <= 0)
+			return;
+
+		m_fSpanM = Math.Clamp(m_fSpanM * factor, MIN_SPAN_M, MAX_SPAN_M);
+	}
+
+	//--- projection ----------------------------------------------------------
+	//
+	// The whole point of drawing this ourselves: both directions are ours, so
+	// they are exact inverses by construction rather than by hope.
+
+	//! World position -> pixel inside the pane.
+	void WorldToPane(vector world, out float px, out float py)
+	{
+		float half = m_fSpanM * 0.5;
+
+		float u = (world[0] - m_vCentre[0]) / half;   // -1 .. 1 east
+		float v = (world[2] - m_vCentre[2]) / half;   // -1 .. 1 north
+
+		px = (u * 0.5 + 0.5) * m_iPaneW;
+
+		// North is UP on a map, and world +Z is north, so the vertical axis
+		// is flipped relative to screen coordinates.
+		py = (0.5 - v * 0.5) * m_iPaneH;
+	}
+
+	//! Pixel inside the pane -> world position, with terrain height applied.
+	vector PaneToWorld(float px, float py)
+	{
+		if (m_iPaneW <= 0 || m_iPaneH <= 0)
+			return m_vCentre;
+
+		float half = m_fSpanM * 0.5;
+
+		float u = (px / m_iPaneW - 0.5) * 2.0;
+		float v = (0.5 - py / m_iPaneH) * 2.0;
+
+		float wx = m_vCentre[0] + u * half;
+		float wz = m_vCentre[2] + v * half;
+
+		float wy = 0;
+		BaseWorld world = GetGame().GetWorld();
+		if (world)
+			wy = world.GetSurfaceY(wx, wz);
+
+		return Vector(wx, wy, wz);
+	}
+
+	//--- sampling ------------------------------------------------------------
+
+	//! Has the view moved far enough to be worth re-sampling?
+	protected bool NeedsResample()
+	{
+		if (m_aHeights.Count() != GRID * GRID)
+			return true;
+
+		if (m_fSampledSpan != m_fSpanM)
+			return true;
+
+		// An eighth of a cell. Below that the picture would not visibly
+		// change, and re-sampling would be thousands of calls for nothing.
+		float tolerance = (m_fSpanM / GRID) * 0.125;
+		vector delta = m_vCentre - m_vSampledAt;
+		delta[1] = 0;
+
+		return delta.Length() > tolerance;
+	}
+
+	protected void Resample()
+	{
+		BaseWorld world = GetGame().GetWorld();
+		if (!world)
+			return;
+
+		m_aHeights.Clear();
+		m_aHeights.Reserve(GRID * GRID);
+
+		float half = m_fSpanM * 0.5;
+		float step = m_fSpanM / (GRID - 1);
+		float x0 = m_vCentre[0] - half;
+		float z0 = m_vCentre[2] - half;
+
+		m_fMinH = 100000.0;
+		m_fMaxH = -100000.0;
+
+		for (int row = 0; row < GRID; row++)
+		{
+			float wz = z0 + row * step;
+
+			for (int col = 0; col < GRID; col++)
+			{
+				float wx = x0 + col * step;
+				float h = world.GetSurfaceY(wx, wz);
+
+				m_aHeights.Insert(h);
+
+				if (h < m_fMinH)
+					m_fMinH = h;
+				if (h > m_fMaxH)
+					m_fMaxH = h;
+			}
+		}
+
+		m_vSampledAt = m_vCentre;
+		m_fSampledSpan = m_fSpanM;
+	}
+
+	protected float HeightAt(int col, int row)
+	{
+		int i = row * GRID + col;
+		if (i < 0 || i >= m_aHeights.Count())
+			return 0;
+
+		return m_aHeights[i];
+	}
+
+	//--- palette -------------------------------------------------------------
+
+	//! Terrain colours, low to high. Deliberately desaturated: this is a
+	//! military display, and a saturated relief map would fight the amber and
+	//! green that carry actual meaning on this device.
+	protected int BandColour(int band)
+	{
+		switch (band)
+		{
+			case 0: return ToLinear(0xFF2E3B2C);
+			case 1: return ToLinear(0xFF364532);
+			case 2: return ToLinear(0xFF3F4F39);
+			case 3: return ToLinear(0xFF4A5941);
+			case 4: return ToLinear(0xFF56634A);
+			case 5: return ToLinear(0xFF646E55);
+			case 6: return ToLinear(0xFF767D63);
+		}
+
+		return ToLinear(0xFF3F4F39);
+	}
+
+	protected int WaterColour()
+	{
+		return ToLinear(0xFF1B3A48);
+	}
+
+	//! Draw-command colours are LINEAR; the palette above is written in sRGB,
+	//! the way a colour is normally specified. Handing sRGB straight to a draw
+	//! command made the relief render about twice as bright as authored - a
+	//! pale sage wash instead of dark terrain, exactly as it did for the panel
+	//! widgets before Color.FromIntSRGB was used there.
+	//!
+	//! Widgets have FromIntSRGB for this. Draw commands take a raw int, so the
+	//! conversion is done here, per channel, with the standard 2.2 gamma.
+	protected int ToLinear(int srgb)
+	{
+		int a = (srgb >> 24) & 0xFF;
+		int r = Channel((srgb >> 16) & 0xFF);
+		int g = Channel((srgb >> 8) & 0xFF);
+		int b = Channel(srgb & 0xFF);
+
+		return (a << 24) | (r << 16) | (g << 8) | b;
+	}
+
+	protected int Channel(int v)
+	{
+		float f = v / 255.0;
+		float lin = Math.Pow(f, 2.2);
+
+		return Math.Clamp(lin * 255.0, 0, 255);
+	}
+
+	//--- drawing -------------------------------------------------------------
+
+	//! Rebuild the picture. Cheap when nothing has moved.
+	void Render(int paneW, int paneH)
+	{
+		if (!m_wCanvas || paneW <= 1 || paneH <= 1)
+			return;
+
+		m_iPaneW = paneW;
+		m_iPaneH = paneH;
+
+		if (NeedsResample())
+			Resample();
+
+		if (m_aHeights.Count() != GRID * GRID)
+			return;
+
+		m_aCommands = new array<ref CanvasWidgetCommand>();
+		array<ref CanvasWidgetCommand> commands = m_aCommands;
+
+		BuildRelief(commands);
+		BuildContours(commands);
+		BuildGrid(commands);
+		BuildOwnship(commands);
+
+		m_wCanvas.SetDrawCommands(commands);
+
+		// HOW MANY FLOATS PER VERTEX? The draw commands take a flat array and
+		// nothing states whether a vertex is (x,y) or (x,y,z). Rather than
+		// guess, ask the engine's own tessellator: it fills the same kind of
+		// array, so its output length for a known segment count settles it.
+		array<float> probe = new array<float>();
+		m_wCanvas.TessellateCircle(Vector(0, 0, 0), 10.0, 16, probe);
+		Print("[MESH-MAP] tessellate probe: 16 segments -> " + probe.Count().ToString() + " floats");
+
+		// Report once per rebuild: whether it ran, the pane it drew into, the
+		// terrain it found, and how many commands it produced. A blank pane
+		// has several possible causes and this separates them.
+		Print("[MESH-MAP] rendered pane=" + m_iPaneW.ToString() + "x" + m_iPaneH.ToString()
+			+ " centre=" + m_vCentre[0].ToString(0, 0) + "," + m_vCentre[2].ToString(0, 0)
+			+ " span=" + m_fSpanM.ToString(0, 0) + "m"
+			+ " height=" + m_fMinH.ToString(0, 1) + ".." + m_fMaxH.ToString(0, 1) + "m"
+			+ " samples=" + m_aHeights.Count().ToString()
+			+ " commands=" + commands.Count().ToString());
+	}
+
+	//! One mesh per elevation band, plus one for water.
+	protected void BuildRelief(array<ref CanvasWidgetCommand> commands)
+	{
+		float range = m_fMaxH - m_fMinH;
+		if (range < 1.0)
+			range = 1.0;
+
+		float cw = m_iPaneW / (float)(GRID - 1);
+		float ch = m_iPaneH / (float)(GRID - 1);
+
+		// One vertex/index list per band, and one more for water.
+		array<ref array<float>> verts = new array<ref array<float>>();
+		array<ref array<int>> inds = new array<ref array<int>>();
+
+		int total = BANDS + 1;
+		int b;
+
+		for (b = 0; b < total; b++)
+		{
+			verts.Insert(new array<float>());
+			inds.Insert(new array<int>());
+		}
+
+		for (int row = 0; row < GRID - 1; row++)
+		{
+			for (int col = 0; col < GRID - 1; col++)
+			{
+				float h00 = HeightAt(col, row);
+				float h10 = HeightAt(col + 1, row);
+				float h01 = HeightAt(col, row + 1);
+				float h11 = HeightAt(col + 1, row + 1);
+
+				float avg = (h00 + h10 + h01 + h11) * 0.25;
+
+				int slot;
+				if (avg <= SEA_LEVEL_M)
+				{
+					slot = BANDS;              // the water list
+				}
+				else
+				{
+					float t = (avg - m_fMinH) / range;
+					slot = Math.Clamp(t * BANDS, 0, BANDS - 1);
+				}
+
+				// Rows run north-to-south down the screen, so the vertical
+				// axis is flipped here for the same reason it is in
+				// WorldToPane: world +Z is north and north is up.
+				float x = col * cw;
+				float y = m_iPaneH - row * ch;
+				float x2 = x + cw;
+				float y2 = y - ch;
+
+				array<float> v = verts[slot];
+				array<int> ix = inds[slot];
+
+				int base = v.Count() / 2;
+
+				v.Insert(x);  v.Insert(y);
+				v.Insert(x2); v.Insert(y);
+				v.Insert(x2); v.Insert(y2);
+				v.Insert(x);  v.Insert(y2);
+
+				ix.Insert(base);     ix.Insert(base + 1); ix.Insert(base + 2);
+				ix.Insert(base);     ix.Insert(base + 2); ix.Insert(base + 3);
+			}
+		}
+
+		// EMITTED IN CHUNKS. A single mesh per band left most of the pane
+		// blank while the sparsest bands drew perfectly - the signature of a
+		// per-command vertex limit rather than of bad geometry. Splitting each
+		// band into bounded pieces costs a few more draw calls and removes the
+		// ceiling entirely.
+		for (b = 0; b < total; b++)
+		{
+			if (inds[b].IsEmpty())
+				continue;
+
+			int colour = BandColour(b);
+			if (b == BANDS)
+				colour = WaterColour();
+
+			EmitChunked(commands, verts[b], inds[b], colour);
+		}
+	}
+
+	//! Split one band's geometry across as many meshes as it needs.
+	protected void EmitChunked(array<ref CanvasWidgetCommand> commands,
+		array<float> verts, array<int> inds, int colour)
+	{
+		// Quads, so six indices and four vertices at a time; the chunk size is
+		// a whole number of them so a quad is never cut in half.
+		int quadsPerChunk = MAX_QUADS_PER_MESH;
+		int totalQuads = inds.Count() / 6;
+
+		int done = 0;
+		while (done < totalQuads)
+		{
+			int take = totalQuads - done;
+			if (take > quadsPerChunk)
+				take = quadsPerChunk;
+
+			array<float> cv = new array<float>();
+			array<int> ci = new array<int>();
+
+			for (int q = 0; q < take; q++)
+			{
+				int srcQuad = done + q;
+				int srcVert = srcQuad * 4;
+
+				for (int k = 0; k < 4; k++)
+				{
+					cv.Insert(verts[(srcVert + k) * 2]);
+					cv.Insert(verts[(srcVert + k) * 2 + 1]);
+				}
+
+				int b0 = q * 4;
+				ci.Insert(b0);     ci.Insert(b0 + 1); ci.Insert(b0 + 2);
+				ci.Insert(b0);     ci.Insert(b0 + 2); ci.Insert(b0 + 3);
+			}
+
+			TriMeshDrawCommand mesh = new TriMeshDrawCommand();
+			mesh.m_Vertices = cv;
+			mesh.m_Indices = ci;
+			mesh.m_iColor = colour;
+			commands.Insert(mesh);
+
+			done += take;
+		}
+	}
+
+	//! Contour lines at fixed height intervals.
+	//!
+	//! Drawn as short segments across cells the contour passes through rather
+	//! than as traced isolines: at this grid density the difference is not
+	//! visible, and tracing would cost far more for a decoration.
+	protected void BuildContours(array<ref CanvasWidgetCommand> commands)
+	{
+		float range = m_fMaxH - m_fMinH;
+		if (range < 5.0)
+			return;
+
+		// An interval that yields roughly ten lines whatever the terrain.
+		float interval = 10.0;
+		while (range / interval > 14.0)
+			interval = interval * 2.0;
+
+		float cw = m_iPaneW / (float)(GRID - 1);
+		float ch = m_iPaneH / (float)(GRID - 1);
+
+		array<float> line = new array<float>();
+
+		for (int row = 0; row < GRID - 1; row++)
+		{
+			for (int col = 0; col < GRID - 1; col++)
+			{
+				float h = HeightAt(col, row);
+				float hr = HeightAt(col + 1, row);
+				float hd = HeightAt(col, row + 1);
+
+				if (h <= SEA_LEVEL_M)
+					continue;
+
+				int band = h / interval;
+
+				float x = col * cw;
+				float y = m_iPaneH - row * ch;
+
+				// A contour crosses here if a neighbour sits in a different
+				// band, which is exactly where the ground steps up.
+				if (band != (int)(hr / interval))
+				{
+					line.Insert(x + cw); line.Insert(y);
+					line.Insert(x + cw); line.Insert(y - ch);
+				}
+
+				if (band != (int)(hd / interval))
+				{
+					line.Insert(x);      line.Insert(y - ch);
+					line.Insert(x + cw); line.Insert(y - ch);
+				}
+			}
+		}
+
+		if (line.IsEmpty())
+			return;
+
+		LineDrawCommand cmd = new LineDrawCommand();
+		cmd.m_Vertices = line;
+		cmd.m_iColor = ToLinear(0xFF1A2418) & 0x66FFFFFF;
+		cmd.m_fWidth = 1.0;
+		commands.Insert(cmd);
+	}
+
+	//! Where the operator's own aircraft is, and which way it is pointing.
+	//!
+	//! Drawn by the map rather than by the marker layer because it belongs to
+	//! the map's own projection: it must stay glued to the ground as the view
+	//! pans and zooms, which is exactly what WorldToPane guarantees.
+	void SetOwnship(vector worldPos, float headingRad, bool valid)
+	{
+		m_vOwnship = worldPos;
+		m_fOwnHeading = headingRad;
+		m_bHasOwnship = valid;
+	}
+
+	protected void BuildOwnship(array<ref CanvasWidgetCommand> commands)
+	{
+		if (!m_bHasOwnship)
+			return;
+
+		float cx, cy;
+		WorldToPane(m_vOwnship, cx, cy);
+
+		// Off the pane entirely - drawing it would put a symbol on an edge
+		// where there is no aircraft.
+		if (cx < -40 || cy < -40 || cx > m_iPaneW + 40 || cy > m_iPaneH + 40)
+			return;
+
+		// A chevron pointing along the aircraft's heading. Screen y grows
+		// downward while world north is up, so the sine terms are negated.
+		float s = Math.Sin(m_fOwnHeading);
+		float c = Math.Cos(m_fOwnHeading);
+
+		float nose = 16.0;
+		float tail = 9.0;
+		float wide = 10.0;
+
+		array<float> tri = new array<float>();
+
+		// nose
+		tri.Insert(cx + s * nose);           tri.Insert(cy - c * nose);
+		// left wing
+		tri.Insert(cx + (-c * wide) - s * tail); tri.Insert(cy + (-s * wide) + c * tail);
+		// tail notch
+		tri.Insert(cx - s * (tail * 0.4));   tri.Insert(cy + c * (tail * 0.4));
+		// right wing
+		tri.Insert(cx + (c * wide) - s * tail);  tri.Insert(cy + (s * wide) + c * tail);
+		// close
+		tri.Insert(cx + s * nose);           tri.Insert(cy - c * nose);
+
+		LineDrawCommand chevron = new LineDrawCommand();
+		chevron.m_Vertices = tri;
+		chevron.m_iColor = ToLinear(0xFF4BBF5D);   // NAV_GREEN: this is powered
+		chevron.m_fWidth = 2.5;
+		chevron.m_iOutlineColor = ToLinear(0xFF0B0C0D);
+		chevron.m_fOutlineWidth = 1.0;
+		commands.Insert(chevron);
+	}
+
+	//! A military grid, one line per kilometre.
+	protected void BuildGrid(array<ref CanvasWidgetCommand> commands)
+	{
+		float pxPerM = m_iPaneW / m_fSpanM;
+
+		float stepM = 1000.0;
+		while (stepM * pxPerM < 70.0)
+			stepM = stepM * 2.0;
+		while (stepM * pxPerM > 260.0)
+			stepM = stepM * 0.5;
+
+		float half = m_fSpanM * 0.5;
+		array<float> line = new array<float>();
+
+		// Snap to absolute world kilometres so the grid stays put on the
+		// ground while the view pans over it.
+		float startX = Math.Ceil((m_vCentre[0] - half) / stepM) * stepM;
+		float wx = startX;
+		while (wx < m_vCentre[0] + half)
+		{
+			float px, py;
+			WorldToPane(Vector(wx, 0, m_vCentre[2]), px, py);
+			line.Insert(px); line.Insert(0);
+			line.Insert(px); line.Insert(m_iPaneH);
+			wx += stepM;
+		}
+
+		float startZ = Math.Ceil((m_vCentre[2] - half) / stepM) * stepM;
+		float wz = startZ;
+		while (wz < m_vCentre[2] + half)
+		{
+			float px2, py2;
+			WorldToPane(Vector(m_vCentre[0], 0, wz), px2, py2);
+			line.Insert(0);          line.Insert(py2);
+			line.Insert(m_iPaneW);   line.Insert(py2);
+			wz += stepM;
+		}
+
+		if (line.IsEmpty())
+			return;
+
+		LineDrawCommand cmd = new LineDrawCommand();
+		cmd.m_Vertices = line;
+		cmd.m_iColor = ToLinear(0xFFCECFCD) & 0x44FFFFFF;
+		cmd.m_fWidth = 1.0;
+		commands.Insert(cmd);
+	}
+}

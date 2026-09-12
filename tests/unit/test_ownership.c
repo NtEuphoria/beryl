@@ -71,7 +71,7 @@ static void test_exclusivity(void) {
             "}\n",
             "BE0401", "overlapping exclusive borrows of `a`");
 
-    CASE("ownership: BE0401 labels both borrows and explains restrict");
+    CASE("ownership: BE0401 labels both overlapping borrows");
     uint32_t errs = 0;
     Str      out  = own("module t\n"
                         "fn swap2(inout a: i32, inout b: i32) {\n"
@@ -84,7 +84,7 @@ static void test_exclusivity(void) {
                         &errs);
     CHECK_CONTAINS(out, "first exclusive borrow here");
     CHECK_CONTAINS(out, "second exclusive borrow here");
-    CHECK_CONTAINS(out, "licenses `restrict`");
+    CHECK_CONTAINS(out, "cannot be borrowed exclusively in the same call");
 
     bad_src("ownership: an inout that overlaps a shared borrow is BE0401",
             "module t\n"
@@ -485,6 +485,36 @@ static void test_loops_and_reality(void) {
 }
 
 void run_ownership_tests(void) {
+    bad_src("ownership: destination index expressions cannot hide a read",
+        "module t\nfn idx(let x: i32) -> i32 { return x }\n"
+        "fn f() { var a = [1]\nlet x: i32\na[idx(x)] = 0 }\n",
+        "BE0405", NULL);
+    bad_src("ownership: try failure must initialize set output",
+        "module t\nfn fail() -> !i32 { return error.Bad }\n"
+        "fn fill(set x: i32) -> !i32 { let y = try fail()\nx = y\nreturn y }\n",
+        "BE0404", NULL);
+    ok_src("ownership: initialized set output permits try",
+        "module t\nfn fail() -> !i32 { return error.Bad }\n"
+        "fn fill(set x: i32) -> !i32 { x = 0\nreturn try fail() }\n");
+    bad_src("ownership: later argument reads before set call executes",
+        "module t\nfn fill(set x: i32, let y: i32) { x = y }\n"
+        "fn f() { var x: i32\nfill(set x, x) }\n", "BE0405", NULL);
+    bad_src("ownership: short circuit may skip initialization",
+        "module t\nfn fill(set x: i32) -> bool { x = 1\nreturn true }\n"
+        "fn f() { var x: i32\nlet b = false && fill(set x)\nprint(x) }\n",
+        "BE0405", NULL);
+    bad_src("ownership: returning loop body does not erase fallthrough",
+        "module t\nfn f(set x: i32) { while false { x = 1\nreturn } }\n",
+        "BE0404", NULL);
+    bad_src("ownership: catch return leaves success path live",
+        "module t\nfn v() -> !i32 { return 1 }\n"
+        "fn f(set x: i32) { let a = v() catch |e| { x = 1\nreturn } }\n",
+        "BE0404", NULL);
+    bad_src("ownership: break bypasses later initialization",
+        "module t\nfn f() { var x: i32\nwhile true { break\nx = 1 }\nprint(x) }\n",
+        "BE0405", NULL);
+    bad_src("ownership: immutable list cannot mutate through intrinsic",
+        "module t\nfn f(let xs: List<i32>) { xs.push(1) }\n", "BE0407", NULL);
     test_exclusivity();
     test_moves();
     test_init();

@@ -9,13 +9,25 @@
 #include "enforce_backend.h"
 
 typedef struct {
+    Span span, expansion;
+    const char *kind;
+    Str declaration;
+} EfOrigin;
+typedef struct { uint32_t start, length; EfOrigin origin; } EfMapping;
+typedef VEC(EfMapping) EfMappings;
+
+typedef struct {
     Arena     *a;
     SourceMap *sm;
     DiagBag   *d;
     Program   *p;
     Str        prefix;
+    EnfusionExports exports;
     SB         out;    /* the class currently being written */
     SB         helper; /* generated helper classes, emitted before it */
+    bool       map_enabled;
+    EfOrigin   origin;
+    EfMappings mappings, helper_mappings;
     Map       *helpers_done;
     Map       *memo;    /* (Expr*, epoch) -> rendered text; see ef_expr */
     uint32_t   epoch;   /* bumped per statement so a memo never crosses one */
@@ -33,6 +45,8 @@ typedef struct {
  * hoisted into a local before it reaches `S`. */
 #define S(x) (int)(x).len, (x).ptr
 
+Str ef_local(E *e, Str name, Span declaration);
+
 /* The bytes of a pointer, as a map key. Two distinct nodes never share an
  * address, so this is exact identity rather than a hash of anything. */
 Str ef_ptr_key(Arena *a, const void *p, uint32_t epoch);
@@ -40,13 +54,18 @@ Str ef_ptr_key(Arena *a, const void *p, uint32_t epoch);
 /* Bohemia indents with tabs, so generated script does too. */
 void ef_line(E *e, const char *fmt, ...) BE_PRINTF(2, 3);
 void ef_blank(E *e);
+EfOrigin ef_expression_origin(E *e, Expr *x);
 
 Str ef_prefixed(E *e, Str name);
 Str ef_type(E *e, Type *t);
 Str ef_type_field(E *e, Type *t); /* adds `ref` where a member needs it */
 Str ef_tmp(E *e);
 Str ef_ident(E *e, Str name);
-Str ef_method_name(Str name);
+Str ef_method_name(E *e, Str name);
+Str ef_fn_name(E *e, Item *function);
+Str ef_field(E *e, Str name);
+Str ef_f32_literal(E *e, double value, Span span);
+Str ef_module_holder(E *e, Module *module);
 
 Str  ef_expr(E *e, Expr *x);
 void ef_stmt(E *e, Stmt *s);

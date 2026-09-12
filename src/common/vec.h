@@ -23,15 +23,18 @@
     }
 
 /* Grows *data to hold at least `need` elements, copying `live` of them. */
-void vec_reserve_(Arena *a, void **data, uint32_t *cap, uint32_t need, uint32_t live,
+void vec_reserve_(Arena *a, void **data, uint32_t *cap, size_t need, uint32_t live,
                   size_t elem);
+/* Checks len+1 before the macro increments its uint32_t length. */
+uint32_t vec_push_need_(uint32_t len, uint32_t cap);
 
 #define vec_reserve(A, V, N)                                                               \
     vec_reserve_((A), (void **)&(V).data, &(V).cap, (N), (V).len, sizeof(*(V).data))
 
 #define vec_push(A, V, X)                                                                  \
     do {                                                                                   \
-        if ((V).len == (V).cap) vec_reserve((A), (V), (V).len + 1);                        \
+        uint32_t beryl_vec_need_ = vec_push_need_((V).len, (V).cap);                       \
+        if (beryl_vec_need_ > (V).cap) vec_reserve((A), (V), beryl_vec_need_);              \
         (V).data[(V).len++] = (X);                                                         \
     } while (0)
 

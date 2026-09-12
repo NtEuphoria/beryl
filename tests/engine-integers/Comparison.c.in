@@ -1,0 +1,51 @@
+// Isolated VM regression fixture; no production addon dependency.
+class BerylIntegerComparisonRequest : JsonApiStruct
+{
+    string token;
+    void BerylIntegerComparisonRequest() { RegV("token"); }
+}
+class BerylIntegerComparisonResponse : JsonApiStruct
+{
+    string token;
+    int executed;
+    int checks;
+    int failures;
+    ref array<string> failedCases = {};
+    void BerylIntegerComparisonResponse()
+    {
+        RegV("token"); RegV("executed"); RegV("checks");
+        RegV("failures"); RegV("failedCases");
+    }
+}
+class BerylIntegerComparison : NetApiHandler
+{
+    ref BerylIntegerComparisonResponse m_Response;
+    override JsonApiStruct GetRequest() { return new BerylIntegerComparisonRequest(); }
+    override JsonApiStruct GetResponse(JsonApiStruct request)
+    {
+        BerylIntegerComparisonRequest req = BerylIntegerComparisonRequest.Cast(request);
+        m_Response = new BerylIntegerComparisonResponse();
+        m_Response.token = "@TOKEN@";
+        if (!req || req.token != m_Response.token) return m_Response;
+        @RUN@
+        m_Response.executed = 1;
+        return m_Response;
+    }
+    void Expect(string id, int actual, int expected)
+    {
+        m_Response.checks++;
+        if (actual == expected) return;
+        m_Response.failures++;
+        if (m_Response.failedCases.Count() < 64)
+            m_Response.failedCases.Insert(id + ": got " + actual.ToString() + ", expected " + expected.ToString());
+    }
+    void ExpectFloat(string id, float actual, float expected)
+    {
+        m_Response.checks++;
+        if (actual == expected) return;
+        m_Response.failures++;
+        if (m_Response.failedCases.Count() < 64)
+            m_Response.failedCases.Insert(id + ": float mismatch");
+    }
+    @BATCHES@
+}

@@ -1,6 +1,52 @@
 # Beryl — Roadmap
 
+**Current delivery order (2026-09-07):**
+[BERYL_DELIVERY_PLAN.md](BERYL_DELIVERY_PLAN.md) consolidates the approved safety,
+IR, tablet, AI tooling, deployment and measured-performance program.
+[Delivery state](BERYL_DELIVERY_STATE.md) records active work and exact new gates.
+It takes precedence over historical sequencing below.
+
+**Advanced program (2026-09-07):**
+[BERYL_ADVANCED_IMPLEMENTATION_PLAN.md](BERYL_ADVANCED_IMPLEMENTATION_PLAN.md)
+extends the SPARKOS sequence with gated performance work. Its
+[execution state](BERYL_ADVANCED_IMPLEMENTATION_STATE.md) distinguishes implemented
+capabilities from pending experiments and release gates.
+
+**Latest installed delivery checkpoint:** safety containment, expression-order
+repairs, generated capability/example context, environment diagnostics,
+exact-snapshot analysis and a hardened local MCP bridge. Both foundation builds
+passed 496 cases / 10,285 checks and 18 O0/O2 native regressions; the final engine
+integer/order and complete PID suites passed. Public IR, full owning storage,
+tablet generation, dedicated-client release and automatic optimizations remain
+open. [Delivery state](BERYL_DELIVERY_STATE.md) is the authoritative receipt index.
+
+**Earlier installed checkpoint:** bounded engine-binding context, actual storage
+probes, experimental record/PID IR parity and a replayable terrain collection are
+verified. The final collection recorded 34.06% median paired reduction in command
+construction/release time; full-render/resource/independence gates remain open.
+No automatic optimizer or public IR backend is released. Use the execution state
+above for exact source hashes, corrected harnesses and next dependencies.
+
+**Active implementation plan (2026-09-06):**
+[SPARKOS_IMPLEMENTATION_PLAN.md](SPARKOS_IMPLEMENTATION_PLAN.md) is the approved
+Enfusion-first sequence; [execution state](SPARKOS_IMPLEMENTATION_STATE.md) records
+its gates and current evidence. That sequence takes precedence over historical
+release ordering below.
+
 **Written 2026-09-04, against v0.1.**
+
+**Implementation update, 2026-09-06:**
+[FOUNDATION_IMPLEMENTATION.md](FOUNDATION_IMPLEMENTATION.md) records the first
+compiler-correctness tranche, 259 unit cases / 1,104 checks, 13 O0/O2 native
+regressions and targeted Workbench compile results. Read it with the blueprint
+before implementing historical findings. The bounded reference interpreter and
+declaration/module work now have verified [M2](M2_IMPLEMENTATION.md) and
+[M1](M1_IMPLEMENTATION.md) gates. The full PID's current real-mod gate is tracked
+in [M3](M3_IMPLEMENTATION.md), whose isolated MESH gameplay/handover gate passed
+on September 7. [M4](M4_IMPLEMENTATION.md) is next; live-project deployment and
+independent multiplayer remain separate. Historical release labels below do not
+override that evidence.
+
 [Browsable version](https://claude.ai/code/artifact/6dc455ec-3425-4828-8b25-5237130f8876) — its source is `docs/roadmap.html`, which is a
 curated summary of this file rather than a rendering of it; edit both.
 
@@ -60,9 +106,9 @@ help line), the ownership model (no lifetimes, and the checker is small enough
 to read), the Enfusion lowering (verified against real Workbench), and the
 honesty discipline in the docs.
 
-**What is genuinely thin:** codegen has 9 end-to-end programs guarding two back
-ends; the module system does not actually work; there is no standard library at
-all; and the security model has a hole you can walk through.
+This original snapshot predates the installed M1 module implementation and the
+delivery safety work. Current counts, supported modules and taint limits are
+reported in [STATUS.md](STATUS.md) and [delivery state](BERYL_DELIVERY_STATE.md).
 
 ---
 
@@ -209,26 +255,21 @@ The goal is stated. This section is about making it a plan rather than an
 aspiration, because "better than Rust" without an axis is not something you can
 build toward or ever know you have achieved.
 
-#### Where Beryl's design is already genuinely ahead
+#### Candidate advantages to establish through implementation and measurement
 
-1. **Graphs and cyclic data.** This is the big one. In Rust these mean
-   `Rc<RefCell<T>>`, an arena crate, or `unsafe` — it is the single most common
-   complaint from people writing games in Rust, and it is structural rather than
-   a missing feature. Beryl's second-class references make handles *the*
-   idiomatic answer, and `Pool<T>` + generational `Handle<T>` builds it into the
-   language rather than a crate. **Games and simulations are made of graphs.**
-2. **Compile speed.** Rust's most-complained-about property. Beryl checks 10,000
-   lines in 124 ms. If that holds at 100× the scale, it changes how the language
-   feels to use, and no amount of Rust incremental-compilation work closes a gap
-   of that size.
-3. **No lifetimes.** The same class of memory safety with no annotation burden
-   and a checker small enough to read. That is a real reduction in the cost of
-   entry.
-4. **Determinism.** Rust has nothing for cross-machine float determinism.
-   §6.1's fixed-point types and `@deterministic` are unclaimed ground.
-5. **Overflow traps in release.** A real Rust footgun that Beryl does not have.
-6. **No build-time code execution.** A supply-chain guarantee `cargo` cannot
-   make.
+1. **Graphs and cyclic data.** Generational handles may suit game workloads;
+   Beryl's Pool/Handle implementation is still proposed. Rust can also use
+   index-based or generational handles without first-class graph references.
+2. **Compile speed.** Measure equivalent authoring tasks and actual rebuilds.
+   The historical synthetic 124 ms result does not establish a Rust comparison.
+3. **No lifetime syntax.** This reduces one authoring burden; complete ownership
+   and storage safety still need implementation and evidence.
+4. **Determinism.** Fixed-point types and a deterministic profile are proposals.
+   Rust can implement deterministic numerical policies too.
+5. **Checked release arithmetic by default.** Rust supports configurable release
+   overflow checks; compare the actual policies and workloads.
+6. **No project build scripts or procedural macros.** A deliberate restriction
+   on Beryl's authoring model, with the native toolchain still part of the trust boundary.
 
 #### Where Rust wins, and will keep winning for years
 
@@ -247,9 +288,9 @@ build toward or ever know you have achieved.
 otherwise wastes years. The axis that fits Beryl's design is
 **systems programming for games and simulations**:
 
-- where graphs are everywhere, and Rust is at its most painful;
-- where iteration speed dominates, and Rust is at its slowest;
-- where determinism matters, and Rust offers nothing;
+- where graphs and identity are common;
+- where iteration time can be measured on real authoring tasks;
+- where an explicit deterministic profile may help;
 - and where the ecosystem gap is smallest, because game engines bring their own
   world rather than pulling 200 crates.
 
@@ -266,7 +307,12 @@ something, which is how every successful language has actually happened.
 
 ## 3. The ledger
 
-Everything known to be wrong or missing, ranked by what it costs you.
+Historical planning ledger, retained to explain the original priorities.
+C2 was addressed by qualified module resolution and privacy enforcement. C3 is
+being addressed by the bounded delivery taint pass; its broader security gate
+remains incomplete. Immediate `defer` is now an explicit preserved contract.
+Use the delivery plan and state for current outstanding work; these rows do not
+override newer implementation evidence.
 
 ### 3.1 Correctness and trust — these can burn you silently
 
@@ -565,8 +611,8 @@ best-value item on the entire roadmap because it solves four problems at once:
 
 1. **A differential oracle for codegen** (§5.1a) — the scariest gap, closed.
 2. **A near-instant test loop.** `beryl test` currently costs a clang invocation
-   (~500 ms) plus the Smart App Control retry lottery. Interpreted, it is
-   milliseconds and deterministic. For the wedge — *the test loop is the entire
+   plus process startup. M0 removes execution retries. Interpreter latency must
+   be measured after implementation. For the wedge — *the test loop is the entire
    product* — this matters enormously.
 3. **Unifies constant evaluation.** `constfold.c` is already a small interpreter
    over a subset. Replace it with the real one and `comptime` blocks, const
@@ -596,13 +642,14 @@ function in another module is callable with no import.
 
 1. Resolution consults the **importing module's** scope: its own items, plus
    what its `use` statements name, plus the built-ins.
-2. `pub` gates cross-module visibility. New diagnostic: **BE0319 — `x` is
+2. `pub` gates cross-module visibility. Allocate a fresh diagnostic for **`x` is
    private to module `y`**, with a help line offering `pub`.
 3. `use a.b.C` imports one item; `use a.b` imports the module for qualified
    access (`b.C`).
 4. Ambiguity between two imported modules is an error naming both, not
    first-wins.
-5. **BE0320 — unused import**, as a warning.
+5. **Unused import**, as a warning with a fresh diagnostic code. BE0319/BE0320
+   already identify vector errors; do not reuse them for module diagnostics.
 
 **Do this in v0.2.** It is cheap, it is a correctness bug, and every line of
 Beryl written before it is fixed is written against a namespace that will
@@ -802,26 +849,14 @@ standard library rather than as a rewrite.
 in C; the code deliberately avoids constructs with no Beryl equivalent. Keep
 doing that, and self-hosting stays cheap whenever it becomes worth doing.
 
-### 5.9 Reproducibility versus Smart App Control
+### 5.9 Reproducibility and artifact identity
 
-Two stated goals in direct conflict, currently unresolved and worth naming
-clearly.
-
-Reproducible builds require byte-identical output from identical input. The
-Smart App Control workaround deliberately varies the binary per attempt
-(`-DBERYL_BUILD_NONCE`) so that each retry earns an independent verdict from
-Windows' code-integrity policy. As long as the retry loop exists, output is not
-reproducible.
-
-**The resolution: separate the two artifacts.** The *generated C* can be
-byte-reproducible — it does not depend on the nonce at all. Make that the
-reproducibility promise: same Beryl input, byte-identical C output, verifiable
-by anyone with the compiler. The *binary* is then reproducible only when the
-nonce is fixed, which is what a release build should do (`--no-sac-retry`,
-failing loudly rather than retrying).
-
-That is a promise that can actually be kept, it is the one that matters for
-supply-chain verification, and it should replace the current unqualified claim.
+M0 removes content-changing rebuild retries. A denied launch is a recorded
+startup failure and does not change the binary to seek another verdict.
+Generated C has deterministic-output checks. Native binary reproducibility still
+needs a verified policy for toolchain versions, embedded paths, timestamps, and
+flags. Source and artifact hashes identify the actual tested bytes even when
+binary reproducibility has not been established. No retry override is planned.
 
 ### 5.10 Portability and CI
 
@@ -1065,19 +1100,19 @@ new information.
 | # | Decision | Why | Revisit if |
 |---|---|---|---|
 | D1 | Mutable value semantics, second-class references, no lifetimes | Same memory safety with no annotation burden and a far smaller checker | Someone hits a real problem that genuinely needs stored references |
-| D2 | Both back ends emit from the typed AST; no MIR | EnforceScript is high-level; lowering to SSA and rebuilding would destroy the structure it needs and make generated script unreadable | A direct machine-code back end is built, which is the one thing that would justify an IR |
+| D2 | Current backends emit from typed AST; M5 introduces structured IR | Approved plan needs explicit places, effects, ownership and provenance while retaining control structure | Superseded by the approved M5 packet |
 | D3 | Monomorphization, not dictionary passing | Mandatory for a target with no generics | Never — the Enfusion target settles it |
-| D4 | Overflow traps in every build | Release-mode wraparound is a real Rust footgun | Never; the `wrapping_*` opt-out is the answer to the cost |
+| D4 | Checked native arithmetic by default | Explicit and consistent policy; Rust can configure the same overflow policy | Target semantics and explicit alternatives require independent validation |
 | D5 | No implicit numeric conversion, ever | Catches more real bugs than it costs | Never |
 | D6 | No build scripts, no proc macros | The supply-chain guarantee | Never |
 | D7 | Compiler in C, self-hosting deferred | Fuzzing and sanitizers buy most of S1's risk reduction for 5% of the cost | v0.8, once the language can host a compiler |
-| D8 | Method names emitted verbatim, not PascalCased | Required for engine callback overrides, and 1:1 with source when debugging in Workbench | Never |
+| D8 | Engine-facing names preserved through explicit export mappings | M1 requires collision-free internal names; M3 preserves the SPK_PID interface | Superseded by the approved M1/M3 packets |
 | D9 | `!T` loses its tag on Enfusion | Matches the base game idiom; the alternative pollutes every signature | If a real case needs to distinguish errors and an enum return is not enough |
 | D10 | Concurrency cut **from the Enfusion edition** | Enfusion scripting is single-threaded, so it buys nothing there | Superseded by D12 — it is a precondition for the general edition, scheduled in §5.11 |
-| D11 | Reproducibility promised on generated C, not on the binary | The only promise that can be kept alongside the SAC workaround | If SAC is ever turned off on this machine |
+| D11 | Deterministic generated C; native binaries identified by exact hash | M0 removes launch retries; binary reproducibility needs further toolchain controls | Expand the guarantee after reproducibility tests |
 | D12 | General-purpose Beryl is a **stated goal**, sequenced after the Enfusion edition reaches v1.0 | User decision, 2026-09-04. The wedge funds the shared work; it does not replace the ambition | Never — this is the direction. Only the ordering is open |
 | D13 | Two editions, **one compiler** — not a fork | Measured: Enfusion is 1,331 lines of back end plus ~17 lines of wiring, and zero lines in `sema/`, `lex/` or `parse/`. A fork would double every bug fix to buy branding that packaging already provides | If a **core semantic** must diverge (e.g. the general edition wanting first-class references, breaking D1). That is a different language, not a variant |
-| D14 | Design every feature for the **native** target first, then ask how it lowers; profile-gate what cannot | Design contamination — not code coupling — is the real risk to D13. The v0.1 audit in §2.1 shows the profile-lint mechanism has absorbed every Enfusion constraint so far | Never |
+| D14 | Enfusion usefulness first, shared semantic foundations for both targets | Approved user priority; keep engine-specific rules in bindings and packages | Supersedes historical native-first ordering |
 | D15 | The general edition's wedge is **games and simulations**, not general systems programming | It is where Rust is weakest (graphs, compile times, determinism) and where the ecosystem gap is smallest — and it is the same domain as the Enfusion edition, so the two share a wedge and not just a compiler | If a different domain shows a stronger structural advantage |
 
 ---

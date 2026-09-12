@@ -1,0 +1,108 @@
+class @CLASS@Request : JsonApiStruct
+{
+    string token;
+    void @CLASS@Request() { RegV("token"); }
+}
+class @CLASS@Response : JsonApiStruct
+{
+    string token;
+    int executed;
+    int checks;
+    int failures;
+    int checksum;
+    ref array<string> caseIds = {};
+    ref array<string> rows = {};
+    void @CLASS@Response()
+    {
+        RegV("token"); RegV("executed"); RegV("checks"); RegV("failures");
+        RegV("checksum"); RegV("caseIds"); RegV("rows");
+    }
+}
+class @CLASS@ : NetApiHandler
+{
+    ref @CLASS@Response m_Result;
+    // Hold both graphs until every payload comparison has completed.
+    ref array<ref CanvasWidgetCommand> m_Original;
+    ref array<ref CanvasWidgetCommand> m_Direct;
+    override JsonApiStruct GetRequest() { return new @CLASS@Request(); }
+    override JsonApiStruct GetResponse(JsonApiStruct request)
+    {
+        @CLASS@Request req = @CLASS@Request.Cast(request);
+        m_Result = new @CLASS@Response();
+        m_Result.token = "@TOKEN@";
+        if (!req || req.token != m_Result.token) return m_Result;
+        float one = 1.0;
+        float nearOne = 1.00000011920928955078125;
+        float large = 16777216.0;
+        float nearLarge = 16777218.0;
+        float positiveZero = 0.0;
+        float negativeZero = -0.0;
+        bool smallDistinct = one != nearOne;
+        bool largeDistinct = large != nearLarge;
+        bool zeroEqual = positiveZero == negativeZero;
+        Check(smallDistinct); Check(largeDistinct); Check(zeroEqual);
+        if (m_Result.failures) return m_Result;
+        Emit("float-equality|engine-operator|adjacent-one-distinct|adjacent-large-distinct|signed-zero-equal");
+        @RUN@
+        m_Result.executed = 1;
+        return m_Result;
+    }
+    void Check(bool value) { m_Result.checks++; if (!value) m_Result.failures++; }
+    void Emit(string row)
+    {
+        m_Result.rows.Insert(row);
+        for (int i = 0; i < row.Length(); i++) m_Result.checksum = (m_Result.checksum * 31 + row.ToAscii(i)) % 1000003;
+        m_Result.checksum = (m_Result.checksum * 31 + 10) % 1000003;
+    }
+    bool RunCase(string id, int mode, int width, int height, array<int> expectedBands)
+    {
+        @CLASS@Adapter fixture = new @CLASS@Adapter();
+        fixture.Prepare(mode, width, height);
+        m_Original = new array<ref CanvasWidgetCommand>();
+        m_Direct = new array<ref CanvasWidgetCommand>();
+        fixture.Original(m_Original);
+        fixture.Direct(m_Direct);
+        Check(fixture.SampleCount() == 6400);
+        Check(m_Original.Count() == m_Direct.Count());
+        if (m_Original.Count() != m_Direct.Count() || m_Original.Count() != expectedBands.Count()) return false;
+        m_Result.caseIds.Insert(id);
+        Emit("case|" + id + "|6400|" + fixture.fixtureChecksum.ToString() + "|" + width.ToString() + "|" + height.ToString());
+        int totalQuads = 0;
+        int totalIndices = 0;
+        for (int c = 0; c < m_Original.Count(); c++)
+        {
+            TriMeshDrawCommand a = TriMeshDrawCommand.Cast(m_Original[c]);
+            TriMeshDrawCommand b = TriMeshDrawCommand.Cast(m_Direct[c]);
+            Check(a && b);
+            if (!a || !b || !a.m_Vertices || !b.m_Vertices || !a.m_Indices || !b.m_Indices) return false;
+            Check(a.m_Vertices.Count() == b.m_Vertices.Count());
+            Check(a.m_Indices.Count() == b.m_Indices.Count());
+            if (a.m_Vertices.Count() != b.m_Vertices.Count() || a.m_Indices.Count() != b.m_Indices.Count()) return false;
+            Check(a.m_iColor == b.m_iColor);
+            Check(a.m_fUVScale == b.m_fUVScale);
+            Check(a.m_pTexture == b.m_pTexture && !a.m_pTexture);
+            int quads = a.m_Indices.Count() / 6;
+            Check(quads > 0 && quads <= 240 && a.m_Indices.Count() == quads * 6 && a.m_Vertices.Count() == quads * 8);
+            for (int v = 0; v < a.m_Vertices.Count(); v++) Check(a.m_Vertices[v] == b.m_Vertices[v]);
+            for (int i = 0; i < a.m_Indices.Count(); i++)
+            {
+                Check(a.m_Indices[i] == b.m_Indices[i]);
+                // Independent index/winding fixture, not another emitter's output.
+                int expected = (i / 6) * 4;
+                int vertex = i % 6;
+                if (vertex == 1) expected += 1;
+                if (vertex == 2 || vertex == 4) expected += 2;
+                if (vertex == 5) expected += 3;
+                Check(a.m_Indices[i] == expected);
+            }
+            Emit("chunk|" + id + "|" + c.ToString() + "|" + expectedBands[c].ToString() + "|" + quads.ToString()
+                + "|" + a.m_iColor.ToString() + "|" + a.m_Vertices.Count().ToString() + "|" + a.m_Indices.Count().ToString());
+            totalQuads += quads;
+            totalIndices += a.m_Indices.Count();
+        }
+        Check(totalQuads == 6241);
+        Check(totalIndices == 37446);
+        Emit("end|" + id + "|" + m_Original.Count().ToString() + "|6241|12482|49928|37446");
+        return m_Result.failures == 0;
+    }
+}

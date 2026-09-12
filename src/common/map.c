@@ -1,4 +1,8 @@
 #include "map.h"
+#include "checked_size.h"
+
+#include <stdio.h>
+#include <stdlib.h>
 
 typedef struct {
     Str      key;
@@ -14,7 +18,13 @@ struct Map {
 };
 
 static void map_grow(Map *m) {
-    uint32_t ncap   = m->cap ? m->cap * 2 : 64;
+    size_t limit = SIZE_MAX / sizeof(Slot), next;
+    if (limit > UINT32_MAX) limit = UINT32_MAX;
+    if (!checked_size_grow_power2(m->cap, 64, limit, &next)) {
+        fputs("beryl: compiler map capacity limit exceeded\n", stderr);
+        abort();
+    }
+    uint32_t ncap = (uint32_t)next;
     Slot    *nslots = ARENA_ARRAY(m->a, Slot, ncap);
     for (uint32_t i = 0; i < m->cap; i++) {
         Slot s = m->slots[i];
@@ -45,7 +55,7 @@ static Str norm_key(Str k) {
 
 void map_put(Map *m, Str key, void *val) {
     key = norm_key(key);
-    if (m->len * 10 >= m->cap * 7) map_grow(m);
+    if ((uint64_t)m->len * 10 >= (uint64_t)m->cap * 7) map_grow(m);
     uint64_t h = str_hash(key);
     uint32_t i = (uint32_t)(h & (m->cap - 1));
     while (m->slots[i].key.ptr) {

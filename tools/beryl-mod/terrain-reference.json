@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "original_path": "C:/Users/moham/Documents/My Games/ArmaReforgerWorkbench/addons/SparkOS_Mesh/scripts/Game/SparkOSMesh/UI/SPK_TerrainMap.c",
+  "sha256": "407074e33a42e971f7d05a445e65996911e277d99e24642260a760e5ff61e317",
+  "class_name": "SPK_TerrainMap",
+  "fixture": "terrain-reference.c.txt",
+  "adaptation": "Full source preserved byte-for-byte; staged identifier-only class/constructor rename. Protected BuildRelief and EmitChunked invoked without edits. Cached heights supplied by bounded generated fixtures; Resample and Canvas publication are not executed.",
+  "scope": "Relief command payload construction only; no whole-render or engine sampling benchmark."
+}

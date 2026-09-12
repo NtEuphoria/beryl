@@ -27,9 +27,21 @@ typedef struct Program {
     TypeCtx *types;
     VEC(Module *) modules;
     Map *items;   /* qualified name  -> Item* */
-    Map *shorts;  /* short name      -> Item* (first declaration wins) */
-    Map *methods; /* "Recv.method"   -> Item* */
+    Map *module_scopes; /* full module path -> ModuleScope* */
+    Map *methods; /* qualified receiver declaration + method -> Item* */
 } Program;
+
+typedef struct {
+    Str name;
+    Map *items;
+    Map *imports;
+    VEC(Module *) files;
+} ModuleScope;
+typedef struct {
+    Item *item;
+    ModuleScope *module;
+    Item *site;
+} Import;
 
 Program *prog_new(Arena *a);
 void     prog_add_module(Program *p, Module *m);
@@ -41,10 +53,15 @@ bool resolve_program(DiagBag *d, Program *p);
 
 /* Resolves one syntactic type. Reports BE0302 and returns the error type when
  * the name is unknown. */
-Type *resolve_type_expr(Program *p, DiagBag *d, TypeExpr *te);
+Type *resolve_type_expr(Program *p, DiagBag *d, Module *module, Item *scope, TypeExpr *te);
 
 Item *prog_item(Program *p, Str qualified);
-Item *prog_short(Program *p, Str name);
-Item *prog_method(Program *p, Str recv, Str method);
+/* Lookup may return a private declaration; the caller must check accessibility
+ * before admitting it. No unrelated module participates in unqualified lookup. */
+Item *prog_lookup(Program *p, Module *module, Str name);
+Item *prog_method(Program *p, Item *receiver, Str method);
+bool prog_accessible(DiagBag *d, Module *from, Item *item, Span use);
+bool prog_same_module(Module *a, Module *b);
+bool prog_expr_path(Arena *a, Expr *e, Str *path, Str *root);
 
 #endif /* BERYL_RESOLVE_H */

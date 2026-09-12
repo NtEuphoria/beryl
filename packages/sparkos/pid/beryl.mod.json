@@ -1,0 +1,31 @@
+{
+  "$schema": "../../../schemas/beryl.mod.v1.schema.json",
+  "schema_version": 1,
+  "name": "SPARKOS PID",
+  "addon": {
+    "id": "BerylSparkosPid",
+    "guid": "BE41000000000003",
+    "dependencies": ["58D0FB3206B6F859"]
+  },
+  "binding": {"target": "enfusion", "version": "1.8.0.13"},
+  "sources": {
+    "native": ["pid.be"],
+    "enfusion": ["pid.be"],
+    "tests": ["pid_test.be"]
+  },
+  "exports": [
+    {
+      "source": "sparkos.flight.pid.Pid",
+      "name": "SPK_PID",
+      "constructor": "sparkos.flight.pid.Pid.initialize",
+      "methods": [
+        {"source": "sparkos.flight.pid.Pid.set_derivative_tau", "name": "SetDerivativeTau"},
+        {"source": "sparkos.flight.pid.Pid.set_gains", "name": "SetGains"},
+        {"source": "sparkos.flight.pid.Pid.set_integral_limit", "name": "SetIntegralLimit"},
+        {"source": "sparkos.flight.pid.Pid.get_integral", "name": "GetIntegral"},
+        {"source": "sparkos.flight.pid.Pid.reset", "name": "Reset"},
+        {"source": "sparkos.flight.pid.Pid.step", "name": "Step"}
+      ]
+    }
+  ]
+}

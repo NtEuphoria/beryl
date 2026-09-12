@@ -305,6 +305,7 @@ static void scan_number(Lexer *L, Token *t) {
     for (uint32_t i = 0; i < raw_len; i++)
         if (start[i] != '_') buf[n++] = start[i];
     buf[n] = '\0';
+    t->number_text = str_new(buf,n);
 
     if (is_float) {
         t->kind = TK_FLOAT;

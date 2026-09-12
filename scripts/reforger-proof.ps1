@@ -18,12 +18,15 @@
     The .be file to generate from. Defaults to examples/proof.be.
 
 .PARAMETER Keep
-    Leave the throwaway addon in place afterwards for inspection.
+    Retained for command compatibility. Artifacts are always kept under build/.
 #>
 [CmdletBinding()]
 param(
-    [string] $Source = 'examples/proof.be',
+    [string[]] $Source = @('examples/proof.be'),
     [string] $Prefix = 'BEP',
+    [string] $Beryl = '',
+    [string[]] $ExportClass = @(),
+    [string[]] $ExportMethod = @(),
     [switch] $Keep,
     [int]    $TimeoutSeconds = 240
 )
@@ -34,16 +37,21 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 Push-Location $repo
 try {
-    $beryl = Join-Path $repo 'build\beryl.exe'
-    if (-not (Test-Path -LiteralPath $beryl)) {
+    $compilerPath = if ($Beryl) { $Beryl } else { Join-Path $repo 'build\beryl.exe' }
+    if (-not (Test-Path -LiteralPath $compilerPath)) {
         throw "build\beryl.exe is missing; run scripts/build.sh first"
     }
 
-    $addons  = Join-Path $env:USERPROFILE 'Documents\My Games\ArmaReforgerWorkbench\addons'
-    $proj    = Join-Path $addons '_BerylProof'
+    $builder = Join-Path $env:USERPROFILE 'Desktop\reforger-workbench-plugin\scripts\Invoke-ReforgerBuild.ps1'
+    if (-not (Test-Path -LiteralPath $builder)) {
+        throw "Workbench build script not found at $builder; real-engine validation did not run"
+    }
+    # Every invocation owns a new directory. Never delete a shared addon or
+    # the user's existing _BerylProof project, even after a failed run.
+    $proofId = [Guid]::NewGuid().ToString('N')
+    $proj = Join-Path $repo ('build\enfusion-proof-' + $proofId)
     $scripts = Join-Path $proj 'scripts\Game\BerylProof'
 
-    if (Test-Path -LiteralPath $proj) { Remove-Item -LiteralPath $proj -Recurse -Force }
     New-Item -ItemType Directory -Path $scripts -Force | Out-Null
 
     # A minimal addon that depends only on the base game data addon.
@@ -57,21 +65,21 @@ GameProject {
  }
 }
 '@
+    $gproj = $gproj.Replace('BE41000000000001', $proofId.Substring(0, 16).ToUpperInvariant())
     [System.IO.File]::WriteAllText((Join-Path $proj 'addon.gproj'), $gproj,
         (New-Object System.Text.UTF8Encoding($false)))
 
     Write-Host "generating EnforceScript from $Source ..."
-    & $beryl build -t enfusion --prefix $Prefix --out-dir $scripts $Source
+    $exportArguments = @()
+    foreach ($mapping in $ExportClass) { $exportArguments += @('--export-class', $mapping) }
+    foreach ($mapping in $ExportMethod) { $exportArguments += @('--export-method', $mapping) }
+    & $compilerPath build -t enfusion --prefix $Prefix --out-dir $scripts @exportArguments @Source
     if ($LASTEXITCODE -ne 0) { throw "beryl failed to generate ($LASTEXITCODE)" }
-
-    $builder = Join-Path $env:USERPROFILE 'Desktop\reforger-workbench-plugin\scripts\Invoke-ReforgerBuild.ps1'
-    if (-not (Test-Path -LiteralPath $builder)) {
-        Write-Warning "Workbench build script not found at $builder - skipping the real build."
-        return
-    }
 
     Write-Host "compiling in Workbench ..."
     $r = & $builder -ProjectDir $proj -TimeoutSeconds $TimeoutSeconds
+    $r | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $proj 'result.json') -Encoding UTF8
+    Write-Host "proof artifacts: $proj"
 
     $exit = 0
     if ($r.Ok) {
@@ -86,7 +94,6 @@ GameProject {
         $exit = 1
     }
 
-    if (-not $Keep) { Remove-Item -LiteralPath $proj -Recurse -Force }
     exit $exit
 }
 finally {

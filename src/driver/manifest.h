@@ -12,6 +12,7 @@
 
 typedef struct {
     bool found;
+    Str source_text; /* exact bytes loaded, for operation fingerprints */
 
     Str name;
     Str version;

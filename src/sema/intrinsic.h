@@ -24,17 +24,16 @@ typedef enum {
 
     /* Methods on the built-in containers. These are intrinsic rather than
      * library code because each backend already has a native answer: a
-     * dynamic array natively, and the engine's own `array<T>` on Enfusion,
-     * which no reimplementation could match for size or speed. */
+     * dynamic array natively, and the engine's own `array<T>` on Enfusion.
+     * Performance and ownership coverage need separate target-specific evidence. */
     INTR_LIST_LEN = 64,
     INTR_LIST_PUSH,
     INTR_LIST_GET,
     INTR_LIST_SET,
     INTR_LIST_CLEAR,
 
-    /* Explicit opt-outs from the overflow trap. Checked arithmetic costs
-     * roughly 2x in a dependent multiply-add chain (docs/BENCHMARKS.md), and
-     * these are how a hot loop opts out without reaching for @unsafe. */
+    /* Explicit alternate arithmetic semantics. The cost of retaining or removing
+     * checks depends on the measured workload and generated machine code. */
     INTR_WRAPPING_ADD = 96,
     INTR_WRAPPING_SUB,
     INTR_WRAPPING_MUL,
@@ -42,8 +41,8 @@ typedef enum {
     INTR_SATURATING_SUB,
 
     /* Methods on Vec2/3/4. Intrinsic for the same reason the container
-     * methods are: the Enfusion target has these on its own `vector`, and a
-     * reimplementation in Beryl would be slower and would not match. */
+     * methods are: the Enfusion target exposes these on its own `vector`.
+     * No comparative speed guarantee follows from that mapping. */
     INTR_VEC_LENGTH = 128,
     INTR_VEC_LENGTH_SQ,
     INTR_VEC_DOT,

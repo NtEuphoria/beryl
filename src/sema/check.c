@@ -2,6 +2,7 @@
 #include "check.h"
 
 #include "constfold.h"
+#include "defaults.h"
 
 void chk_push_scope(C *c) { vec_push(c->a, c->scopes, map_new(c->a)); }
 
@@ -79,7 +80,7 @@ static void chk_stmt(C *c, Stmt *s) {
 
     switch (s->kind) {
         case ST_LET: {
-            Type *declared = s->let.type ? resolve_type_expr(c->p, c->d, s->let.type) : NULL;
+            Type *declared = s->let.type ? resolve_type_expr(c->p, c->d, c->mod, c->scope, s->let.type) : NULL;
             Type *init     = NULL;
             if (s->let.init) {
                 init = chk(c, s->let.init, declared);
@@ -181,7 +182,8 @@ static void chk_stmt(C *c, Stmt *s) {
         case ST_RETURN: {
             Type *want = c->ret_ty ? c->ret_ty : ty_prim(c->tc, TY_VOID);
             if (!s->expr) {
-                if (want->kind != TY_VOID && want->kind != TY_ERRUNION)
+                if (want->kind != TY_VOID &&
+                    !(want->kind == TY_ERRUNION && want->elem->kind == TY_VOID))
                     diag_error(c->d, 303, s->span,
                                "this function returns `%.*s`, so `return` needs a value",
                                (int)ty_name(c->a, want).len, ty_name(c->a, want).ptr);
@@ -192,8 +194,7 @@ static void chk_stmt(C *c, Stmt *s) {
             if (want->kind == TY_ERRUNION && s->expr->kind != EX_ERROR_LIT)
                 target = want->elem;
             Type *got = chk(c, s->expr, target);
-            if (s->expr->kind != EX_ERROR_LIT)
-                chk_expect_type(c, s->expr->span, target, got, "in this return");
+            chk_expect_type(c, s->expr->span, target, got, "in this return");
             break;
         }
 
@@ -229,6 +230,30 @@ void chk_block(C *c, Expr *b) {
 }
 
 /* ---- items ------------------------------------------------------------- */
+
+Type *chk_const(C *c, Item *it) {
+    if (it->konst.check_state == 2) return it->rtype;
+    if (it->konst.check_state == 1 && it->rtype) return it->rtype;
+    if (it->konst.check_state == 1 || c->const_depth >= 64) {
+        diag_error(c->d, 504, it->span,
+                   "constant type inference is cyclic or nested too deeply");
+        return chk_err(c);
+    }
+    it->konst.check_state = 1;
+    /* An initializer belongs to its declaration, never to the locals of a
+     * function that happens to reference it first. */
+    C cc = {0};
+    cc.a = c->a; cc.d = c->d; cc.p = c->p; cc.tc = c->tc;
+    cc.mod = (Module *)it->owner;
+    cc.scope = it;
+    cc.const_depth = c->const_depth + 1;
+    Type *vt = chk(&cc, it->konst.value, it->rtype);
+    if (it->rtype)
+        chk_expect_type(c, it->konst.value->span, it->rtype, vt, "in this constant");
+    else it->rtype = vt;
+    it->konst.check_state = 2;
+    return it->rtype;
+}
 
 static void check_fn(C *c, Item *it) {
     c->fn            = it;
@@ -289,6 +314,7 @@ bool check_program(DiagBag *d, Program *p) {
 
         for (uint32_t i = 0; i < mod->items.len; i++) {
             Item *it = mod->items.data[i];
+            c.scope = it;
             switch (it->kind) {
                 case IT_FN:
                     if (it->fn.generics.len == 0) check_fn(&c, it);
@@ -312,18 +338,12 @@ bool check_program(DiagBag *d, Program *p) {
                     break;
                 }
                 case IT_CONST: {
-                    c.scopes.len = 0;
-                    chk_push_scope(&c);
-                    Type *vt = chk(&c, it->konst.value, it->rtype);
-                    if (it->rtype)
-                        chk_expect_type(&c, it->konst.value->span, it->rtype, vt,
-                                        "in this constant");
-                    else it->rtype = vt;
+                    chk_const(&c, it);
                     /* Evaluate eagerly at the declaration. Otherwise a bad
                      * constant is only caught where it happens to be used,
                      * and one that is never used is never checked at all. */
-                    const_eval(c.a, d, p, it->konst.value, true);
-                    chk_pop_scope(&c);
+                    if (diag_errors(d) == before)
+                        const_eval(c.a, d, p, it->konst.value, true);
                     break;
                 }
                 case IT_STRUCT: {
@@ -345,5 +365,5 @@ bool check_program(DiagBag *d, Program *p) {
         }
     }
 
-    return diag_errors(d) == before;
+    return diag_errors(d) == before && expand_defaults(d, p);
 }

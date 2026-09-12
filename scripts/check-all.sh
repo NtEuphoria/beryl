@@ -19,7 +19,10 @@ echo "== stdlib and examples =="
 for f in examples/*_test.be; do
   [ -f "$f" ] || continue
   printf '%-40s ' "$f"
-  build/beryl.exe test "$f" || exit 1
+  inputs=("$f")
+  implementation="${f%_test.be}.be"
+  [ ! -f "$implementation" ] || inputs=("$implementation" "$f")
+  build/beryl.exe test "${inputs[@]}" || exit 1
 done
 
 echo

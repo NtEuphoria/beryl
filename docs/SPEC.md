@@ -1,7 +1,10 @@
 # Beryl language reference
 
-Normative for v0.1. Where this document and the compiler disagree, the compiler
-is right and this is a bug. The design rationale lives in
+Language contracts are normative within their explicitly admitted version and
+target. A compiler disagreement requires a conformance test and a recorded
+implementation deviation; observed output alone does not define the language.
+Current admission and remaining gaps are recorded in `BERYL_DELIVERY_STATE.md`
+and the installed checkpoint's capability/evidence records. The design rationale lives in
 `docs/superpowers/specs/2026-09-03-beryl-language-design.md`; this is the
 reference you consult when you need the exact rule.
 
@@ -86,14 +89,11 @@ use core.math.clamp
 **Circular module dependencies are forbidden** (`BE0309`), which is what keeps
 resolution a single ordered pass rather than a fixpoint.
 
-**In v0.1 the module system does not actually work.** Name resolution is flat:
-`use` is parsed and used only for cycle detection, `pub` is stored and never
-checked, and every short name resolves across the whole program. A private
-function in another module is callable with no import at all.
-
-Treat `module`, `use` and `pub` as documentation of intent until this is fixed —
-it is the first item of real work in [ROADMAP.md](ROADMAP.md) §5.3, because
-every line written before then is written against a namespace that will change.
+The implemented M1 module rules resolve lexical scope, current-module items,
+explicit imports and built-ins. Private cross-module access and conflicting
+imports are rejected. Named types and methods use qualified declaration identity.
+The former flat, first-name-wins behavior is historical; it is not supported
+module semantics. See `M1_IMPLEMENTATION.md` for the implementation boundary.
 
 ---
 
@@ -170,12 +170,18 @@ three floats, so both are `BE0701` on the enfusion target.
 ```beryl
 pub struct Pid {
     kp: f32
-    ki: f32 = 0        // defaults are const-evaluated
+    ki: f32 = 0        // defaults must pass constant evaluation
 }
 ```
 
 Fields separate on a comma, a line break, or both. Layout is declaration order.
 Structs are **value types**: assignment copies.
+
+Record initializer expressions execute once in the order written, independently
+of the record's layout. Missing defaults are expanded after explicit fields in
+declaration order. Field defaults must pass constant evaluation; effectful calls
+are rejected (`BE0501`). Array literal elements execute once from left to right;
+each value is captured before the next expression runs.
 
 A field of container type defaults to empty, so a literal need not name it.
 Any other field without a default must be given (`BE0314`).
@@ -228,9 +234,9 @@ may read — only `set x` promises the callee will assign one.
 | | meaning | lowers to (C) | lowers to (EnforceScript) |
 |---|---|---|---|
 | `let` (default) | immutable borrow | by value | plain parameter |
-| `inout` | exclusive, non-aliasing borrow | `T *restrict` | `out` parameter |
+| `inout` | exclusive, non-aliasing borrow | `T *` | `out` parameter |
 | `sink` | ownership transferred | by value; caller's binding dies | plain parameter |
-| `set` | out-parameter; callee **must** assign | `T *restrict` | `out` parameter |
+| `set` | out-parameter; callee **must** assign | `T *` | `out` parameter |
 
 The convention is written at the call site too:
 
@@ -263,7 +269,9 @@ f(inout p, inout p.x)     // BE0401: one contains the other
 p.bump(inout p)           // BE0401
 ```
 
-This guarantee is what licenses `restrict` in generated C.
+The current checker verifies local access paths. Collection copies can still
+share backing storage, so generated C omits `restrict` until storage identity is
+proved. That implementation limit does not relax the source exclusivity rule.
 
 ### 4.5 Moves
 
@@ -373,7 +381,8 @@ preserved** — a caller learns that an error occurred, not which.
 ## 9. Arithmetic
 
 Integer overflow **traps in every build**, release included. Division and
-remainder by zero trap. `INT_MIN / -1` traps. Shifts by more than the width
+remainder by zero trap. `INT_MIN / -1` traps; `INT_MIN % -1` is zero.
+Shifts by a negative amount or an amount greater than or equal to the width
 trap. Array and list indices are bounds-checked.
 
 Opt-outs, which say so at the call site:
@@ -396,7 +405,7 @@ Float arithmetic is unchecked IEEE-754.
 | | applies to | effect |
 |---|---|---|
 | `@untrusted` | function | parameters are attacker-controlled |
-| `@validator` | function | its result launders untrusted taint |
+| `@validator` | function | validation intent; does not erase provenance or replace a bounds proof |
 | `@secret` | function | parameters are secret |
 | `@constant_time` | function | no secret branch or index, transitively |
 | `@server_only` | function | not reachable from client context |
@@ -415,6 +424,12 @@ floats, bools and strings.
 It is a sandbox **by construction, not by policy**: no file, network,
 environment or clock access is implemented, so there is none to disable. It is
 bounded at 100,000 steps and 64 levels of nesting (`BE0504`).
+
+Integer constant arithmetic uses the checked width and signedness, not a universal
+i64 approximation. Logical operators short-circuit during value evaluation. f32
+constant operations round intermediate values to f32. Constant float-to-integer
+casts diagnose a nonfinite or out-of-range truncated result before a host cast.
+This does not establish the same checks for dynamic casts on either backend.
 
 `comptime` is a reserved word; the block form is v0.2.
 

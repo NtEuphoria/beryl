@@ -1,5 +1,7 @@
 #include "manifest.h"
+#include "../common/fs.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -9,25 +11,6 @@
 #include <dirent.h>
 #endif
 
-static Str read_all(Arena *a, const char *path, bool *ok) {
-    *ok      = false;
-    FILE *fp = fopen(path, "rb");
-    if (!fp) return STR_EMPTY;
-    fseek(fp, 0, SEEK_END);
-    long n = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    if (n < 0) {
-        fclose(fp);
-        return STR_EMPTY;
-    }
-    char  *buf = (char *)arena_alloc(a, (size_t)n + 1, 1);
-    size_t got = fread(buf, 1, (size_t)n, fp);
-    fclose(fp);
-    buf[got] = '\0';
-    *ok      = true;
-    return str_new(buf, (uint32_t)got);
-}
-
 static Str trim(Str s) {
     uint32_t b = 0, e = s.len;
     while (b < e && (s.ptr[b] == ' ' || s.ptr[b] == '\t')) b++;
@@ -36,9 +19,42 @@ static Str trim(Str s) {
     return str_new(s.ptr + b, e - b);
 }
 
-static Str unquote(Str s) {
-    if (s.len >= 2 && s.ptr[0] == '"' && s.ptr[s.len - 1] == '"')
-        return str_new(s.ptr + 1, s.len - 2);
+/* Supported TOML subset: one-line basic/literal strings. Comments only begin
+ * outside strings. Unsupported escapes/syntax fail instead of being reinterpreted. */
+static bool string_value(Arena *a, Str s, Str *out) {
+    if (s.len < 2 || (s.ptr[0] != '"' && s.ptr[0] != '\'')) return false;
+    char quote = s.ptr[0];
+    SB b; sb_init(&b, a);
+    for (uint32_t i = 1; i < s.len; i++) {
+        char ch = s.ptr[i];
+        if (ch == quote) {
+            if (i != s.len - 1) return false;
+            *out = sb_finish(&b); return true;
+        }
+        if ((unsigned char)ch < 32 || ch == 127) return false;
+        if (ch == '\\' && quote == '"') {
+            if (++i >= s.len) return false;
+            switch (s.ptr[i]) {
+            case '"': ch = '"'; break;
+            case '\\': ch = '\\'; break;
+            /* Paths/identities must remain single-line, non-NUL strings. */
+            default: return false;
+            }
+        }
+        sb_char(&b, ch);
+    }
+    return false;
+}
+
+static Str without_comment(Str s) {
+    char quote = 0;
+    for (uint32_t i = 0; i < s.len; i++) {
+        char c = s.ptr[i];
+        if (quote == '"' && c == '\\') { if (i + 1 < s.len) i++; continue; }
+        if (quote && c == quote) quote = 0;
+        else if (!quote && (c == '"' || c == '\'')) quote = c;
+        else if (!quote && c == '#') return str_new(s.ptr, i);
+    }
     return s;
 }
 
@@ -51,19 +67,24 @@ Manifest manifest_load(Arena *a, DiagBag *d, const char *dir) {
     sb_cstr(&pb, "/beryl.toml");
     Str path = sb_finish(&pb);
 
-    bool ok  = false;
-    Str  txt = read_all(a, str_cstr(a, path), &ok);
-    if (!ok) return m;
+    Str txt;
+    errno = 0;
+    if (!fs_read(a, str_cstr(a, path), &txt)) {
+        if (errno != ENOENT) diag_error(d, 801, SPAN_NONE, "cannot read manifest `%.*s`", (int)path.len, path.ptr);
+        return m;
+    }
     m.found = true;
+    m.source_text = txt;
 
     Str section = STR_EMPTY;
     uint32_t i  = 0;
     uint32_t line_no = 0;
+    unsigned seen = 0, sections = 0;
 
     while (i < txt.len) {
         uint32_t start = i;
         while (i < txt.len && txt.ptr[i] != '\n') i++;
-        Str line = trim(str_new(txt.ptr + start, i - start));
+        Str line = trim(without_comment(str_new(txt.ptr + start, i - start)));
         if (i < txt.len) i++;
         line_no++;
 
@@ -76,6 +97,12 @@ Manifest manifest_load(Arena *a, DiagBag *d, const char *dir) {
                 continue;
             }
             section = trim(str_new(line.ptr + 1, line.len - 2));
+            unsigned bit = str_eq_c(section, "package") ? 1 :
+                           str_eq_c(section, "target.enfusion") ? 2 :
+                           str_eq_c(section, "security") ? 4 : 0;
+            if (!bit) diag_error(d, 801, SPAN_NONE, "beryl.toml:%u: unsupported section `%.*s`", line_no, (int)section.len, section.ptr);
+            else if (sections & bit) diag_error(d, 801, SPAN_NONE, "beryl.toml:%u: duplicate section", line_no);
+            sections |= bit;
             continue;
         }
 
@@ -86,17 +113,30 @@ Manifest manifest_load(Arena *a, DiagBag *d, const char *dir) {
             continue;
         }
         Str key = trim(str_new(line.ptr, eq));
-        Str val = unquote(trim(str_new(line.ptr + eq + 1, line.len - eq - 1)));
-
+        Str val = trim(str_new(line.ptr + eq + 1, line.len - eq - 1));
+        Str *dest = NULL;
+        unsigned bit = 0;
         if (str_eq_c(section, "package")) {
-            if (str_eq_c(key, "name")) m.name = val;
-            else if (str_eq_c(key, "version")) m.version = val;
+            if (str_eq_c(key, "name")) { dest = &m.name; bit = 1; }
+            else if (str_eq_c(key, "version")) { dest = &m.version; bit = 2; }
         } else if (str_eq_c(section, "target.enfusion")) {
-            if (str_eq_c(key, "prefix")) m.enfusion_prefix = val;
-            else if (str_eq_c(key, "out")) m.enfusion_out = val;
+            if (str_eq_c(key, "prefix")) { dest = &m.enfusion_prefix; bit = 4; }
+            else if (str_eq_c(key, "out")) { dest = &m.enfusion_out; bit = 8; }
         } else if (str_eq_c(section, "security")) {
-            if (str_eq_c(key, "forbid_unsafe")) m.forbid_unsafe = str_eq_c(val, "true");
+            if (str_eq_c(key, "forbid_unsafe")) bit = 16;
         }
+        if (!bit) {
+            diag_error(d, 801, SPAN_NONE, "beryl.toml:%u: unsupported setting `%.*s`", line_no, (int)key.len, key.ptr);
+            continue;
+        }
+        if (seen & bit) { diag_error(d, 801, SPAN_NONE, "beryl.toml:%u: duplicate setting", line_no); continue; }
+        seen |= bit;
+        if (dest) {
+            if (!string_value(a, val, dest)) diag_error(d, 801, SPAN_NONE,
+                "beryl.toml:%u: expected a single-line quoted string (only quote/backslash escapes supported)", line_no);
+        } else if (str_eq_c(val, "true")) m.forbid_unsafe = true;
+        else if (str_eq_c(val, "false")) m.forbid_unsafe = false;
+        else diag_error(d, 801, SPAN_NONE, "beryl.toml:%u: expected boolean true or false", line_no);
     }
 
     if (str_empty(m.name)) {

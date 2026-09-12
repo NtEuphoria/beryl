@@ -6,3 +6,5 @@ build/
 *.pdb
 *.ilk
 .beryl-cache/
+.beryl-mod/
+__pycache__/

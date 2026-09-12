@@ -321,6 +321,9 @@ footer strong { color: var(--ink); }
 <header class="mast wrap">
   <p class="kicker">Beryl &middot; written 2026-09-04 against v0.1</p>
   <h1>Roadmap</h1>
+  <p>The approved <a href="BERYL_DELIVERY_PLAN.md">delivery program</a> controls current implementation order: safety, verified execution, the complete tablet feature, shared AI tooling, deployment and measured performance. Follow the <a href="BERYL_DELIVERY_STATE.md">delivery state and exact verification gates</a>. The <a href="SPARKOS_IMPLEMENTATION_PLAN.md">SPARKOS plan</a> and <a href="BERYL_ADVANCED_IMPLEMENTATION_PLAN.md">advanced performance program</a> retain their detailed contracts; historical research is not implemented support.</p>
+  <p>The latest installed checkpoint adds bounded engine declaration lookup, array/Canvas probes, experimental record/PID IR parity and actual terrain collection. Its 34.06% median paired reduction covers command construction and release only; full-render, physical-resource and independent-session gates remain open. Public IR lowering and automatic optimization remain unavailable. See the <a href="BERYL_ADVANCED_IMPLEMENTATION_STATE.md">exact checkpoint evidence and rollback record</a>.</p>
+  <p>Current implementation: <a href="M1_IMPLEMENTATION.md">module and declaration identity</a> and the <a href="M2_IMPLEMENTATION.md">bounded semantic reference</a> have passed their documented gates. The <a href="M3_IMPLEMENTATION.md">complete SPARKOS PID port</a> passed real engine parity, nine existing MESH suites, all 18 host gameplay checks and actual control handover in an isolated candidate on September 7. <a href="M4_IMPLEMENTATION.md">Dependable engine context and source mappings</a> are in progress. The live MESH project remains unchanged; dedicated multiplayer and visual acceptance remain unverified. See the execution state for the installed compiler and exact test records.</p>
   <p class="standfirst">
     v0.1 works: a 297&nbsp;KB compiler, two back ends, and EnforceScript that
     compiles cleanly in real Workbench. This is the plan for everything it does
@@ -459,7 +462,7 @@ footer strong { color: var(--ink); }
   <div class="decide" style="margin-top:16px">
     <div class="band">The rule that keeps the split free</div>
     <div class="inner">
-      <h2>Design for native first, then ask how it lowers</h2>
+      <h2>Enfusion usefulness first, shared foundations for both targets</h2>
       <p>If a feature cannot lower to EnforceScript, <strong>profile-gate it
       &mdash; never remove it from the language.</strong> That is what
       <code>BE0701</code>, <code>BE0703</code>, <code>BE0901</code> and
@@ -482,18 +485,16 @@ footer strong { color: var(--ink); }
 
   <div class="ideas">
     <div class="idea">
-      <h4>Where Beryl is already ahead</h4>
-      <p class="payoff">structural, not aspirational</p>
-      <p><strong>Graphs.</strong> In Rust these mean <code>Rc&lt;RefCell&lt;T&gt;&gt;</code>,
-      an arena crate, or <code>unsafe</code> &mdash; the most common complaint
-      from people writing games in Rust. Second-class references make handles
-      <em>the</em> idiomatic answer, built in rather than bolted on.</p>
-      <p><strong>Compile speed.</strong> 10,000 lines checked in 124&nbsp;ms.
-      Rust's most-complained-about property, and no incremental-compilation work
-      closes a gap that size.</p>
-      <p><strong>No lifetimes</strong> &middot; <strong>determinism</strong>,
-      which Rust has nothing for &middot; <strong>overflow traps in
-      release</strong> &middot; <strong>no build-time code execution</strong>.</p>
+      <h4>Candidate advantages to verify</h4>
+      <p class="payoff">implementation and equivalent-workload evidence required</p>
+      <p><strong>Graphs.</strong> Generational handles may fit game workloads.
+      Beryl's Pool/Handle support remains proposed; Rust can also use handles.</p>
+      <p><strong>Iteration speed.</strong> Measure real authoring tasks and rebuilds.
+      Historical synthetic timing is not a Rust comparison.</p>
+      <p><strong>No lifetime syntax</strong>, with complete storage safety still
+      under development. <strong>Deterministic profiles</strong> remain proposals.
+      <strong>Checked native arithmetic by default</strong>; Rust can configure
+      release overflow checks too. No project build scripts or procedural macros.</p>
     </div>
     <div class="idea">
       <h4>Where Rust keeps winning</h4>
@@ -880,19 +881,19 @@ footer strong { color: var(--ink); }
       <thead><tr><th>#</th><th>Decision</th><th>Why</th><th>Revisit if</th></tr></thead>
       <tbody>
         <tr><td class="id">D1</td><td>Mutable value semantics, second-class references, no lifetimes</td><td class="desc">Same memory safety, no annotation burden, far smaller checker</td><td class="desc">someone hits a real problem needing stored references</td></tr>
-        <tr><td class="id">D2</td><td>Both back ends emit from the typed AST; no MIR</td><td class="desc">EnforceScript is high-level; lowering to SSA and rebuilding would destroy the structure it needs</td><td class="desc">a direct machine-code back end is built</td></tr>
+        <tr><td class="id">D2</td><td>Typed AST today; structured IR in M5</td><td class="desc">Explicit places, effects, ownership, provenance; retain control structure</td><td class="desc">approved M5 packet supersedes historical decision</td></tr>
         <tr><td class="id">D3</td><td>Monomorphization, not dictionary passing</td><td class="desc">Mandatory for a target with no generics</td><td class="desc">never &mdash; Enfusion settles it</td></tr>
-        <tr><td class="id">D4</td><td>Overflow traps in every build</td><td class="desc">Release-mode wraparound is a real Rust footgun</td><td class="desc">never; <code>wrapping_*</code> is the answer to the cost</td></tr>
+        <tr><td class="id">D4</td><td>Checked native arithmetic by default</td><td class="desc">Explicit policy; Rust can configure the same overflow behavior</td><td class="desc">target behavior requires independent validation</td></tr>
         <tr><td class="id">D5</td><td>No implicit numeric conversion, ever</td><td class="desc">Catches more real bugs than it costs</td><td class="desc">never</td></tr>
         <tr><td class="id">D6</td><td>No build scripts, no proc macros</td><td class="desc">The supply-chain guarantee</td><td class="desc">never</td></tr>
         <tr><td class="id">D7</td><td>Compiler in C, self-hosting deferred</td><td class="desc">Fuzzing and sanitizers buy most of S1's risk reduction for 5% of the cost</td><td class="desc">v0.8, once the language can host a compiler</td></tr>
-        <tr><td class="id">D8</td><td>Method names emitted verbatim, not PascalCased</td><td class="desc">Required for engine callback overrides; 1:1 with source when debugging</td><td class="desc">never</td></tr>
+        <tr><td class="id">D8</td><td>Explicit engine-facing export names</td><td class="desc">Internal names must be collision-free; preserve SPK_PID interface</td><td class="desc">approved M1/M3 packets</td></tr>
         <tr><td class="id">D9</td><td><code>!T</code> loses its tag on Enfusion</td><td class="desc">Matches the base game idiom; the alternative pollutes every signature</td><td class="desc">if an enum return proves insufficient</td></tr>
         <tr><td class="id">D10</td><td>Concurrency cut <strong>from the Enfusion edition</strong></td><td class="desc">Enfusion scripting is single-threaded, so it buys nothing there</td><td class="desc">superseded by D12 &mdash; it is a precondition for the general edition</td></tr>
-        <tr><td class="id">D11</td><td>Reproducibility promised on generated C, not the binary</td><td class="desc">The only promise keepable alongside the Smart App Control workaround</td><td class="desc">if SAC is ever turned off on this machine</td></tr>
+        <tr><td class="id">D11</td><td>Deterministic C; exact native artifact hashes</td><td class="desc">M0 removes retries; binary reproducibility needs toolchain controls</td><td class="desc">extend after reproducibility tests</td></tr>
         <tr><td class="id">D12</td><td>General-purpose Beryl is a <strong>stated goal</strong>, sequenced after the Enfusion edition reaches v1.0</td><td class="desc">The wedge funds the shared work; it does not replace the ambition</td><td class="desc">never &mdash; this is the direction. Only the ordering is open</td></tr>
         <tr><td class="id">D13</td><td>Two editions, <strong>one compiler</strong> &mdash; not a fork</td><td class="desc">Measured: 1,331 lines of back end plus ~17 of wiring, and zero in <code>sema/</code>, <code>lex/</code> or <code>parse/</code>. A fork doubles every bug fix to buy branding that packaging already provides</td><td class="desc">if a <em>core semantic</em> must diverge &mdash; that is a different language, not a variant</td></tr>
-        <tr><td class="id">D14</td><td>Design every feature for the <strong>native</strong> target first, then ask how it lowers; profile-gate what cannot</td><td class="desc">Design contamination, not code coupling, is the real risk to D13</td><td class="desc">never</td></tr>
+        <tr><td class="id">D14</td><td>Enfusion usefulness first, shared semantics for both targets</td><td class="desc">Keep engine rules in bindings and packages</td><td class="desc">approved user priority</td></tr>
         <tr><td class="id">D15</td><td>The general edition's wedge is <strong>games and simulations</strong>, not general systems programming</td><td class="desc">Where Rust is weakest and the ecosystem gap smallest &mdash; and the same domain as the Enfusion edition, so the two share a wedge</td><td class="desc">if a different domain shows a stronger structural advantage</td></tr>
       </tbody>
     </table>

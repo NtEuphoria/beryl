@@ -2,6 +2,7 @@
 #include "check.h"
 
 #include "intrinsic.h"
+#include <stdlib.h>
 
 /* Built-ins are only reachable when no user function shadows the name, so a
  * project is always free to define its own `min` or `print`. */
@@ -164,6 +165,18 @@ static Type *suffix_type(C *c, Str suffix) {
     return NULL;
 }
 
+/* The largest magnitude an integer type can hold, given whether the literal
+ * is about to be negated. A signed type reaches one further downward, which
+ * is the whole reason `neg_ctx` exists. */
+static uint64_t int_limit(const Type *t, bool negated) {
+    if (t->bits >= 64) return t->is_signed ? (negated ? 0x8000000000000000ULL
+                                                      : 0x7fffffffffffffffULL)
+                                           : 0xffffffffffffffffULL;
+    uint64_t span = 1ULL << t->bits;
+    if (!t->is_signed) return span - 1;
+    return negated ? span / 2 : span / 2 - 1;
+}
+
 static Type *chk_int_lit(C *c, Expr *e, Type *expected) {
     Type *t = suffix_type(c, e->int_lit.suffix);
     if (!t) {
@@ -171,6 +184,25 @@ static Type *chk_int_lit(C *c, Expr *e, Type *expected) {
          * float type is not a conversion — there is no runtime value yet. */
         if (expected && ty_is_numeric(expected)) t = expected;
         else t = ty_int(c->tc, 32, true);
+    }
+
+    /* A literal too large for the type it lands in was silently truncated by
+     * the C back end: `let x: i8 = 300` emitted `int8_t x = 300LL` and the
+     * program saw 44. Nothing about that is a conversion the language
+     * permits, so it is an error rather than a narrowing. */
+    if (ty_is_integer(t)) {
+        uint64_t lim = int_limit(t, e->int_lit.neg_ctx);
+        if (e->int_lit.val > lim) {
+            Diag *dg = diag_error(c->d, 321, e->span,
+                                  "`%s%llu` does not fit in `%.*s`",
+                                  e->int_lit.neg_ctx ? "-" : "",
+                                  (unsigned long long)e->int_lit.val,
+                                  (int)ty_name(c->a, t).len, ty_name(c->a, t).ptr);
+            diag_note(dg, "`%.*s` holds %s%llu at most",
+                      (int)ty_name(c->a, t).len, ty_name(c->a, t).ptr,
+                      e->int_lit.neg_ctx ? "-" : "", (unsigned long long)lim);
+            diag_help(dg, "use a wider type, or write the value you meant");
+        }
     }
     return t;
 }
@@ -188,6 +220,8 @@ static Type *chk_float_lit(C *c, Expr *e, Type *expected) {
             t = ty_float(c->tc, 64);
         }
     }
+    if (t && t->kind==TY_FLOAT && t->bits==32 && e->float_lit.spelling.len)
+        e->float_lit.val=(double)strtof(str_cstr(c->a,e->float_lit.spelling),NULL);
     return t;
 }
 
@@ -202,13 +236,13 @@ static Type *chk_path(C *c, Expr *e) {
         return l->type;
     }
 
-    Item *it = prog_short(c->p, name);
+    Item *it = prog_lookup(c->p, c->mod, path_str(c->a, e->path.segs));
     if (it) {
+        if (!prog_accessible(c->d, c->mod, it, e->span)) return chk_err(c);
         if (it->kind == IT_CONST) {
             e->res      = it;
             e->res_kind = RES_CONST;
-            if (!it->rtype && it->konst.value) it->rtype = chk(c, it->konst.value, NULL);
-            return it->rtype ? it->rtype : chk_err(c);
+            return chk_const(c, it);
         }
         if (it->kind == IT_FN) {
             e->res      = it;
@@ -326,6 +360,13 @@ static Type *chk_unary(C *c, Expr *e, Type *expected) {
         chk_expect_type(c, e->unary.operand->span, bt, t, "after `!`");
         return bt;
     }
+    /* `-2147483648` is one expression to a reader and two nodes to the
+     * parser. Telling the literal it is about to be negated is what lets the
+     * range check accept the signed minimum without also accepting its
+     * positive twin. */
+    if (op == TK_MINUS && e->unary.operand && e->unary.operand->kind == EX_INT)
+        e->unary.operand->int_lit.neg_ctx = true;
+
     Type *t = chk(c, e->unary.operand, expected);
     if (ty_is_error(t)) return t;
     if (op == TK_MINUS && !ty_is_numeric(t) && !ty_is_vec(t)) {
@@ -395,6 +436,13 @@ static Type *chk_vec_component(C *c, Expr *e, Type *vt) {
 }
 
 /* Checks the arguments of a call against a function item. */
+static bool call_storage(Expr *e) {
+    if (!e) return false;
+    if (e->kind == EX_FIELD) return call_storage(e->field.base);
+    if (e->kind == EX_INDEX) return call_storage(e->index.base);
+    return (e->kind == EX_PATH || e->kind == EX_SELF) && e->res_kind == RES_LOCAL;
+}
+
 static Type *chk_call_item(C *c, Expr *e, Item *fn, bool has_self) {
     if (fn->fn.generics.len > 0) {
         /* Monomorphization is v0.2. Saying so plainly beats letting the call
@@ -434,6 +482,9 @@ static Type *chk_call_item(C *c, Expr *e, Item *fn, bool has_self) {
     for (uint32_t i = 0; i < args.len; i++) {
         Param *pm = &fn->fn.params.data[i + first];
         Type  *at = chk(c, args.data[i].value, pm->rtype);
+        if ((pm->conv == CONV_INOUT || pm->conv == CONV_SET) && !call_storage(args.data[i].value))
+            diag_error(c->d, 303, args.data[i].span,
+                       "an `%s` argument must name local storage", conv_name(pm->conv));
         chk_expect_type(c, args.data[i].value->span, pm->rtype, at, "in this argument");
 
         if (args.data[i].conv != pm->conv) {
@@ -602,7 +653,8 @@ static Type *chk_call(C *c, Expr *e) {
         Str   name = callee->path.segs.data[0];
         Local *l   = chk_lookup(c, name);
         if (!l) {
-            Item *fn = prog_short(c->p, name);
+            Item *fn = prog_lookup(c->p, c->mod, name);
+            if (fn && !prog_accessible(c->d, c->mod, fn, callee->span)) return chk_err(c);
             if (fn && fn->kind == IT_FN) {
                 callee->res      = fn;
                 callee->res_kind = RES_FN;
@@ -614,6 +666,10 @@ static Type *chk_call(C *c, Expr *e) {
             if (fn && (fn->kind == IT_STRUCT || fn->kind == IT_ENUM)) {
                 diag_error(c->d, 307, e->span,
                            "`%.*s` is a type, not a function", (int)name.len, name.ptr);
+                return chk_err(c);
+            }
+            if (fn || (c->mod && c->mod->scope && map_has(((ModuleScope *)c->mod->scope)->imports, name))) {
+                diag_error(c->d, 307, e->span, "`%.*s` is not a function", (int)name.len, name.ptr);
                 return chk_err(c);
             }
             TypeKind vk = str_eq_c(name, "Vec2")   ? TY_VEC2
@@ -642,15 +698,12 @@ static Type *chk_call(C *c, Expr *e) {
         /* Either a module-qualified call, or a method call on a value. */
         Expr *base = callee->field.base;
 
-        if (base->kind == EX_PATH && !chk_lookup(c, base->path.segs.data[0])) {
-            SB sb;
-            sb_init(&sb, c->a);
-            sb_str(&sb, base->path.segs.data[0]);
-            sb_char(&sb, '.');
-            sb_str(&sb, callee->field.name);
-            Item *fn = prog_item(c->p, sb_finish(&sb));
-            if (!fn) fn = prog_short(c->p, callee->field.name);
+        Str full, root;
+        if (prog_expr_path(c->a, callee, &full, &root) && !chk_lookup(c, root)) {
+            Item *fn = prog_lookup(c->p, c->mod, full);
             if (fn && fn->kind == IT_FN && str_empty(fn->fn.recv)) {
+                if (!prog_accessible(c->d, c->mod, fn, callee->span)) return chk_err(c);
+                callee->res = fn; callee->res_kind = RES_FN; callee->type = fn->rtype;
                 e->res      = fn;
                 e->res_kind = RES_FN;
                 return chk_call_item(c, e, fn, false);
@@ -669,7 +722,7 @@ static Type *chk_call(C *c, Expr *e) {
 
         Str   tname = (bt->kind == TY_STRUCT || bt->kind == TY_ENUM) ? bt->name
                                                                     : ty_name(c->a, bt);
-        Item *m     = prog_method(c->p, tname, callee->field.name);
+        Item *m     = prog_method(c->p, bt->decl, callee->field.name);
         if (!m) {
             Diag *dg = diag_error(c->d, 306, callee->span,
                                   "no method `%.*s` on `%.*s`",
@@ -681,9 +734,17 @@ static Type *chk_call(C *c, Expr *e) {
                 chk(c, e->call.args.data[i].value, NULL);
             return chk_err(c);
         }
+        if (!prog_accessible(c->d, c->mod, m, callee->span)) return chk_err(c);
+        bool has_self = m->fn.params.len && m->fn.params.data[0].is_self;
+        if ((base->res_kind == RES_TYPE) == has_self) {
+            diag_error(c->d,307,callee->span,has_self ?
+                "an instance method requires a receiver value" :
+                "a static method must be called through its receiver type");
+            return chk_err(c);
+        }
         e->res      = m;
         e->res_kind = RES_FN;
-        return chk_call_item(c, e, m, true);
+        return chk_call_item(c, e, m, has_self);
     }
 
     diag_error(c->d, 307, e->span, "this expression is not callable");
@@ -691,7 +752,7 @@ static Type *chk_call(C *c, Expr *e) {
 }
 
 static Type *chk_struct_lit(C *c, Expr *e) {
-    Type *t = resolve_type_expr(c->p, c->d, e->struct_lit.type);
+    Type *t = resolve_type_expr(c->p, c->d, c->mod, c->scope, e->struct_lit.type);
     if (ty_is_error(t)) return t;
     if (t->kind != TY_STRUCT) {
         diag_error(c->d, 303, e->span, "`%.*s` is not a struct",
@@ -764,7 +825,7 @@ static Type *chk_index(C *c, Expr *e) {
 
 static Type *chk_cast(C *c, Expr *e) {
     Type *from = chk(c, e->cast.value, NULL);
-    Type *to   = resolve_type_expr(c->p, c->d, e->cast.type);
+    Type *to   = resolve_type_expr(c->p, c->d, c->mod, c->scope, e->cast.type);
     if (ty_is_error(from) || ty_is_error(to)) return to;
 
     bool from_ok = ty_is_numeric(from) || from->kind == TY_CHAR || from->kind == TY_ENUM ||
@@ -809,6 +870,19 @@ Type *chk(C *c, Expr *e, Type *expected) {
         case EX_CALL: t = chk_call(c, e); break;
 
         case EX_FIELD: {
+            Str full, root;
+            if (prog_expr_path(c->a, e, &full, &root) && !chk_lookup(c, root)) {
+                Item *item = prog_lookup(c->p, c->mod, full);
+                if (item) {
+                    /* Keep one resolved representation for both emitters and
+                     * constant evaluation. An engine/module name is not a value. */
+                    e->kind = EX_PATH;
+                    e->path.segs = (StrVec){0};
+                    vec_push(c->a, e->path.segs, full);
+                    t = chk_path(c, e);
+                    break;
+                }
+            }
             Type *bt = chk(c, e->field.base, NULL);
             if (ty_is_error(bt)) {
                 t = chk_err(c);
@@ -924,7 +998,12 @@ Type *chk(C *c, Expr *e, Type *expected) {
 
         case EX_CATCH: {
             Type *vt = chk(c, e->catch_expr.value, NULL);
-            Type *inner = (vt && vt->kind == TY_ERRUNION) ? vt->elem : vt;
+            Type *inner = chk_err(c);
+            if (vt && vt->kind == TY_ERRUNION) inner = vt->elem;
+            else if (!ty_is_error(vt))
+                diag_error(c->d, 303, e->span,
+                           "`catch` needs an error union, found `%.*s`",
+                           (int)ty_name(c->a, vt).len, ty_name(c->a, vt).ptr);
             chk_push_scope(c);
             if (!str_empty(e->catch_expr.binding))
                 chk_declare(c, e->catch_expr.binding, ty_int(c->tc, 32, true), false, false,

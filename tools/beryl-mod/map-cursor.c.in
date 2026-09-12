@@ -1,0 +1,104 @@
+// Installed, bounded map contract probe. It makes no timing or complexity claim.
+class @CLASS@Request : JsonApiStruct
+{
+    string token;
+    void @CLASS@Request() { RegV("token"); }
+}
+class @CLASS@Response : JsonApiStruct
+{
+    string token;
+    int executed;
+    int checks;
+    int failures;
+    int checksum;
+    ref array<string> caseIds = {};
+    ref array<string> rows = {};
+    void @CLASS@Response()
+    {
+        RegV("token"); RegV("executed"); RegV("checks"); RegV("failures");
+        RegV("checksum"); RegV("caseIds"); RegV("rows");
+    }
+}
+class @CLASS@Entry
+{
+    int serial;
+    void @CLASS@Entry(int value) { serial = value; }
+}
+class @CLASS@ : NetApiHandler
+{
+    ref @CLASS@Response m_Result;
+    override JsonApiStruct GetRequest() { return new @CLASS@Request(); }
+    override JsonApiStruct GetResponse(JsonApiStruct request)
+    {
+        @CLASS@Request req = @CLASS@Request.Cast(request);
+        m_Result = new @CLASS@Response();
+        m_Result.token = "@TOKEN@";
+        if (!req || req.token != m_Result.token) return m_Result;
+        @RUN@
+        m_Result.executed = 1;
+        return m_Result;
+    }
+    void Emit(string row)
+    {
+        m_Result.rows.Insert(row);
+        // The maximum intermediate is below 31,000,200, within signed i32.
+        for (int i = 0, n = row.Length(); i < n; i++)
+            m_Result.checksum = (m_Result.checksum * 31 + row.ToAscii(i)) % 1000003;
+        m_Result.checksum = (m_Result.checksum * 31 + 10) % 1000003;
+    }
+    bool RunCase(string id, int mode, int requested)
+    {
+        map<string, ref @CLASS@Entry> values = new map<string, ref @CLASS@Entry>();
+        int i;
+        if (mode != 0)
+        {
+            for (i = 0; i < requested; i++)
+            {
+                int key = i;
+                if (mode == 5) key = requested - 1 - i;
+                values.Insert("entity:" + key.ToString(), new @CLASS@Entry(key + 1));
+            }
+        }
+        if (mode == 2)
+            for (i = 0; i < requested; i += 2)
+                values.Set("entity:" + i.ToString(), new @CLASS@Entry(requested + i + 1));
+        if (mode == 3 || mode == 4)
+            for (i = 0; i < requested; i += 2)
+                values.Remove("entity:" + i.ToString());
+        if (mode == 4)
+            for (i = 0; i < requested; i += 2)
+                values.Insert("entity:" + i.ToString(), new @CLASS@Entry(2 * requested + i + 1));
+
+        array<string> keys = {};
+        array<ref @CLASS@Entry> entries = {};
+        MapIterator it = values.Begin();
+        int bound = values.Count();
+        while (it != values.End())
+        {
+            // Invalid/nonprogressing cursors cannot create an unbounded probe.
+            if (keys.Count() >= bound) { m_Result.failures++; return false; }
+            keys.Insert(values.GetIteratorKey(it));
+            entries.Insert(values.GetIteratorElement(it));
+            it = values.Next(it);
+        }
+        m_Result.checks++;
+        if (keys.Count() != bound) { m_Result.failures++; return false; }
+        m_Result.caseIds.Insert(id);
+        Emit("case|" + id + "|" + bound.ToString());
+        for (i = 0; i < bound; i++)
+        {
+            string indexedKey = values.GetKey(i);
+            @CLASS@Entry indexed = values.GetElement(i);
+            @CLASS@Entry cursor = entries[i];
+            if (!indexed || !cursor) { m_Result.failures++; return false; }
+            int same = 0;
+            if (indexed == cursor) same = 1;
+            m_Result.checks++;
+            if (indexedKey != keys[i] || same != 1) m_Result.failures++;
+            Emit("entry|" + id + "|" + i.ToString() + "|" + indexedKey + "|" + keys[i]
+                + "|" + indexed.serial.ToString() + "|" + cursor.serial.ToString() + "|" + same.ToString());
+        }
+        Emit("end|" + id + "|" + bound.ToString());
+        return true;
+    }
+}

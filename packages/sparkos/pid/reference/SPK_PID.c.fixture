@@ -1,0 +1,126 @@
+//! PID controller for the flight loops. Pure maths, unit-tested.
+//!
+//! Two details separate a usable flight PID from a textbook one, and both are
+//! implemented here:
+//!
+//! DERIVATIVE ON MEASUREMENT, not on error. Differentiating the error term
+//! makes any step change in setpoint produce an instantaneous spike - the
+//! classic "derivative kick" - which on an aircraft is a visible twitch every
+//! time the operator moves the stick. Differentiating the measurement instead
+//! gives identical disturbance rejection with no kick.
+//!
+//! INTEGRAL CLAMPING with output awareness. An integrator that keeps winding
+//! while the output is already saturated will overshoot badly when the demand
+//! finally releases. Freezing it while saturated is what stops a hard climb
+//! from ending in a lurch.
+class SPK_PID
+{
+	protected float m_fKp;
+	protected float m_fKi;
+	protected float m_fKd;
+	protected float m_fIntegralLimit;
+
+	protected float m_fIntegral;
+	protected float m_fLastMeasurement;
+	protected bool m_bHasLast;
+
+	//! Derivative low-pass time constant, seconds. 0 disables filtering.
+	protected float m_fDerivTau;
+	protected float m_fDerivFiltered;
+
+	//! derivTau: low-pass time constant for the D term, in seconds.
+	//!
+	//! DEFAULTS TO 0 - NO FILTERING - ON PURPOSE. Filtering is a property of
+	//! the SIGNAL, not of PID arithmetic, so a loop reading a clean value
+	//! should not pay for it. Loops reading a measured body rate must set it;
+	//! see the note on the derivative in Step.
+	void SPK_PID(float kp = 0, float ki = 0, float kd = 0, float integralLimit = 1.0, float derivTau = 0)
+	{
+		m_fKp = kp;
+		m_fKi = ki;
+		m_fKd = kd;
+		m_fIntegralLimit = integralLimit;
+		m_fDerivTau = Math.Max(0, derivTau);
+	}
+
+	void SetDerivativeTau(float tau)
+	{
+		m_fDerivTau = Math.Max(0, tau);
+	}
+
+	void SetGains(float kp, float ki, float kd)
+	{
+		m_fKp = kp;
+		m_fKi = ki;
+		m_fKd = kd;
+	}
+
+	void SetIntegralLimit(float limit)
+	{
+		m_fIntegralLimit = Math.Max(0, limit);
+	}
+
+	float GetIntegral()
+	{
+		return m_fIntegral;
+	}
+
+	//! Clears accumulated state. MUST be called whenever the loop is
+	//! re-engaged - a stale integral from before a handover applies a
+	//! correction for an error that no longer exists.
+	void Reset()
+	{
+		m_fIntegral = 0;
+		m_fLastMeasurement = 0;
+		m_bHasLast = false;
+		m_fDerivFiltered = 0;
+	}
+
+	//! One control step.
+	//!
+	//! saturated: pass true when the actuator is already at its limit, which
+	//! freezes the integrator instead of letting it wind up against a stop.
+	float Step(float setpoint, float measurement, float dt, bool saturated = false)
+	{
+		if (dt <= 0)
+			return 0;
+
+		float error = setpoint - measurement;
+
+		if (!saturated)
+		{
+			m_fIntegral += error * dt;
+			m_fIntegral = Math.Clamp(m_fIntegral, -m_fIntegralLimit, m_fIntegralLimit);
+		}
+
+		// Derivative of the MEASUREMENT, negated - no setpoint kick.
+		float derivative = 0;
+		if (m_bHasLast)
+			derivative = -(measurement - m_fLastMeasurement) / dt;
+
+		m_fLastMeasurement = measurement;
+		m_bHasLast = true;
+
+		// LOW-PASS THE DERIVATIVE when the measurement is noisy.
+		//
+		// Differentiating divides by dt, so at a 60 Hz tick it multiplies
+		// whatever noise rides on the measurement by about sixty. On the
+		// flight rate loops that turned a 0.02 rad attitude error into a D
+		// term of roughly 2.7 - four times the P term - and pinned the output
+		// at its clamp, alternating +1 and -1 every tick. The mixer prioritises
+		// attitude over collective by design, so it kept sliding thrust away
+		// to make room for a demand that was pure noise, and the aircraft sank
+		// with its rotors turning.
+		//
+		// A first-order lag costs one multiply and leaves real transients
+		// intact. This is what every practical flight controller does with D.
+		if (m_fDerivTau > 0)
+		{
+			float alpha = dt / (m_fDerivTau + dt);
+			m_fDerivFiltered += alpha * (derivative - m_fDerivFiltered);
+			derivative = m_fDerivFiltered;
+		}
+
+		return (m_fKp * error) + (m_fKi * m_fIntegral) + (m_fKd * derivative);
+	}
+}

@@ -1,0 +1,138 @@
+class @CLASS@Request : JsonApiStruct
+{
+    string token;
+    void @CLASS@Request() { RegV("token"); }
+}
+class @CLASS@Response : JsonApiStruct
+{
+    string token;
+    int executed;
+    int checks;
+    int failures;
+    int checksum;
+    ref array<string> caseIds = {};
+    ref array<string> rows = {};
+    void @CLASS@Response()
+    {
+        RegV("token"); RegV("executed"); RegV("checks"); RegV("failures");
+        RegV("checksum"); RegV("caseIds"); RegV("rows");
+    }
+}
+class @CLASS@Tracked : TriMeshDrawCommand
+{
+    static int destroyed;
+    void ~@CLASS@Tracked() { destroyed++; }
+}
+class @CLASS@Observer
+{
+    // Deliberately weak fields. The control case verifies live and expired observations.
+    @CLASS@Tracked command;
+    array<ref CanvasWidgetCommand> commands;
+    array<float> vertices;
+}
+class @CLASS@ : NetApiHandler
+{
+    ref @CLASS@Response m_Result;
+    ref array<ref CanvasWidgetCommand> m_Control;
+    override JsonApiStruct GetRequest() { return new @CLASS@Request(); }
+    override JsonApiStruct GetResponse(JsonApiStruct request)
+    {
+        @CLASS@Request req = @CLASS@Request.Cast(request);
+        m_Result = new @CLASS@Response();
+        m_Result.token = "@TOKEN@";
+        if (!req || req.token != m_Result.token) return m_Result;
+        @RUN@
+        if (!m_Result.failures) m_Result.executed = 1;
+        return m_Result;
+    }
+    void Emit(string row)
+    {
+        m_Result.rows.Insert(row);
+        for (int i = 0; i < row.Length(); i++) m_Result.checksum = (m_Result.checksum * 31 + row.ToAscii(i)) % 1000003;
+        m_Result.checksum = (m_Result.checksum * 31 + 10) % 1000003;
+    }
+    void Observe(string key, int actual, int expected)
+    {
+        m_Result.checks++;
+        if (actual != expected) m_Result.failures++;
+        Emit("value|" + key + "|" + actual.ToString());
+    }
+    array<ref CanvasWidgetCommand> Populate(@CLASS@Observer observer)
+    {
+        array<ref CanvasWidgetCommand> commands = {};
+        @CLASS@Tracked mesh = new @CLASS@Tracked();
+        mesh.m_Vertices = {0.0, 0.0, 64.0, 0.0, 64.0, 64.0, 0.0, 64.0};
+        mesh.m_Indices = {0, 1, 2, 0, 2, 3};
+        mesh.m_iColor = -1;
+        commands.Insert(mesh);
+        observer.command = mesh;
+        observer.commands = commands;
+        observer.vertices = mesh.m_Vertices;
+        return commands;
+    }
+    void Publish(CanvasWidget canvas, @CLASS@Observer observer)
+    {
+        array<ref CanvasWidgetCommand> commands = Populate(observer);
+        canvas.SetDrawCommands(commands);
+    }
+    void Empty(CanvasWidget canvas)
+    {
+        array<ref CanvasWidgetCommand> empty = {};
+        canvas.SetDrawCommands(empty);
+    }
+    void Snapshot(string stage, @CLASS@Observer observer, int expectedOuter, int expectedCommand, int expectedVertices, int expectedDestroyed)
+    {
+        int outer = 0;
+        int command = 0;
+        int vertices = 0;
+        if (observer.commands) outer = 1;
+        if (observer.command) command = 1;
+        if (observer.vertices) vertices = 1;
+        Observe(stage + "-outer", outer, expectedOuter);
+        Observe(stage + "-command", command, expectedCommand);
+        Observe(stage + "-vertices", vertices, expectedVertices);
+        Observe(stage + "-destroyed", @CLASS@Tracked.destroyed, expectedDestroyed);
+    }
+    bool RunCase(string id, int mode)
+    {
+        m_Result.caseIds.Insert(id);
+        Emit("case|" + id);
+        @CLASS@Tracked.destroyed = 0;
+        @CLASS@Observer observer = new @CLASS@Observer();
+        if (mode == 0)
+        {
+            m_Control = Populate(observer);
+            Snapshot("control-held", observer, 1, 1, 1, 0);
+            m_Control.Clear();
+            Snapshot("control-cleared", observer, 1, 0, 0, 1);
+            m_Control = null;
+            Snapshot("control-dropped", observer, 0, 0, 0, 1);
+        }
+        else
+        {
+            Game game = GetGame();
+            WorkspaceWidget workspace;
+            if (game) workspace = game.GetWorkspace();
+            int workspacePresent = 0;
+            if (workspace) workspacePresent = 1;
+            Observe("workspace-present", workspacePresent, 1);
+            if (!workspace) return false;
+            CanvasWidget canvas = CanvasWidget.Cast(workspace.CreateWidgetInWorkspace(WidgetType.CanvasWidgetTypeID, 0, 0, 128, 128, WidgetFlags.VISIBLE, Color.FromInt(-1), 0));
+            int canvasPresent = 0;
+            if (canvas) canvasPresent = 1;
+            Observe("canvas-created", canvasPresent, 1);
+            if (!canvas) return false;
+            Publish(canvas, observer);
+            Snapshot("after-publish", observer, 0, 0, 0, 1);
+            Empty(canvas);
+            Snapshot("after-empty", observer, 0, 0, 0, 1);
+            Publish(canvas, observer);
+            Snapshot("second-publish", observer, 0, 0, 0, 2);
+            canvas.RemoveFromHierarchy();
+            canvas = null;
+            Snapshot("after-remove", observer, 0, 0, 0, 2);
+        }
+        Emit("end|" + id);
+        return m_Result.failures == 0;
+    }
+}

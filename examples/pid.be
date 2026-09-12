@@ -1,4 +1,4 @@
-//! A PID controller, the same one SPARKOS MESH flies on.
+//! A small PID example. The complete MESH controller port is tracked in M3.
 
 module flight.pid
 
@@ -17,7 +17,7 @@ pub fn Pid.step(inout self, sp: f32, meas: f32, dt: f32) -> f32 {
         return 0
     }
     let err = sp - meas
-    self.integral += err * dt
+    self.integral = clamp(self.integral + err * dt, -self.limit, self.limit)
     var deriv: f32 = 0
     if self.has_last {
         deriv = -(meas - self.last_meas) / dt

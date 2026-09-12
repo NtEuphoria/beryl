@@ -4,6 +4,45 @@
  */
 #include "parser.h"
 
+static _Noreturn void resource_limit(P *p, Span at, const char *what, uint32_t limit) {
+    Diag *dg = diag_error(p->d, 210, at, "parser resource limit exceeded: %s (limit %u)",
+                          what, limit);
+    diag_help(dg, "split this expression or declaration into smaller parts, or split the source file into modules");
+    longjmp(p->resource_exit, 1);
+}
+
+void p_work(P *p) {
+    if (p->work >= PARSE_MAX_WORK)
+        resource_limit(p, p_peek(p).span, "parser work", PARSE_MAX_WORK);
+    p->work++;
+}
+
+void p_enter(P *p) {
+    p_work(p);
+    if (p->recursion >= PARSE_MAX_RECURSION)
+        resource_limit(p, p_peek(p).span, "recursive parse depth", PARSE_MAX_RECURSION);
+    p->recursion++;
+}
+
+void p_leave(P *p) { p->recursion--; }
+
+void p_validate_tokens(P *p) {
+    if (p->toks.len > PARSE_MAX_TOKENS)
+        resource_limit(p, SPAN_NONE, "tokens per file", PARSE_MAX_TOKENS);
+    if (!p->toks.len || !p->toks.data || p->toks.len > p->toks.cap ||
+        p->toks.data[p->toks.len - 1].kind != TK_EOF) {
+        diag_error(p->d, 210, SPAN_NONE, "invalid token stream supplied to parser");
+        longjmp(p->resource_exit, 1);
+    }
+    for (uint32_t i = 0; i < p->toks.len; i++) {
+        if ((uint32_t)p->toks.data[i].kind >= TK_COUNT ||
+            (p->toks.data[i].kind == TK_EOF && i + 1 != p->toks.len)) {
+            diag_error(p->d, 210, p->toks.data[i].span, "invalid token stream supplied to parser");
+            longjmp(p->resource_exit, 1);
+        }
+    }
+}
+
 /* ---- state helpers ----------------------------------------------------- */
 
 Token p_peek(P *p) { return p->toks.data[p->pos]; }
@@ -16,6 +55,7 @@ Token p_peek2(P *p) {
 TokKind p_kind(P *p) { return p_peek(p).kind; }
 
 Token p_next(P *p) {
+    p_work(p);
     Token t = p_peek(p);
     if (t.kind != TK_EOF) p->pos++;
     return t;
@@ -97,7 +137,15 @@ static void expect_type_gt(P *p) {
     p_expect(p, TK_GT, "to close generic arguments");
 }
 
+static TypeExpr *parse_type_inner(P *p);
 TypeExpr *parse_type(P *p) {
+    p_enter(p);
+    TypeExpr *result = parse_type_inner(p);
+    p_leave(p);
+    return result;
+}
+
+static TypeExpr *parse_type_inner(P *p) {
     Token t = p_peek(p);
 
     if (t.kind == TK_BANG) {
@@ -270,7 +318,15 @@ static Stmt *parse_stmt(P *p) {
     return st;
 }
 
+static Expr *parse_block_inner(P *p);
 Expr *parse_block(P *p) {
+    p_enter(p);
+    Expr *result = parse_block_inner(p);
+    p_leave(p);
+    return result;
+}
+
+static Expr *parse_block_inner(P *p) {
     Token lb = p_peek(p);
     if (!p_expect(p, TK_LBRACE, "to open a block")) return NULL;
 
@@ -310,4 +366,130 @@ Expr *parse_block(P *p) {
     Expr *e        = ast_expr(p->a, EX_BLOCK, span_join(lb.span, rb.span));
     e->block.stmts = stmts;
     return e;
+}
+
+/* Iterative validation also catches deep trees built by flat parsing loops:
+ * left-associative operators, postfix chains and repeated optional types.
+ * No recursive compiler consumer sees an over-limit tree. */
+typedef enum { SHAPE_ITEM, SHAPE_STMT, SHAPE_EXPR, SHAPE_TYPE } ShapeKind;
+typedef struct { ShapeKind kind; const void *node; uint32_t depth; } Shape;
+typedef VEC(Shape) ShapeVec;
+
+static Span shape_span(Shape s) {
+    switch (s.kind) {
+        case SHAPE_ITEM: return ((const Item *)s.node)->span;
+        case SHAPE_STMT: return ((const Stmt *)s.node)->span;
+        case SHAPE_EXPR: return ((const Expr *)s.node)->span;
+        case SHAPE_TYPE: return ((const TypeExpr *)s.node)->span;
+    }
+    return SPAN_NONE;
+}
+
+static void shape_push(P *p, ShapeVec *stack, uint32_t *nodes, ShapeKind kind,
+                       const void *node, uint32_t depth) {
+    if (!node) return;
+    Shape s = {kind, node, depth};
+    if (depth > PARSE_MAX_AST_DEPTH)
+        resource_limit(p, shape_span(s), "syntax tree depth", PARSE_MAX_AST_DEPTH);
+    if (*nodes >= PARSE_MAX_AST_NODES)
+        resource_limit(p, shape_span(s), "syntax tree nodes", PARSE_MAX_AST_NODES);
+    (*nodes)++;
+    vec_push(p->a, *stack, s);
+}
+
+void p_validate_shape(P *p, Module *module) {
+    ShapeVec stack = {0};
+    uint32_t nodes = 0;
+    for (uint32_t i = 0; i < module->items.len; i++)
+        shape_push(p, &stack, &nodes, SHAPE_ITEM, module->items.data[i], 1);
+    while (stack.len) {
+        p_work(p);
+        Shape s = vec_pop(stack);
+        uint32_t depth = s.depth + 1;
+#define CHILD(kind_, node_) shape_push(p, &stack, &nodes, (kind_), (node_), depth)
+        switch (s.kind) {
+            case SHAPE_ITEM: {
+                const Item *it = s.node;
+                switch (it->kind) {
+                    case IT_FN:
+                        CHILD(SHAPE_TYPE, it->fn.ret); CHILD(SHAPE_EXPR, it->fn.body);
+                        for (uint32_t i=0;i<it->fn.params.len;i++) {
+                            CHILD(SHAPE_TYPE,it->fn.params.data[i].type);
+                            CHILD(SHAPE_EXPR,it->fn.params.data[i].deflt);
+                        }
+                        break;
+                    case IT_STRUCT:
+                        for (uint32_t i=0;i<it->strukt.fields.len;i++) {
+                            CHILD(SHAPE_TYPE,it->strukt.fields.data[i].type);
+                            CHILD(SHAPE_EXPR,it->strukt.fields.data[i].deflt);
+                        }
+                        break;
+                    case IT_ENUM:
+                        for (uint32_t i=0;i<it->enom.variants.len;i++) CHILD(SHAPE_EXPR,it->enom.variants.data[i].value);
+                        break;
+                    case IT_CONST: CHILD(SHAPE_TYPE,it->konst.type); CHILD(SHAPE_EXPR,it->konst.value); break;
+                    case IT_TEST: CHILD(SHAPE_EXPR,it->test.body); break;
+                    case IT_TRAIT:
+                        for (uint32_t i=0;i<it->trait.methods.len;i++) CHILD(SHAPE_ITEM,it->trait.methods.data[i]);
+                        break;
+                    case IT_USE: break;
+                }
+                break;
+            }
+            case SHAPE_STMT: {
+                const Stmt *st = s.node;
+                switch (st->kind) {
+                    case ST_LET: CHILD(SHAPE_TYPE,st->let.type); CHILD(SHAPE_EXPR,st->let.init); break;
+                    case ST_EXPR: case ST_RETURN: case ST_DEFER: CHILD(SHAPE_EXPR,st->expr); break;
+                    case ST_ASSIGN: CHILD(SHAPE_EXPR,st->assign.target); CHILD(SHAPE_EXPR,st->assign.value); break;
+                    case ST_WHILE: CHILD(SHAPE_EXPR,st->while_st.cond); CHILD(SHAPE_EXPR,st->while_st.body); break;
+                    case ST_FOR: CHILD(SHAPE_EXPR,st->for_st.iter); CHILD(SHAPE_EXPR,st->for_st.body); break;
+                    case ST_BREAK: case ST_CONTINUE: break;
+                }
+                break;
+            }
+            case SHAPE_TYPE: {
+                const TypeExpr *t = s.node;
+                CHILD(SHAPE_TYPE,t->elem); CHILD(SHAPE_EXPR,t->len);
+                for (uint32_t i=0;i<t->args.len;i++) CHILD(SHAPE_TYPE,t->args.data[i]);
+                break;
+            }
+            case SHAPE_EXPR: {
+                const Expr *e = s.node;
+                switch (e->kind) {
+                    case EX_PATH:
+                        for (uint32_t i=0;i<e->path.targs.len;i++) CHILD(SHAPE_TYPE,e->path.targs.data[i]);
+                        break;
+                    case EX_UNARY: CHILD(SHAPE_EXPR,e->unary.operand); break;
+                    case EX_BINARY: CHILD(SHAPE_EXPR,e->binary.lhs); CHILD(SHAPE_EXPR,e->binary.rhs); break;
+                    case EX_CALL:
+                        CHILD(SHAPE_EXPR,e->call.callee);
+                        for (uint32_t i=0;i<e->call.args.len;i++) CHILD(SHAPE_EXPR,e->call.args.data[i].value);
+                        break;
+                    case EX_FIELD: CHILD(SHAPE_EXPR,e->field.base); break;
+                    case EX_INDEX: CHILD(SHAPE_EXPR,e->index.base); CHILD(SHAPE_EXPR,e->index.index); break;
+                    case EX_CAST: CHILD(SHAPE_EXPR,e->cast.value); CHILD(SHAPE_TYPE,e->cast.type); break;
+                    case EX_STRUCT_LIT:
+                        CHILD(SHAPE_TYPE,e->struct_lit.type);
+                        for (uint32_t i=0;i<e->struct_lit.fields.len;i++) CHILD(SHAPE_EXPR,e->struct_lit.fields.data[i].value);
+                        break;
+                    case EX_ARRAY_LIT:
+                        for (uint32_t i=0;i<e->array_lit.elems.len;i++) CHILD(SHAPE_EXPR,e->array_lit.elems.data[i]);
+                        break;
+                    case EX_IF: CHILD(SHAPE_EXPR,e->if_expr.cond); CHILD(SHAPE_EXPR,e->if_expr.then_blk); CHILD(SHAPE_EXPR,e->if_expr.else_blk); break;
+                    case EX_BLOCK:
+                        for (uint32_t i=0;i<e->block.stmts.len;i++) CHILD(SHAPE_STMT,e->block.stmts.data[i]);
+                        break;
+                    case EX_TRY: CHILD(SHAPE_EXPR,e->try_expr.inner); break;
+                    case EX_CATCH: CHILD(SHAPE_EXPR,e->catch_expr.value); CHILD(SHAPE_EXPR,e->catch_expr.handler); break;
+                    case EX_ORELSE: CHILD(SHAPE_EXPR,e->orelse_expr.value); CHILD(SHAPE_EXPR,e->orelse_expr.fallback); break;
+                    case EX_UNSAFE: CHILD(SHAPE_EXPR,e->unsafe_expr.body); break;
+                    case EX_RANGE: CHILD(SHAPE_EXPR,e->range.lo); CHILD(SHAPE_EXPR,e->range.hi); break;
+                    case EX_INT: case EX_FLOAT: case EX_STR: case EX_CHAR: case EX_BOOL: case EX_SELF: case EX_ERROR_LIT: break;
+                }
+                break;
+            }
+        }
+#undef CHILD
+    }
 }

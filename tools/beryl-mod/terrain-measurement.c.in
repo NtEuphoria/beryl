@@ -1,0 +1,88 @@
+class @CLASS@Request : JsonApiStruct
+{
+    string token;
+    void @CLASS@Request() { RegV("token"); }
+}
+class @CLASS@Response : JsonApiStruct
+{
+    int schema_version = 1;
+    string kind = "beryl.performance.target";
+    string token;
+    string scope_name = "terrain_construct_release";
+    string timer_api = "System.GetTickCount";
+    string tick_unit = "ms";
+    int executed;
+    int failures;
+    int expected_runs = @EXPECTED_RUNS@;
+    ref array<string> rows = {};
+    void @CLASS@Response()
+    {
+        RegV("schema_version"); RegV("kind"); RegV("token"); RegV("scope_name"); RegV("timer_api");
+        RegV("tick_unit"); RegV("executed"); RegV("failures"); RegV("expected_runs"); RegV("rows");
+    }
+}
+class @CLASS@ : NetApiHandler
+{
+    ref @CLASS@Response m_Result;
+    int m_TimerObservation;
+    override JsonApiStruct GetRequest() { return new @CLASS@Request(); }
+    override JsonApiStruct GetResponse(JsonApiStruct request)
+    {
+        @CLASS@Request req = @CLASS@Request.Cast(request);
+        m_Result = new @CLASS@Response();
+        m_Result.token = "@TOKEN@";
+        if (!req || req.token != m_Result.token) return m_Result;
+        for (int probe = 0; probe < 4; probe++)
+        {
+            int start = System.GetTickCount();
+            for (int i = 0; i < 250000; i++) m_TimerObservation = (m_TimerObservation + 17) % 1000003;
+            int end = System.GetTickCount();
+            m_Result.rows.Insert("timer|" + probe.ToString() + "|" + start.ToString() + "|" + end.ToString());
+        }
+        @RUN@
+        m_Result.executed = 1;
+        return m_Result;
+    }
+    // Returning a scalar ends this call's command-array scope. The enclosing
+    // interval includes command/vertex/index construction and ARC release.
+    int ConstructAndRelease(@CLASS@Adapter fixture, bool direct)
+    {
+        array<ref CanvasWidgetCommand> commands = {};
+        if (direct) fixture.Direct(commands);
+        else fixture.Original(commands);
+        int count = commands.Count();
+        commands = null;
+        return count;
+    }
+    string Counter(int value)
+    {
+        string result = "unavailable";
+        if (value >= 0) result = value.ToString();
+        return result;
+    }
+    bool RunBatch(string unit, string side, int ordinal, string id, int mode, int width, int height, int operations, int expectedCommands)
+    {
+        // Captured/generated inputs and fixture lifecycle are outside this scope.
+        @CLASS@Adapter fixture = new @CLASS@Adapter();
+        fixture.Prepare(mode, width, height);
+        bool direct = side == "b";
+        int sum = 0;
+        int allocationsBefore = System.MemoryAllocationCount();
+        int kbBefore = System.MemoryAllocationKB();
+        int started = System.GetTickCount();
+        for (int i = 0; i < operations; i++) sum += ConstructAndRelease(fixture, direct);
+        int ended = System.GetTickCount();
+        int allocationsAfter = System.MemoryAllocationCount();
+        int kbAfter = System.MemoryAllocationKB();
+        if (sum != expectedCommands * operations) { m_Result.failures++; return false; }
+        // Keep each expression below the EnforceScript expression-complexity cap.
+        // Receipt formatting happens after the timed interval.
+        string row = "run|" + unit + "|" + side + "|" + ordinal.ToString() + "|" + id;
+        row += "|" + started.ToString() + "|" + ended.ToString() + "|" + operations.ToString();
+        row += "|" + Counter(allocationsBefore) + "|" + Counter(allocationsAfter);
+        row += "|" + Counter(kbBefore) + "|" + Counter(kbAfter);
+        m_Result.rows.Insert(row);
+        fixture = null;
+        return true;
+    }
+}

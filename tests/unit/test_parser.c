@@ -2,6 +2,7 @@
 #include "../../src/parse/parser.h"
 #include "../../src/parse/print.h"
 #include "test.h"
+#include <string.h>
 
 typedef struct {
     Arena     *a;
@@ -132,7 +133,7 @@ static void test_items(void) {
                      "    return sp\n"
                      "}\n");
     CHECK_CONTAINS(s, "(module flight.pid");
-    CHECK_CONTAINS(s, "(fn pub Pid.step (params (inout self) (let sp f32) (let dt f32 =(float 0.1)))");
+    CHECK_CONTAINS(s, "(fn pub Pid.step (params (inout self) (let sp f32) (let dt f32 =(float 0.10000000000000001)))");
     CHECK_CONTAINS(s, "(ret f32)");
     CHECK_EQ_I(diag_errors(f.d), 0);
 
@@ -403,6 +404,30 @@ static void test_roundtrip(void) {
 }
 
 void run_parser_tests(void) {
+    CASE("formatter: literal kinds, exact payloads and suffixes survive");
+    Fx f = fx_new();
+    Module *before = parse_src(&f,
+        "module t\nconst A = 1.0\nconst B = 1.2345678901234567f64\n"
+        "const C = 16777217f32\nconst D = 255u8\nconst E = '\\n'\n"
+        "const F = '\\0'\nconst G = '\\\''\nconst H = '\\\\'\nconst I = '\\xFF'\n");
+    Str formatted = ast_format(f.a, before);
+    Module *after = parse_src(&f, str_cstr(f.a, formatted));
+    CHECK_EQ_I(diag_errors(f.d), 0);
+    CHECK_EQ_I(before->items.len, after->items.len);
+    for (uint32_t i = 0; i < before->items.len && i < after->items.len; i++) {
+        Expr *a = before->items.data[i]->konst.value;
+        Expr *b = after->items.data[i]->konst.value;
+        CHECK_EQ_I(a->kind, b->kind);
+        if (a->kind == EX_FLOAT && b->kind == EX_FLOAT) {
+            CHECK(memcmp(&a->float_lit.val, &b->float_lit.val, sizeof(double)) == 0);
+            CHECK(str_eq(a->float_lit.suffix, b->float_lit.suffix));
+        } else if (a->kind == EX_INT && b->kind == EX_INT) {
+            CHECK(a->int_lit.val == b->int_lit.val);
+            CHECK(str_eq(a->int_lit.suffix, b->int_lit.suffix));
+        } else if (a->kind == EX_CHAR && b->kind == EX_CHAR) CHECK_EQ_I(a->char_lit, b->char_lit);
+    }
+    CHECK(str_eq(formatted, ast_format(f.a, after)));
+    fx_free(&f);
     test_precedence();
     test_chained_comparison();
     test_struct_literal_ambiguity();

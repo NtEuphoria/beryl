@@ -11,6 +11,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 BERYL=build/beryl.exe
+OUT=$(mktemp -d build/e2e-XXXXXXXX) || exit 1
 if [ ! -x "$BERYL" ]; then
   echo "e2e: $BERYL is missing; run scripts/build.sh first" >&2
   exit 1
@@ -28,27 +29,29 @@ for src in tests/e2e/*.be; do
   trapfile="tests/e2e/$name.trap"
 
   if [ -f "$expected" ]; then
-    "$BERYL" run "$src" 2>/dev/null | strip_cr > build/e2e_actual.txt
-    strip_cr < "$expected" > build/e2e_expected.txt
-    if diff -q build/e2e_actual.txt build/e2e_expected.txt >/dev/null; then
+    "$BERYL" run "$src" 2>"$OUT/$name.stderr" | strip_cr > "$OUT/$name.actual"
+    rc=$?
+    strip_cr < "$expected" > "$OUT/$name.expected"
+    if [ "$rc" -eq 0 ] && diff -q "$OUT/$name.actual" "$OUT/$name.expected" >/dev/null; then
       pass=$((pass + 1))
     else
       fail=$((fail + 1))
       failed_names+=("$name")
       echo "FAIL $name"
-      diff build/e2e_actual.txt build/e2e_expected.txt | head -24 | sed 's/^/    /'
+      diff "$OUT/$name.actual" "$OUT/$name.expected" | head -24 | sed 's/^/    /'
     fi
 
   elif [ -f "$trapfile" ]; then
-    "$BERYL" run "$src" 2>&1 | strip_cr > build/e2e_actual.txt
+    "$BERYL" run "$src" 2>&1 | strip_cr > "$OUT/$name.actual"
+    rc=$?
     want=$(strip_cr < "$trapfile" | head -1)
-    if grep -qF "$want" build/e2e_actual.txt; then
+    if [ "$rc" -ne 0 ] && grep -qF "$want" "$OUT/$name.actual"; then
       pass=$((pass + 1))
     else
       fail=$((fail + 1))
       failed_names+=("$name")
       echo "FAIL $name (expected a trap containing: $want)"
-      head -10 build/e2e_actual.txt | sed 's/^/    /'
+      head -10 "$OUT/$name.actual" | sed 's/^/    /'
     fi
 
   else
@@ -58,10 +61,10 @@ for src in tests/e2e/*.be; do
   fi
 done
 
-rm -f build/e2e_actual.txt build/e2e_expected.txt
+echo "e2e logs retained at $OUT"
 
 echo
-if [ "$fail" -eq 0 ]; then
+if [ "$fail" -eq 0 ] && [ "$pass" -gt 0 ]; then
   echo "ok  $pass e2e programs"
   exit 0
 fi

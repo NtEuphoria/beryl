@@ -1,10 +1,13 @@
 /* c_backend.c — C11 emission. */
 #include "c_backend.h"
+#include "../common/symbol.h"
+#include <math.h>
 
 #include "../common/map.h"
 #include "../sema/intrinsic.h"
 #include "../sema/constfold.h"
 #include "../sema/types.h"
+#include "../sema/storage.h"
 
 typedef struct {
     Arena     *a;
@@ -22,6 +25,9 @@ typedef struct {
     int        tmp;
     Item      *fn;      /* function being emitted */
     Str        ret_ctype; /* its C return type, for `try` early returns */
+    bool       trace_tests;
+    CgenTraceWatch trace_watch;
+    bool watch_emitted;
 } G;
 
 /* ---- names ------------------------------------------------------------- */
@@ -38,55 +44,33 @@ static bool is_c_keyword(Str s) {
     return false;
 }
 
-/* `flight.pid.Pid.step` -> `flight_pid_Pid_step`.
- *
- * Every character that is not valid in a C identifier is replaced, because a
- * test's name is prose ("a non-positive dt produces no output") and still has
- * to become a callable symbol. */
+/* Injective qualified identity, including escaped underscores. */
 static Str mangle(G *g, Str qual) {
-    SB sb;
-    sb_init(&sb, g->a);
-    for (uint32_t i = 0; i < qual.len; i++) {
-        char c  = qual.ptr[i];
-        bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-                  (c >= '0' && c <= '9') || c == '_';
-        sb_char(&sb, ok ? c : '_');
-    }
-    return sb_finish(&sb);
+    return symbol_encode(g->a,"i",qual);
 }
 
-/* Test labels are prose and can collide once sanitized, so a test's symbol
- * carries its source offset, which is unique within a build. */
+/* Test labels may repeat; file identity plus declaration offset disambiguates. */
 static Str item_symbol(G *g, Item *it) {
     Str base = mangle(g, it->qual_name);
     if (it->kind != IT_TEST) return base;
     SB sb;
     sb_init(&sb, g->a);
-    sb_fmt(&sb, "%.*s_%u", (int)base.len, base.ptr, it->span.offset);
+    sb_fmt(&sb, "be_test_%.*s_%u_%u", (int)base.len, base.ptr, it->span.file, it->span.offset);
     return sb_finish(&sb);
 }
 
-static Str local_name(G *g, Str n) {
-    if (!is_c_keyword(n)) return n;
+static Str local_name(G *g, Str n, Span declaration) {
     SB sb;
     sb_init(&sb, g->a);
+    sb_fmt(&sb, "be_l_%u_", declaration.offset);
     sb_str(&sb, n);
-    sb_char(&sb, '_');
+    if (is_c_keyword(n)) sb_char(&sb, '_');
     return sb_finish(&sb);
 }
 
 /* A C identifier derived from a type's canonical name. */
 static Str type_id(G *g, const Type *t) {
-    Str n = ty_name(g->a, t);
-    SB  sb;
-    sb_init(&sb, g->a);
-    sb_cstr(&sb, "BeT_");
-    for (uint32_t i = 0; i < n.len; i++) {
-        char c = n.ptr[i];
-        bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
-        sb_char(&sb, ok ? c : '_');
-    }
-    return sb_finish(&sb);
+    return symbol_encode(g->a,"t",ty_name(g->a,t));
 }
 
 static Str tmp_name(G *g) {
@@ -139,6 +123,9 @@ static void unsupported(G *g, Span at, const char *what) {
 }
 
 static uint32_t line_of(G *g, Span sp) { return srcmap_linecol(g->sm, sp).line; }
+static bool trace_i32(G *g, const Type *t) {
+    return g->trace_tests && t && t->kind==TY_INT && t->bits==32 && t->is_signed;
+}
 
 static Str file_of(G *g, Span sp) {
     SourceFile *f = srcmap_get(g->sm, sp.file);
@@ -210,7 +197,7 @@ static void ensure_type(G *g, Type *t) {
             for (uint32_t i = 0; decl && i < decl->strukt.fields.len; i++) {
                 Field *f = &decl->strukt.fields.data[i];
                 Str    ct = ctype(g, f->rtype);
-                line(g, "    %.*s %.*s;", S(ct), S(f->name));
+                line(g, "    %.*s %.*s;", S(ct), S(symbol_encode(g->a,"f",f->name)));
             }
             if (!decl || decl->strukt.fields.len == 0) line(g, "    char _empty;");
             line(g, "} %.*s;", S(nm));
@@ -249,10 +236,13 @@ static void ensure_type(G *g, Type *t) {
                  S(el), S(id));
             line(g, "static void %.*s_push(%.*s *l, %.*s v) {", S(id), S(id), S(el));
             line(g, "    if (l->len == l->cap) {");
-            line(g, "        l->cap = l->cap ? l->cap * 2 : 8;");
-            line(g, "        l->data = (%.*s *)beryl_grow(l->data, sizeof(%.*s) * "
-                    "(size_t)l->cap);",
+            line(g, "        int32_t capacity; size_t bytes;");
+            line(g, "        if (!be_list_growth_plan(l->len, l->cap, sizeof(%.*s), "
+                    "&capacity, &bytes)) beryl_allocation_size_failure();", S(el));
+            line(g, "        %.*s *data = (%.*s *)beryl_grow(l->data, bytes);",
                  S(el), S(el));
+            line(g, "        l->data = data;");
+            line(g, "        l->cap = capacity;");
             line(g, "    }");
             line(g, "    l->data[l->len++] = v;");
             line(g, "}");
@@ -364,8 +354,17 @@ static Str zero_of(G *g, Type *t) {
 static Str gen_binary(G *g, Expr *e) {
     Type   *t  = e->binary.lhs->type;
     TokKind op = e->binary.op;
-    Str     l  = gen_expr(g, e->binary.lhs);
-    Str     r  = gen_expr(g, e->binary.rhs);
+    Str     l  = temp_of(g, t, gen_expr(g, e->binary.lhs));
+    if (op == TK_ANDAND || op == TK_OROR) {
+        line(g, "if (%s%.*s) {", op == TK_OROR ? "!" : "", S(l));
+        g->indent++;
+        Str r = gen_expr(g, e->binary.rhs);
+        line(g, "%.*s = %.*s;", S(l), S(r));
+        g->indent--;
+        line(g, "}");
+        return l;
+    }
+    Str     r  = temp_of(g, e->binary.rhs->type, gen_expr(g, e->binary.rhs));
 
     SB sb;
     sb_init(&sb, g->a);
@@ -437,8 +436,11 @@ static Str gen_binary(G *g, Expr *e) {
         }
         if (fn) {
             Str f = file_of(g, e->span);
-            sb_fmt(&sb, "%s_%s(%.*s, %.*s, \"%.*s\", %u)", fn, int_suffix(t), S(l), S(r),
+            bool at=trace_i32(g,t) && op!=TK_SHL && op!=TK_SHR;
+            sb_fmt(&sb, "%s_%s%s(%.*s, %.*s, \"%.*s\", %u", fn, int_suffix(t), at?"_at":"", S(l), S(r),
                    S(f), line_of(g, e->span));
+            if (at) sb_fmt(&sb, ", %u, %u",e->span.file,e->span.offset);
+            sb_char(&sb,')');
             return sb_finish(&sb);
         }
     }
@@ -465,7 +467,7 @@ static Str gen_binary(G *g, Expr *e) {
 static Str gen_vec_method(G *g, Expr *e) {
     Expr *recv = e->call.callee->field.base;
     Str   s    = str_from(vec_suffix(recv->type));
-    Str   r    = gen_expr(g, recv);
+    Str   r    = temp_of(g, recv->type, gen_expr(g, recv));
 
     SB sb;
     sb_init(&sb, g->a);
@@ -481,7 +483,8 @@ static Str gen_vec_method(G *g, Expr *e) {
     }
 
     if (e->call.args.len == 1) {
-        Str a = gen_expr(g, e->call.args.data[0].value);
+        Expr *arg = e->call.args.data[0].value;
+        Str a = temp_of(g, arg->type, gen_expr(g, arg));
         sb_fmt(&sb, "be_%.*s_%s(%.*s, %.*s)", S(s), fn, S(r), S(a));
     } else {
         sb_fmt(&sb, "be_%.*s_%s(%.*s)", S(s), fn, S(r));
@@ -495,7 +498,8 @@ static Str gen_vec_new(G *g, Expr *e) {
     sb_fmt(&sb, "be_%s(", vec_suffix(e->type));
     for (uint32_t i = 0; i < e->call.args.len; i++) {
         if (i) sb_cstr(&sb, ", ");
-        Str a = gen_expr(g, e->call.args.data[i].value);
+        Expr *arg = e->call.args.data[i].value;
+        Str a = temp_of(g, arg->type, gen_expr(g, arg));
         sb_fmt(&sb, "%.*s", S(a));
     }
     sb_char(&sb, ')');
@@ -506,9 +510,18 @@ static Str gen_list_method(G *g, Expr *e) {
     Expr  *recv = e->call.callee->field.base;
     Type  *lt   = recv->type;
     Str    id   = type_id(g, lt);
-    Str    r    = gen_expr(g, recv);
+    Str    address = gen_expr(g, recv);
+    Str    pointer = tmp_name(g);
+    line(g, "%.*s *%.*s = &(%.*s);", S(ctype(g, lt)), S(pointer), S(address));
+    SB receiver; sb_init(&receiver, g->a); sb_fmt(&receiver, "(*%.*s)", S(pointer));
+    Str    r    = sb_finish(&receiver);
     Str    f    = file_of(g, e->span);
     ArgVec args = e->call.args;
+    StrVec values = {0};
+    for (uint32_t i = 0; i < args.len; i++) {
+        Expr *arg = args.data[i].value;
+        vec_push(g->a, values, temp_of(g, arg->type, gen_expr(g, arg)));
+    }
 
     SB sb;
     sb_init(&sb, g->a);
@@ -520,17 +533,16 @@ static Str gen_list_method(G *g, Expr *e) {
             break;
         case INTR_LIST_PUSH:
             line(g, "%.*s_push(&(%.*s), %.*s);", S(id), S(r),
-                 S(gen_expr(g, args.data[0].value)));
+                 S(values.data[0]));
             sb_cstr(&sb, "((void)0)");
             break;
         case INTR_LIST_GET:
             sb_fmt(&sb, "%.*s_get(&(%.*s), (int64_t)%.*s, \"%.*s\", %u)", S(id), S(r),
-                   S(gen_expr(g, args.data[0].value)), S(f), line_of(g, e->span));
+                   S(values.data[0]), S(f), line_of(g, e->span));
             break;
         default: /* INTR_LIST_SET */
             line(g, "%.*s_set(&(%.*s), (int64_t)%.*s, %.*s, \"%.*s\", %u);", S(id), S(r),
-                 S(gen_expr(g, args.data[0].value)),
-                 S(gen_expr(g, args.data[1].value)), S(f), line_of(g, e->span));
+                 S(values.data[0]), S(values.data[1]), S(f), line_of(g, e->span));
             sb_cstr(&sb, "((void)0)");
             break;
     }
@@ -550,10 +562,21 @@ static Str gen_call_intrinsic(G *g, Expr *e) {
     switch ((Intrinsic)e->intrinsic) {
         case INTR_PRINT:
         case INTR_PRINTLN: {
+            StrVec values={0};
+            /* Trace events follow evaluation of the optional print argument. */
+            for (uint32_t i=0;i<args.len;i++) {
+                Str value=gen_expr(g,args.data[i].value);
+                vec_push(g->a,values,g->trace_tests?temp_of(g,args.data[i].value->type,value):value);
+            }
+            if (g->trace_tests) line(g,"beryl_test_event(\"print\", %u, %u, %s);",
+                e->span.file,e->span.offset,e->intrinsic==INTR_PRINTLN ? "true" : "false");
             for (uint32_t i = 0; i < args.len; i++) {
-                Str   v = gen_expr(g, args.data[i].value);
+                Str   v = values.data[i];
                 Type *t = args.data[i].value->type;
                 if (!t) continue;
+                if (g->trace_tests && t->kind==TY_FLOAT && t->bits==32)
+                    line(g,"beryl_test_f32(%u, %u, %.*s);",args.data[i].value->span.file,
+                        args.data[i].value->span.offset,S(v));
                 if (t->kind == TY_STR) line(g, "beryl_print_str(%.*s);", S(v));
                 else if (t->kind == TY_BOOL) line(g, "beryl_print_bool(%.*s);", S(v));
                 else if (t->kind == TY_CHAR) line(g, "beryl_print_char(%.*s);", S(v));
@@ -569,6 +592,10 @@ static Str gen_call_intrinsic(G *g, Expr *e) {
         }
         case INTR_ASSERT: {
             Str v = gen_expr(g, args.data[0].value);
+            if (g->trace_tests) {
+                v=temp_of(g,args.data[0].value->type,v);
+                line(g,"beryl_test_event(\"assert\", %u, %u, %.*s);",e->span.file,e->span.offset,S(v));
+            }
             SB  txt;
             sb_init(&txt, g->a);
             emit_c_string(&txt, str_from("assertion"));
@@ -600,9 +627,13 @@ static Str gen_call_intrinsic(G *g, Expr *e) {
             Str   x = temp_of(g, t, gen_expr(g, args.data[0].value));
             if (t && t->kind == TY_FLOAT)
                 sb_fmt(&sb, "be_abs_f%u(%.*s)", t->bits, S(x));
-            else if (t && t->kind == TY_INT)
-                sb_fmt(&sb, "(%.*s < 0 ? be_neg_%s(%.*s, \"%.*s\", %u) : %.*s)", S(x),
-                       int_suffix(t), S(x), S(f), line_of(g, e->span), S(x));
+            else if (t && t->kind == TY_INT) {
+                bool at=trace_i32(g,t);
+                sb_fmt(&sb, "(%.*s < 0 ? be_neg_%s%s(%.*s, \"%.*s\", %u", S(x),
+                       int_suffix(t), at?"_at":"", S(x), S(f), line_of(g, e->span));
+                if (at) sb_fmt(&sb,", %u, %u",e->span.file,e->span.offset);
+                sb_fmt(&sb,") : %.*s)",S(x));
+            }
             else sb_fmt(&sb, "%.*s", S(x));
             return sb_finish(&sb);
         }
@@ -633,6 +664,14 @@ static Str gen_call_intrinsic(G *g, Expr *e) {
     }
 }
 
+static Str call_arg(G *g, Expr *x, Conv conv) {
+    Str v = gen_expr(g, x);
+    if (conv != CONV_INOUT && conv != CONV_SET) return temp_of(g, x->type, v);
+    Str addr = tmp_name(g);
+    line(g, "%.*s *%.*s = &(%.*s);", S(ctype(g, x->type)), S(addr), S(v));
+    return addr;
+}
+
 static Str gen_call(G *g, Expr *e) {
     if (e->res_kind == RES_INTRINSIC) return gen_call_intrinsic(g, e);
 
@@ -648,29 +687,27 @@ static Str gen_call(G *g, Expr *e) {
 
     uint32_t written = 0;
     if (has_self && e->call.callee && e->call.callee->kind == EX_FIELD) {
-        Str recv = gen_expr(g, e->call.callee->field.base);
         Conv cv  = fn->fn.params.data[0].conv;
-        if (cv == CONV_INOUT || cv == CONV_SET) sb_fmt(&sb, "&(%.*s)", S(recv));
-        else sb_fmt(&sb, "%.*s", S(recv));
+        Str recv = call_arg(g, e->call.callee->field.base, cv);
+        sb_fmt(&sb, "%.*s", S(recv));
         written++;
     }
 
     for (uint32_t i = 0; i < e->call.args.len; i++) {
         uint32_t slot = i + (has_self ? 1 : 0);
         Conv     cv   = (slot < fn->fn.params.len) ? fn->fn.params.data[slot].conv : CONV_LET;
-        Str      v    = gen_expr(g, e->call.args.data[i].value);
+        Str      v    = call_arg(g, e->call.args.data[i].value, cv);
         if (written) sb_cstr(&sb, ", ");
-        if (cv == CONV_INOUT || cv == CONV_SET) sb_fmt(&sb, "&(%.*s)", S(v));
-        else sb_fmt(&sb, "%.*s", S(v));
+        sb_fmt(&sb, "%.*s", S(v));
         written++;
     }
 
-    /* Defaults for omitted trailing parameters. */
+    /* The semantic pass expands defaults before ownership and taint. */
     for (uint32_t slot = e->call.args.len + (has_self ? 1 : 0); slot < fn->fn.params.len;
          slot++) {
         Param *pm = &fn->fn.params.data[slot];
         if (!pm->deflt) break;
-        Str v = gen_expr(g, pm->deflt);
+        Str v = call_arg(g, pm->deflt, pm->conv);
         if (written) sb_cstr(&sb, ", ");
         sb_fmt(&sb, "%.*s", S(v));
         written++;
@@ -710,10 +747,18 @@ static Str gen_expr_gen(G *g, Expr *e) {
             if (e->type && e->type->kind == TY_FLOAT)
                 sb_fmt(&sb, "%llu.0%s", (unsigned long long)e->int_lit.val,
                        e->type->bits == 32 ? "f" : "");
-            else sb_fmt(&sb, "%lluLL", (unsigned long long)e->int_lit.val);
+            else sb_fmt(&sb, "%llu%s", (unsigned long long)e->int_lit.val,
+                        e->type && !e->type->is_signed ? "ULL" : "LL");
             break;
 
         case EX_FLOAT: {
+            if (!isfinite(e->float_lit.val)) {
+                bool f32 = e->type && e->type->bits == 32;
+                if (isnan(e->float_lit.val)) sb_cstr(&sb, f32 ? "__builtin_nanf(\"\")" : "__builtin_nan(\"\")");
+                else sb_fmt(&sb, "%s%s", signbit(e->float_lit.val) ? "-" : "",
+                            f32 ? "__builtin_inff()" : "__builtin_inf()");
+                break;
+            }
             /* `%g` drops a trailing `.0`, and `1f` is not a float literal in
              * C — it lexes as an integer with a stray suffix. Nothing caught
              * this before because no f32 literal had ever reached the C back
@@ -743,7 +788,7 @@ static Str gen_expr_gen(G *g, Expr *e) {
         case EX_SELF: {
             if (e->res_kind == RES_LOCAL) {
                 Local *l = (Local *)e->res;
-                Str    n = local_name(g, l->name);
+                Str    n = local_name(g, l->name, l->span);
                 if (l->is_param && (l->conv == CONV_INOUT || l->conv == CONV_SET))
                     sb_fmt(&sb, "(*%.*s)", S(n));
                 else sb_fmt(&sb, "%.*s", S(n));
@@ -758,14 +803,28 @@ static Str gen_expr_gen(G *g, Expr *e) {
         }
 
         case EX_UNARY: {
+            Type *nt = e->type;
+            Expr *arg = e->unary.operand;
+            /* The signed minimum is a literal value, not checked negation of
+             * an already-narrowed positive operand (which would trap). */
+            if (e->unary.op == TK_MINUS && nt && nt->kind == TY_INT &&
+                nt->is_signed && arg->kind == EX_INT &&
+                arg->int_lit.val == (UINT64_C(1) << (nt->bits - 1))) {
+                sb_fmt(&sb, "(-%lluLL - 1LL)",
+                       (unsigned long long)(arg->int_lit.val - 1));
+                break;
+            }
             Str   v = gen_expr(g, e->unary.operand);
             Type *t = e->unary.operand->type;
             if (e->unary.op == TK_BANG) sb_fmt(&sb, "(!%.*s)", S(v));
             else if (e->unary.op == TK_TILDE) sb_fmt(&sb, "(~%.*s)", S(v));
             else if (t && t->kind == TY_INT) {
                 Str f = file_of(g, e->span);
-                sb_fmt(&sb, "be_neg_%s(%.*s, \"%.*s\", %u)", int_suffix(t), S(v), S(f),
+                bool at=trace_i32(g,t);
+                sb_fmt(&sb, "be_neg_%s%s(%.*s, \"%.*s\", %u", int_suffix(t), at?"_at":"", S(v), S(f),
                        line_of(g, e->span));
+                if (at) sb_fmt(&sb,", %u, %u",e->span.file,e->span.offset);
+                sb_char(&sb,')');
             } else if (ty_is_vec(t)) {
                 sb_fmt(&sb, "be_%s_neg(%.*s)", vec_suffix(t), S(v));
             } else sb_fmt(&sb, "(-%.*s)", S(v));
@@ -777,7 +836,8 @@ static Str gen_expr_gen(G *g, Expr *e) {
 
         case EX_FIELD: {
             Str b = gen_expr(g, e->field.base);
-            sb_fmt(&sb, "%.*s.%.*s", S(b), S(e->field.name));
+            Str field = e->res_kind == RES_VEC_COMP ? e->field.name : symbol_encode(g->a,"f",e->field.name);
+            sb_fmt(&sb, "%.*s.%.*s", S(b), S(field));
             break;
         }
 
@@ -802,8 +862,10 @@ static Str gen_expr_gen(G *g, Expr *e) {
             uint64_t n = ty_is_vec(bt) ? ty_vec_arity(bt)
                          : (bt && bt->kind == TY_ARRAY) ? bt->array_len
                                                         : 0;
-            sb_fmt(&sb, "%.*s.v[be_idx((int64_t)%.*s, %llu, \"%.*s\", %u)]", S(b), S(ix),
+            sb_fmt(&sb, "%.*s.v[be_idx%s((int64_t)%.*s, %llu, \"%.*s\", %u", S(b),g->trace_tests?"_at":"", S(ix),
                    (unsigned long long)n, S(f), line_of(g, e->span));
+            if (g->trace_tests) sb_fmt(&sb,", %u, %u",e->span.file,e->span.offset);
+            sb_cstr(&sb,")]");
             break;
         }
 
@@ -818,18 +880,27 @@ static Str gen_expr_gen(G *g, Expr *e) {
             Type *t    = e->type;
             Item *decl = t ? t->decl : NULL;
             Str   ct   = ctype(g, t);
+            /* Written fields precede expanded defaults in the normalized AST.
+             * Capture each value before visiting the next expression. C's
+             * designated initializer order is not Beryl evaluation order. */
+            StrVec values = {0};
+            for (uint32_t k = 0; k < e->struct_lit.fields.len; k++) {
+                Expr *value = e->struct_lit.fields.data[k].value;
+                Str rendered = gen_expr(g, value);
+                vec_push(g->a, values, temp_of(g, value->type, rendered));
+            }
             sb_fmt(&sb, "((%.*s){", S(ct));
             bool first = true;
             for (uint32_t fi = 0; decl && fi < decl->strukt.fields.len; fi++) {
                 Field *fl = &decl->strukt.fields.data[fi];
-                Expr  *val = NULL;
+                Str v = STR_EMPTY;
                 for (uint32_t k = 0; k < e->struct_lit.fields.len; k++)
                     if (str_eq(e->struct_lit.fields.data[k].name, fl->name))
-                        val = e->struct_lit.fields.data[k].value;
-                Str v = val ? gen_expr(g, val)
-                            : (fl->deflt ? gen_expr(g, fl->deflt) : zero_of(g, fl->rtype));
+                        v = values.data[k];
+                if (str_empty(v)) v = fl->deflt ?
+                    temp_of(g, fl->rtype, gen_expr(g, fl->deflt)) : zero_of(g, fl->rtype);
                 if (!first) sb_cstr(&sb, ", ");
-                sb_fmt(&sb, ".%.*s = %.*s", S(fl->name), S(v));
+                sb_fmt(&sb, ".%.*s = %.*s", S(symbol_encode(g->a,"f",fl->name)), S(v));
                 first = false;
             }
             if (first) sb_cstr(&sb, "0");
@@ -842,7 +913,8 @@ static Str gen_expr_gen(G *g, Expr *e) {
             sb_fmt(&sb, "((%.*s){{", S(ct));
             for (uint32_t i = 0; i < e->array_lit.elems.len; i++) {
                 if (i) sb_cstr(&sb, ", ");
-                Str v = gen_expr(g, e->array_lit.elems.data[i]);
+                Expr *value = e->array_lit.elems.data[i];
+                Str v = temp_of(g, value->type, gen_expr(g, value));
                 sb_fmt(&sb, "%.*s", S(v));
             }
             if (e->array_lit.elems.len == 0) sb_cstr(&sb, "0");
@@ -897,7 +969,9 @@ static Str gen_expr_gen(G *g, Expr *e) {
             Str   t  = temp_of(g, vt, v);
             Str   r  = tmp_name(g);
             Str   rt = ctype(g, e->type);
-            line(g, "%.*s %.*s = %.*s;", S(rt), S(r), S(zero_of(g, e->type)));
+            bool is_void = e->type && e->type->kind == TY_VOID;
+            if (!is_void)
+                line(g, "%.*s %.*s = %.*s;", S(rt), S(r), S(zero_of(g, e->type)));
             line(g, "if (%.*s.err == 0) {", S(t));
             g->indent++;
             if (vt && vt->elem && vt->elem->kind != TY_VOID)
@@ -905,15 +979,16 @@ static Str gen_expr_gen(G *g, Expr *e) {
             g->indent--;
             line(g, "} else {");
             g->indent++;
-            if (!str_empty(e->catch_expr.binding))
-                line(g, "int32_t %.*s = %.*s.err; (void)%.*s;", S(e->catch_expr.binding),
-                     S(t), S(e->catch_expr.binding));
+            if (!str_empty(e->catch_expr.binding)) {
+                Str name = local_name(g, e->catch_expr.binding, e->span);
+                line(g, "int32_t %.*s = %.*s.err; (void)%.*s;", S(name), S(t), S(name));
+            }
             if (e->catch_expr.handler && e->catch_expr.handler->kind == EX_BLOCK)
                 gen_block(g, e->catch_expr.handler);
             else gen_expr(g, e->catch_expr.handler);
             g->indent--;
             line(g, "}");
-            sb_fmt(&sb, "%.*s", S(r));
+            sb_fmt(&sb, "%.*s", S(is_void ? str_from("((void)0)") : r));
             break;
         }
 
@@ -976,11 +1051,18 @@ static Str const_literal(G *g, Expr *e, Type *want) {
         case CV_INT:
             if (want && want->kind == TY_FLOAT)
                 sb_fmt(&sb, "%lld.0%s", (long long)v.i, want->bits == 32 ? "f" : "");
+            else if (v.i == INT64_MIN) sb_cstr(&sb, "(-9223372036854775807LL - 1LL)");
             else sb_fmt(&sb, "%lldLL", (long long)v.i);
             break;
-        case CV_FLOAT:
-            sb_fmt(&sb, "%.17g%s", v.f, (want && want->bits == 32) ? "f" : "");
+        case CV_UINT:
+            sb_fmt(&sb, "%lluULL", (unsigned long long)v.u);
             break;
+        case CV_FLOAT: {
+            Expr literal = {.kind = EX_FLOAT, .type = want};
+            literal.float_lit.val = v.f;
+            sb_str(&sb, gen_expr_gen(g, &literal));
+            break;
+        }
         case CV_BOOL: sb_cstr(&sb, v.b ? "true" : "false"); break;
         case CV_STR:
             sb_cstr(&sb, "BE_STR(");
@@ -1014,11 +1096,23 @@ static void gen_stmt(G *g, Stmt *s) {
 
     switch (s->kind) {
         case ST_LET: {
-            Str nm = local_name(g, s->let.name);
+            Str nm = local_name(g, s->let.name, s->span);
             if (s->let.init) {
                 Str v  = gen_expr(g, s->let.init);
                 Str ct = ctype(g, s->let.init->type);
                 line(g, "%.*s %.*s = %.*s;", S(ct), S(nm), S(v));
+                if (g->trace_watch.enabled && s->span.file==g->trace_watch.file && s->span.offset==g->trace_watch.offset) {
+                    Type *t=s->let.init->type;
+                    if (!g->trace_tests || !g->fn || g->fn->kind!=IT_TEST || !t || t->kind!=TY_ARRAY ||
+                        !t->array_len || t->array_len>4096 || !t->elem || t->elem->kind!=TY_INT ||
+                        t->elem->bits!=32 || !t->elem->is_signed) {
+                        unsupported(g,s->span,"this registered trap-observation root");
+                    } else {
+                        line(g,"beryl_test_root_i32(%u, %u, %.*s.v, %llu);",s->span.file,s->span.offset,S(nm),
+                            (unsigned long long)t->array_len);
+                        g->watch_emitted=true;
+                    }
+                }
             } else {
                 /* Declared without a value; ownership proved it is assigned
                  * before any read, so no initializer is emitted. */
@@ -1050,9 +1144,14 @@ static void gen_stmt(G *g, Stmt *s) {
 
         case ST_ASSIGN: {
             const char *op = assign_op(s->assign.op);
-            Str         rv = gen_expr(g, s->assign.value);
-            Str         lv = gen_expr(g, s->assign.target);
             Type       *t  = s->assign.target->type;
+            Str addr = call_arg(g, s->assign.target, CONV_INOUT);
+            SB place;
+            sb_init(&place, g->a);
+            sb_fmt(&place, "(*%.*s)", S(addr));
+            Str lv = sb_finish(&place);
+            Str old = op ? temp_of(g, t, lv) : STR_EMPTY;
+            Str rv = gen_expr(g, s->assign.value);
             if (!op) {
                 line(g, "%.*s = %.*s;", S(lv), S(rv));
             } else if (t && t->kind == TY_INT) {
@@ -1065,10 +1164,18 @@ static void gen_stmt(G *g, Stmt *s) {
                     default: fn = "be_rem"; break;
                 }
                 Str f = file_of(g, s->span);
-                line(g, "%.*s = %s_%s(%.*s, %.*s, \"%.*s\", %u);", S(lv), fn,
-                     int_suffix(t), S(lv), S(rv), S(f), line_of(g, s->span));
+                if (trace_i32(g,t))
+                    line(g, "%.*s = %s_%s_at(%.*s, %.*s, \"%.*s\", %u, %u, %u);", S(lv), fn,
+                         int_suffix(t), S(old), S(rv), S(f), line_of(g, s->span),s->span.file,s->span.offset);
+                else
+                    line(g, "%.*s = %s_%s(%.*s, %.*s, \"%.*s\", %u);", S(lv), fn,
+                         int_suffix(t), S(old), S(rv), S(f), line_of(g, s->span));
+            } else if (ty_is_vec(t)) {
+                const char *fn = s->assign.op == TK_PLUSEQ ? "add" :
+                    s->assign.op == TK_MINUSEQ ? "sub" : s->assign.op == TK_STAREQ ? "mul" : "div";
+                line(g, "%.*s = be_%s_%s(%.*s, %.*s);", S(lv), vec_suffix(t), fn, S(old), S(rv));
             } else {
-                line(g, "%.*s %s= %.*s;", S(lv), op, S(rv));
+                line(g, "%.*s = %.*s %s %.*s;", S(lv), S(old), op, S(rv));
             }
             break;
         }
@@ -1088,9 +1195,10 @@ static void gen_stmt(G *g, Stmt *s) {
 
         case ST_FOR: {
             Expr *it = s->for_st.iter;
-            Str   nm = local_name(g, s->for_st.var);
+            Str   nm = local_name(g, s->for_st.var, s->span);
             if (it && it->kind == EX_RANGE) {
                 Str lo = gen_expr(g, it->range.lo);
+                lo = temp_of(g, it->range.lo->type, lo);
                 Str hi = gen_expr(g, it->range.hi);
                 Str ct = ctype(g, it->range.lo->type);
                 Str hn = temp_of(g, it->range.hi->type, hi);
@@ -1150,7 +1258,10 @@ static void gen_stmt(G *g, Stmt *s) {
                     line(g, "return (%.*s){ .err = %.*s };", S(g->ret_ctype), S(v));
                 else if (rt->elem && rt->elem->kind != TY_VOID)
                     line(g, "return (%.*s){ .err = 0, .val = %.*s };", S(g->ret_ctype), S(v));
-                else line(g, "return (%.*s){ .err = 0 };", S(g->ret_ctype));
+                else {
+                    if (!str_eq_c(v, "((void)0)")) line(g, "(void)(%.*s);", S(v));
+                    line(g, "return (%.*s){ .err = 0 };", S(g->ret_ctype));
+                }
             } else {
                 line(g, "return %.*s;", S(v));
             }
@@ -1189,9 +1300,9 @@ static Str fn_signature(G *g, Item *it) {
         Param *pm = &it->fn.params.data[i];
         if (i) sb_cstr(&sb, ", ");
         Str ct = ctype(g, pm->rtype);
-        Str pn = local_name(g, pm->name);
+        Str pn = local_name(g, pm->name, pm->span);
         if (pm->conv == CONV_INOUT || pm->conv == CONV_SET)
-            sb_fmt(&sb, "%.*s *restrict %.*s", S(ct), S(pn));
+            sb_fmt(&sb, "%.*s *%.*s", S(ct), S(pn));
         else sb_fmt(&sb, "%.*s %.*s", S(ct), S(pn));
     }
     sb_char(&sb, ')');
@@ -1261,12 +1372,18 @@ static void lint_native_type(DiagBag *d, Arena *a, Type *t, Span at, const char 
     }
 }
 
-static bool lint_native(DiagBag *d, Arena *a, Program *p) {
+bool native_lint(DiagBag *d, Arena *a, Program *p) {
     uint32_t before = diag_errors(d);
     for (uint32_t m = 0; m < p->modules.len; m++) {
         Module *mod = p->modules.data[m];
         for (uint32_t i = 0; i < mod->items.len; i++) {
             Item *it = mod->items.data[i];
+            for (uint32_t k = 0; k < it->nlocals; k++) {
+                Local *local = ((Local **)it->locals)[k];
+                if (!local->is_param)
+                    lint_native_type(d, a, local->type, local->span, "this local binding");
+            }
+            if (it->kind == IT_CONST) lint_native_type(d, a, it->rtype, it->span, "this constant");
             if (it->kind == IT_STRUCT) {
                 for (uint32_t f = 0; f < it->strukt.fields.len; f++)
                     lint_native_type(d, a, it->strukt.fields.data[f].rtype,
@@ -1279,17 +1396,19 @@ static bool lint_native(DiagBag *d, Arena *a, Program *p) {
             }
         }
     }
-    return diag_errors(d) == before;
+    return diag_errors(d) == before && storage_admit(d,p,STORAGE_NATIVE);
 }
 
-Str cgen_program(Arena *a, SourceMap *sm, DiagBag *d, Program *p, CgenMode mode) {
-    if (!lint_native(d, a, p)) return STR_EMPTY;
+Str cgen_program_watched(Arena *a, SourceMap *sm, DiagBag *d, Program *p, CgenMode mode,CgenTraceWatch watch) {
+    if (!native_lint(d, a, p)) return STR_EMPTY;
 
     G g = {0};
     g.a = a;
     g.sm = sm;
     g.d = d;
     g.p = p;
+    g.trace_tests = mode==CGEN_TRACE_TESTS;
+    g.trace_watch=watch;
     g.emitted = map_new(a);
     g.memo    = map_new(a);
     sb_init(&g.types, a);
@@ -1350,7 +1469,17 @@ Str cgen_program(Arena *a, SourceMap *sm, DiagBag *d, Program *p, CgenMode mode)
             Item *it = mod->items.data[i];
             if (it->kind == IT_FN && !it->fn.generics.len && it->fn.body) {
                 gen_fn(&g, it, it->fn.body);
-                if (str_eq_c(it->name, "main") && str_empty(it->fn.recv)) user_main = it;
+                if (str_eq_c(it->name, "main") && str_empty(it->fn.recv)) {
+                    if (mode == CGEN_PROGRAM && user_main) {
+                        Diag *dg = diag_error(d,325,it->span,"multiple native entry points named `main`");
+                        diag_label(dg,user_main->span,"other entry point here");
+                    }
+                    if (mode == CGEN_PROGRAM && (it->fn.params.len ||
+                        (it->rtype->kind != TY_VOID && !(it->rtype->kind == TY_INT &&
+                          it->rtype->bits == 32 && it->rtype->is_signed))))
+                        diag_error(d,325,it->span,"native main must take no arguments and return void or i32");
+                    user_main = it;
+                }
             } else if (it->kind == IT_TEST && it->test.body) {
                 g.fn        = it;
                 g.tmp       = 0;
@@ -1370,17 +1499,25 @@ Str cgen_program(Arena *a, SourceMap *sm, DiagBag *d, Program *p, CgenMode mode)
     }
 
     /* Entry point. */
+    if (watch.enabled && (!g.watch_emitted || tests.len!=1)) {
+        unsupported(&g,(Span){watch.file,watch.offset,0},"an absent or ambiguously scoped trap-observation root");
+        return STR_EMPTY;
+    }
     g.cur = &g.out;
-    if (mode == CGEN_TESTS) {
+    if (mode == CGEN_TESTS || mode == CGEN_TRACE_TESTS) {
         line(&g, "int main(void) {");
         g.indent++;
+        if (g.trace_tests) line(&g,"beryl_test_trace_enable();");
+        if (watch.enabled) line(&g,"beryl_test_require_root(%u, %u);",watch.file,watch.offset);
         for (uint32_t i = 0; i < tests.len; i++) {
             Item *it = tests.data[i];
             SB    nb;
             sb_init(&nb, a);
             emit_c_string(&nb, it->test.label);
             line(&g, "beryl_test_begin(%.*s);", S(sb_finish(&nb)));
+            if (g.trace_tests) line(&g,"beryl_test_event(\"test_begin\", %u, %u, true);",it->span.file,it->span.offset);
             line(&g, "%.*s();", S(item_symbol(&g, it)));
+            if (g.trace_tests) line(&g,"beryl_test_event(\"test_end\", %u, %u, beryl_test_current_ok());",it->span.file,it->span.offset);
         }
         line(&g, "return beryl_test_summary();");
         g.indent--;
@@ -1410,4 +1547,7 @@ Str cgen_program(Arena *a, SourceMap *sm, DiagBag *d, Program *p, CgenMode mode)
     sb_char(&final, '\n');
     sb_str(&final, sb_finish(&g.out));
     return sb_finish(&final);
+}
+Str cgen_program(Arena *a, SourceMap *sm, DiagBag *d, Program *p, CgenMode mode) {
+    return cgen_program_watched(a,sm,d,p,mode,(CgenTraceWatch){0});
 }

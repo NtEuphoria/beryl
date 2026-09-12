@@ -119,6 +119,7 @@ typedef struct {
     bool nl_before; /* numeric type suffix, empty when absent */
     uint64_t ival;   /* TK_INT, TK_CHAR */
     double   fval;   /* TK_FLOAT */
+    Str      number_text; /* cleaned numeric spelling without suffix; retains decimal precision */
 } Token;
 
 #endif /* BERYL_TOKEN_H */

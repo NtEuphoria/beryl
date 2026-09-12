@@ -1,0 +1,188 @@
+class @CLASS@Request : JsonApiStruct
+{
+    string token;
+    void @CLASS@Request() { RegV("token"); }
+}
+class @CLASS@Response : JsonApiStruct
+{
+    string token;
+    int executed;
+    int checks;
+    int failures;
+    int checksum;
+    ref array<string> caseIds = {};
+    ref array<string> rows = {};
+    void @CLASS@Response()
+    {
+        RegV("token"); RegV("executed"); RegV("checks"); RegV("failures");
+        RegV("checksum"); RegV("caseIds"); RegV("rows");
+    }
+}
+class @CLASS@Tracked
+{
+    static int destroyed;
+    int value;
+    void ~@CLASS@Tracked() { destroyed++; }
+}
+class @CLASS@Observer
+{
+    // Fields without ref are weak; locals would pin the object and falsify this probe.
+    @CLASS@Tracked object;
+}
+class @CLASS@ : NetApiHandler
+{
+    ref @CLASS@Response m_Result;
+    override JsonApiStruct GetRequest() { return new @CLASS@Request(); }
+    override JsonApiStruct GetResponse(JsonApiStruct request)
+    {
+        @CLASS@Request req = @CLASS@Request.Cast(request);
+        m_Result = new @CLASS@Response();
+        m_Result.token = "@TOKEN@";
+        if (!req || req.token != m_Result.token) return m_Result;
+        @RUN@
+        if (!m_Result.failures) m_Result.executed = 1;
+        return m_Result;
+    }
+    void Emit(string row)
+    {
+        m_Result.rows.Insert(row);
+        for (int i = 0; i < row.Length(); i++) m_Result.checksum = (m_Result.checksum * 31 + row.ToAscii(i)) % 1000003;
+        m_Result.checksum = (m_Result.checksum * 31 + 10) % 1000003;
+    }
+    void Observe(string key, int actual, int expected)
+    {
+        m_Result.checks++;
+        if (actual != expected) m_Result.failures++;
+        Emit("value|" + key + "|" + actual.ToString());
+    }
+    int Alive(@CLASS@Observer observer)
+    {
+        int present = 0;
+        if (observer.object) present = 1;
+        return present;
+    }
+    void AddStrong(array<ref @CLASS@Tracked> values, @CLASS@Observer observer)
+    {
+        @CLASS@Tracked value = new @CLASS@Tracked();
+        value.value = 7;
+        observer.object = value;
+        values.Insert(value);
+    }
+    void AddWeak(array<@CLASS@Tracked> values, @CLASS@Observer observer)
+    {
+        @CLASS@Tracked value = new @CLASS@Tracked();
+        observer.object = value;
+        values.Insert(value);
+    }
+    bool RunCase(string id, int mode)
+    {
+        m_Result.caseIds.Insert(id);
+        Emit("case|" + id);
+        if (mode == 0)
+        {
+            array<int> first = {11, 22, 33};
+            array<int> alias = first;
+            array<int> copied = {};
+            copied.Copy(first);
+            alias[0] = 99;
+            Observe("alias-first", first[0], 99);
+            Observe("copy-first", copied[0], 11);
+            copied[1] = 77;
+            Observe("copy-independent", first[1], 22);
+            first.Clear();
+            Observe("alias-cleared", alias.Count(), 0);
+            Observe("copy-count", copied.Count(), 3);
+        }
+        else if (mode == 1)
+        {
+            @CLASS@Tracked.destroyed = 0;
+            @CLASS@Observer observer = new @CLASS@Observer();
+            array<ref @CLASS@Tracked> firstStrong = {};
+            array<ref @CLASS@Tracked> copiedStrong = {};
+            AddStrong(firstStrong, observer);
+            // The installed engine rejects Copy(array<ref T>) for this generic.
+            // This deliberately tests explicit element copying with Insert.
+            for (int strongIndex = 0; strongIndex < firstStrong.Count(); strongIndex++) copiedStrong.Insert(firstStrong[strongIndex]);
+            Observe("strong-count", firstStrong.Count(), 1);
+            int same = 0;
+            if (firstStrong[0] == copiedStrong[0]) same = 1;
+            Observe("strong-same-object", same, 1);
+            copiedStrong[0].value = 23;
+            Observe("strong-shared-field", firstStrong[0].value, 23);
+            firstStrong.Clear();
+            Observe("strong-after-first-clear", Alive(observer), 1);
+            Observe("strong-no-destruction", @CLASS@Tracked.destroyed, 0);
+            copiedStrong.Clear();
+            Observe("strong-after-last-clear", Alive(observer), 0);
+            Observe("strong-one-destruction", @CLASS@Tracked.destroyed, 1);
+        }
+        else if (mode == 2)
+        {
+            @CLASS@Tracked.destroyed = 0;
+            @CLASS@Observer weakObserver = new @CLASS@Observer();
+            array<@CLASS@Tracked> weakValues = {};
+            AddWeak(weakValues, weakObserver);
+            Observe("weak-count", weakValues.Count(), 1);
+            Observe("weak-observer-null", Alive(weakObserver), 0);
+            int weakNull = 0;
+            if (!weakValues[0]) weakNull = 1;
+            Observe("weak-element-null", weakNull, 1);
+            Observe("weak-one-destruction", @CLASS@Tracked.destroyed, 1);
+            weakValues.Clear();
+            Observe("weak-clear-no-extra-destruction", @CLASS@Tracked.destroyed, 1);
+        }
+        else if (mode == 3)
+        {
+            array<int> inner = {3, 5};
+            array<ref array<int>> outer = {};
+            array<ref array<int>> outerCopy = {};
+            outer.Insert(inner);
+            for (int nestedIndex = 0; nestedIndex < outer.Count(); nestedIndex++) outerCopy.Insert(outer[nestedIndex]);
+            outerCopy[0][0] = 17;
+            Observe("nested-shared-element", outer[0][0], 17);
+            outer.Clear();
+            Observe("nested-independent-outer", outerCopy.Count(), 1);
+            inner = null;
+            Observe("nested-retained-inner", outerCopy[0][1], 5);
+        }
+        else if (mode == 4)
+        {
+            array<int> unordered = {10, 20, 30, 40};
+            array<int> ordered = {10, 20, 30, 40};
+            unordered.Remove(1);
+            ordered.RemoveOrdered(1);
+            Observe("remove-count", unordered.Count(), 3);
+            Observe("remove-last-replaces", unordered[1], 40);
+            Observe("remove-tail", unordered[2], 30);
+            Observe("ordered-count", ordered.Count(), 3);
+            Observe("ordered-shift", ordered[1], 30);
+            Observe("ordered-tail", ordered[2], 40);
+        }
+        else if (mode == 5)
+        {
+            array<int> storage = {9, 8};
+            storage.Reserve(256);
+            Observe("reserve-count", storage.Count(), 2);
+            Observe("reserve-content", storage[1], 8);
+            storage.Resize(4);
+            Observe("resize-count", storage.Count(), 4);
+            Observe("resize-zero-first", storage[2], 0);
+            Observe("resize-zero-second", storage[3], 0);
+            storage.Clear();
+            Observe("clear-count", storage.Count(), 0);
+            storage.Compact();
+            Observe("compact-count", storage.Count(), 0);
+            storage.Insert(42);
+            Observe("reuse-content", storage[0], 42);
+            @CLASS@Tracked.destroyed = 0;
+            @CLASS@Observer shrinkObserver = new @CLASS@Observer();
+            array<ref @CLASS@Tracked> shrinking = {};
+            AddStrong(shrinking, shrinkObserver);
+            shrinking.Resize(0);
+            Observe("shrink-released", Alive(shrinkObserver), 0);
+            Observe("shrink-one-destruction", @CLASS@Tracked.destroyed, 1);
+        }
+        Emit("end|" + id);
+        return m_Result.failures == 0;
+    }
+}

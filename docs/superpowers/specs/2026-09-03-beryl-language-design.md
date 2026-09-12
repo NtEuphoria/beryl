@@ -1,7 +1,12 @@
 # Beryl — Language & Toolchain Design
 
-**Status:** approved design, normative for v0.1 · **Date:** 2026-09-03 · **Owner:** moham
+**Status:** historical design, superseded where it conflicts with current contracts · **Date:** 2026-09-03 · **Owner:** moham
 **Repo:** `C:\Users\moham\Desktop\beryl`
+
+Use [SPEC](../../SPEC.md), [current implementation evidence](../../BERYL_ADVANCED_IMPLEMENTATION_STATE.md)
+and the [advanced implementation plan](../../BERYL_ADVANCED_IMPLEMENTATION_PLAN.md)
+for current semantics, support and release gates. This early design contains
+proposed syntax and unverified targets; presence here does not establish support.
 
 Beryl is a systems language named for beryllium: stiffer than steel per unit weight, very
 light, and dimensionally stable at temperature. That is the whole thesis — *stiff* (strong
@@ -16,9 +21,11 @@ It compiles to two targets from one frontend: **native** (via C, handed to clang
 
 ### 1.1 Falsifiable goals
 
-Every headline claim in this project must be measurable. These are the numbers v0.1 is held to.
+Every headline claim must be measurable. The following early comparison figures
+and targets are retained historically; they lack matched current measurement
+evidence. They are not Rust measurements or current release criteria.
 
-| Metric | Rust today | Beryl target | Verified by |
+| Metric | Historical Rust assumption (unverified) | Historical Beryl target | Proposed verification |
 |---|---|---|---|
 | Hello-world binary | 150–300 KB | **< 20 KB** | `tests/bench/size` |
 | Compiler binary | ~150 MB toolchain | **< 1 MB**, zero deps | `scripts/build.sh` output |
@@ -28,7 +35,7 @@ Every headline claim in this project must be measurable. These are the numbers v
 | Lifetime annotations | `'a` pervasive | **zero — none exist in the grammar** | by construction |
 | Build-time code execution | `build.rs`, proc macros | **zero, structurally impossible** | by construction |
 | Reproducible builds | opt-in, imperfect | **byte-identical output** | `tests/repro` |
-| Overflow-trap overhead | n/a (wraps in release) | **< 3%, published** | `tests/bench/overflow` |
+| Overflow-trap overhead | configurable overflow checks | **< 3%** (unverified target) | `tests/bench/overflow` |
 
 ### 1.2 The honest comparison
 
@@ -45,12 +52,12 @@ Where Beryl can genuinely win, and what this design targets:
 2. **Binary size and zero runtime** — no unwinding machinery, no landing pads, no
    `core::fmt` pulled in by a stray `Debug` derive. Failure aborts; it never unwinds.
 3. **Same safety, zero lifetime annotations** — see §3.
-4. **One real codegen edge** — every `inout` parameter lowers to a C `restrict` pointer with
-   a compiler-proven exclusivity guarantee behind it. That is precisely the aliasing
-   information LLVM most wants, and the thing Rust shipped with `noalias` disabled for years
-   because getting it sound was hard.
-5. **Stricter arithmetic** — Rust silently wraps on overflow in release builds. Beryl traps
-   in every build (§8.1).
+4. **Explicit access contracts** — `inout` states exclusive access. Native `restrict`
+   was removed until a complete storage-aliasing contract justifies it; the former
+   claim of a proven code-generation advantage was premature.
+5. **Checked arithmetic by default** — Beryl's native checked operations trap.
+   Rust's release overflow policy is configurable; this is a default, not a unique
+   capability. Enfusion semantics require separate validation.
 
 ### 1.3 Non-goals for v0.1
 
@@ -162,10 +169,10 @@ to annotate and nothing to infer.
 
 | Convention | Meaning | Lowers to (C) | Lowers to (EnforceScript) |
 |---|---|---|---|
-| `let` (default) | immutable borrow; callee may read | `const T* restrict` | plain parameter |
-| `inout` | exclusive mutable borrow, **guaranteed non-aliasing** | `T* restrict` | `inout` / `out` parameter |
+| `let` (default) | immutable borrow; callee may read | scalar/value or `const T*`, according to admitted ABI | plain parameter |
+| `inout` | required exclusive mutable access | `T*`, no global `restrict` | `inout` / `out` parameter |
 | `sink` | ownership transferred to callee | by value, caller's copy dead | parameter + caller nulls its `ref` |
-| `set` | out-parameter; callee **must** initialize before returning | `T* restrict` uninit on entry | `out` parameter |
+| `set` | out-parameter; callee **must** initialize before returning | `T*` uninit on entry, no global `restrict` | `out` parameter |
 
 Small scalars (`≤ 16` bytes, no destructor) pass by value regardless; the convention still
 governs *semantics*, and the ABI choice is the backend's.
@@ -176,7 +183,10 @@ Locals are `let` (immutable) or `var` (mutable). Returns are always owned values
 
 While an `inout` borrow of a storage location is active, no other read or write of that
 location may occur. This is checked statically for locals, parameters, and field paths.
-Two `inout` arguments in the same call may not alias — which is what licenses `restrict`.
+Two `inout` arguments in the same call may not alias. A source-level rule alone
+does not license C `restrict`: complete enforcement across nested storage and
+callees is required. Global `restrict` remains disabled; see the advanced storage
+and checked-kernel gates for any future local strengthening.
 
 ```beryl
 swap(inout a, inout a)   // BE0401: overlapping exclusive borrows of `a`
@@ -394,19 +404,22 @@ Almost all of it is free at runtime: capabilities are zero-sized and erase at co
 analysis is compile-time only, and the supply-chain decisions make builds *faster*. Exactly
 one item costs measurable runtime, and it is priced in §8.6 S5.
 
-### 8.1 Memory safety — closing Rust's remaining gaps
+### 8.1 Safety contracts
 
 | Gap | Rust | Beryl | Cost |
 |---|---|---|---|
-| Integer overflow | panics in debug, **silently wraps in release** | **traps in every build**; `wrapping_*` / `saturating_*` / `unchecked_*` opt-outs | ~1–3% |
+| Integer overflow | Configurable profile checks; checked and wrapping operations available | Checked arithmetic traps; explicitly supported wrapping/saturating operations have different semantics | No fixed overhead established |
 | Uninitialized reads | `MaybeUninit` discipline | definite-init analysis; `set` forces callee init | zero |
 | Bounds | checked, `unsafe` opt-out | checked, scoped-capability opt-out | same |
 | Null | `Option` | **no null in the language** | zero |
 
 ### 8.2 Granular unsafe
 
-Rust's `unsafe` suspends every invariant at once. Beryl splits it into four capabilities, so
-an audit reads as a set rather than a line count:
+Rust's `unsafe` permits specified operations and does not disable the borrow
+checker. Beryl's early design proposed four scoped capabilities, illustrated
+below; consult current feature support before using these proposed block forms.
+Rust comparison references: [Unsafe Rust](https://doc.rust-lang.org/book/ch20-01-unsafe-rust.html)
+and [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html).
 
 ```beryl
 @unsafe(unchecked_index) { ... }   // bounds checks only

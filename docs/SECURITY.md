@@ -4,31 +4,39 @@ Read [THREAT-MODEL.md](THREAT-MODEL.md) alongside this. This document says what
 the model *does*; that one says where it stops, and the second half is the more
 important of the two.
 
-The headline: **almost all of this is free at runtime.** Taint analysis is
-compile-time only, the supply-chain decisions make builds *faster*, and exactly
-one item costs measurable runtime — which is measured, in
-[BENCHMARKS.md](BENCHMARKS.md), and has an opt-out.
+Implementation status is bounded by the [foundation handoff](FOUNDATION_IMPLEMENTATION.md)
+and [delivery state](BERYL_DELIVERY_STATE.md). Taint analysis runs at compile
+time. The delivery work adds bounded field/element and interprocedural propagation;
+symbolic summaries and dynamic-storage bounds remain incomplete. Owned
+container copying and cleanup remain incomplete. Neither this design document
+nor the historical benchmark numbers establish production safety or performance.
 
-## 1. Memory safety, and Rust's remaining gaps
+## 1. Intended safety behavior and current limits
 
-Mutable value semantics removes use-after-free, double-free, null, and
-use-after-move. Three gaps that Rust leaves open, Beryl closes:
+Mutable value semantics is Beryl's intended model. Current implementations of
+owned collections still have aliasing and lifecycle gaps; M5 must establish their
+contracts. Scalar initialization, moves, and access exclusivity have regression
+coverage, but that is not a proof of complete memory safety.
 
 | gap | Rust | Beryl |
 |---|---|---|
-| integer overflow | panics in debug, **wraps silently in release** | **traps in every build**; `wrapping_*` / `saturating_*` opt out |
-| uninitialized reads | `MaybeUninit` discipline | definite-initialization analysis; `set` forces the callee to assign |
-| bounds | checked, `unsafe` opts out | checked, scoped capability opts out |
+| integer overflow | checks configurable per Cargo profile; explicit checked/wrapping operations | checked native integer arithmetic by default; explicit wrapping/saturating operations |
+| uninitialized reads | safe Rust prevents uninitialized reads; unsafe `MaybeUninit` use has obligations | definite-initialization analysis; `set` requires assignment |
+| bounds | safe indexing checks; unchecked operations have explicit unsafe obligations | generated checks for supported accesses; unsafe capability machinery remains proposed |
 | null | `Option` | **there is no null in the language** |
 
-Release-mode wraparound is the most defensible "stricter than Rust" claim
-available. It is also the one that costs something: see §7.
+Checked release arithmetic is a useful default, not a capability Rust lacks.
+[Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html) expose
+overflow-check configuration. Target-specific Enfusion integer behavior needs
+separate validation; native checks do not prove engine arithmetic equivalence.
 
 ## 2. Granular unsafe
 
-Rust's `unsafe` suspends every invariant at once, which is why auditing it is
-miserable. Beryl splits it into four capabilities, so an audit reads as a *set*
-rather than a line count:
+Rust's `unsafe` permits particular operations with additional obligations; it
+does not disable the borrow checker or suspend every invariant.
+[Unsafe Rust](https://doc.rust-lang.org/book/ch20-01-unsafe-rust.html).
+Beryl proposes four separately named capabilities to make intended permissions
+visible during review:
 
 ```beryl
 @unsafe(unchecked_index) { }   // bounds checks only
@@ -51,19 +59,24 @@ behind them yet.
 - **No procedural macros.** `comptime` evaluation is a pure interpreter over
   integers, floats, bools and strings. There is no sandbox to escape because no
   I/O is implemented.
-- **No dependency fetching in v0.1** — path dependencies only.
+- **No dependency fetching in v0.1.** Explicit source sets are supported;
+  general path-dependency resolution is not implemented by package metadata.
 
-Every one of these makes compilation *faster*. Security and the lightness goal
-point the same direction here, which is unusual and worth noticing.
+These restrictions limit build-time execution and dependency resolution. Their
+performance effects require measurement against a specified alternative.
 
 ## 4. The taint engine
 
-One flow-sensitive walk over each function body, several policies. That reuse is
-what made it affordable to build.
+A bounded monotone analysis propagates provenance through the analyzed call graph
+before reporting sinks. Record fields are separate local paths; indexed elements
+share a conservative summary. Arguments, results and mutable parameters propagate
+until stable, so loops and declaration order cannot silently hide a later source.
+The initial interprocedural implementation is context-insensitive and can reject
+safe programs conservatively. Symbolic call summaries remain planned.
 
 ```beryl
 @untrusted     // every parameter arrived from a network or RPC boundary
-@validator     // this function's result is trustworthy
+@validator     // validation intent; body facts must justify each use
 @secret        // every parameter is secret material
 @constant_time // no secret-dependent branch or index, transitively
 @server_only   // not reachable from client context
@@ -77,13 +90,23 @@ arithmetic, casts, field access and calls. Sinks are:
 | array or list index | `BE0601` | `BE0603` |
 | `if` / `while` condition | — | `BE0602` |
 
-**`clamp`, `min` and `max` launder untrusted taint**, because bounding a value
-is exactly what makes an attacker's index safe to use. They deliberately do
-**not** launder a secret: bounding one still reveals it through timing.
+`clamp`, `min`, `max` and `@validator` never erase provenance. The initial bounds
+proof admits integer intervals within the actual fixed-array length. Constant
+clamp bounds must be ordered and fit that array. Verified return expressions of
+small bounded helpers can provide the same fact without an annotation. A bound
+for a larger array, a bare validator, one-sided min/max and reversed clamp limits
+do not establish a safe index. Dynamic-length proofs remain unavailable. Mutable
+locals do not retain initializer range assumptions after possible mutation.
+
+Secret-derived indices and control decisions (including short circuit and error/
+optional selection) remain diagnostics even when an index is in bounds. Budget
+exhaustion fails analysis with BE0608 rather than treating incomplete propagation
+as success.
 
 `@constant_time` additionally requires every callee to be `@constant_time`
-(`BE0607`) — the guarantee has to hold through the whole call graph or it does
-not hold at all.
+(`BE0607`). This is a checked source restriction; no machine-level constant-time
+guarantee is established. Similarly, `@server_only` call restrictions do not prove
+runtime authority; engine request boundaries need separately verified contracts.
 
 ## 5. `beryl audit`
 
@@ -110,20 +133,12 @@ be vapour, so it is listed here as designed rather than in §1 as delivered.
 
 ## 7. The cost
 
-Measured, on the worst case we could construct — a dependent multiply-add chain
-where every operation is checked and there is nothing to hide the branch behind:
-
-| | |
-|---|---|
-| checked arithmetic | **+82%** versus unchecked C |
-| `wrapping_*` | **−4%**, i.e. identical within noise |
-
-So: correct by default costs about 2x in an arithmetic-bound inner loop, and the
-opt-out costs nothing. Everything else in this document — taint, capabilities,
-the supply-chain rules — is compile-time and costs zero.
-
-The stated target was "< 3%". It was not met. See
-[BENCHMARKS.md](BENCHMARKS.md).
+Historical +82% and -4% figures are unverified: the old benchmark could time a
+trapping workload and ignored failed execution. They must not support a security
+or optimization decision. M8 requires equivalent semantics, checked outputs,
+paired measurements, uncertainty, and full application costs. See
+[BENCHMARKS.md](BENCHMARKS.md) for the historical record and the active plan for
+the replacement protocol.
 
 ## 8. Reporting a problem
 

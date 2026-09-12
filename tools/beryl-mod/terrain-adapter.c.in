@@ -1,0 +1,107 @@
+// Isolated construction candidate. The inherited reference is preserved source.
+class @CLASS@Band
+{
+    ref array<ref TriMeshDrawCommand> chunks = {};
+    int colour;
+}
+class @CLASS@Adapter : @CLASS@Reference
+{
+    int fixtureChecksum;
+    void Prepare(int mode, int width, int height)
+    {
+        m_iPaneW = width;
+        m_iPaneH = height;
+        m_aHeights = new array<float>();
+        m_fMinH = 100000.0;
+        m_fMaxH = -100000.0;
+        fixtureChecksum = 0;
+        // The admitted input is the existing 80x80 cached row-major sample grid.
+        // No replacement sampling lattice or GetSurfaceY approximation is used.
+        for (int row = 0; row < GRID; row++)
+        {
+            for (int col = 0; col < GRID; col++)
+            {
+                float h = 0.5;
+                if (mode == 1) h = 25.0;
+                int checker = (row + col) % 2;
+                if (mode == 2) h = checker;
+                if (mode == 3) h = row * 2.0 + col * 0.125 - 4.0;
+                int generated = (row * 4093 + col * 7919 + row * col * 17) % 8192 - 1024;
+                if (mode == 4) h = generated * 0.03125;
+                if (mode == 5) h = 4.0 + row * 0.000244140625;
+                m_aHeights.Insert(h);
+                if (h < m_fMinH) m_fMinH = h;
+                if (h > m_fMaxH) m_fMaxH = h;
+                int code = h * 4096.0;
+                code = ((code % 1000003) + 1000003) % 1000003;
+                fixtureChecksum = (fixtureChecksum * 31 + code) % 1000003;
+            }
+        }
+    }
+    int SampleCount() { return m_aHeights.Count(); }
+    void Original(array<ref CanvasWidgetCommand> commands) { BuildRelief(commands); }
+    void Direct(array<ref CanvasWidgetCommand> commands)
+    {
+        float range = m_fMaxH - m_fMinH;
+        if (range < 1.0) range = 1.0;
+        float cw = m_iPaneW / (float)(GRID - 1);
+        float ch = m_iPaneH / (float)(GRID - 1);
+        array<ref @CLASS@Band> bands = {};
+        int b;
+        for (b = 0; b < BANDS + 1; b++) bands.Insert(new @CLASS@Band());
+        for (int row = 0; row < GRID - 1; row++)
+        {
+            for (int col = 0; col < GRID - 1; col++)
+            {
+                float h00 = HeightAt(col, row);
+                float h10 = HeightAt(col + 1, row);
+                float h01 = HeightAt(col, row + 1);
+                float h11 = HeightAt(col + 1, row + 1);
+                float avg = (h00 + h10 + h01 + h11) * 0.25;
+                int slot;
+                if (avg <= SEA_LEVEL_M) slot = BANDS;
+                else
+                {
+                    float t = (avg - m_fMinH) / range;
+                    slot = Math.Clamp(t * BANDS, 0, BANDS - 1);
+                }
+                // Preserve the original expression grouping and row/quad order.
+                float x = col * cw;
+                float y = m_iPaneH - row * ch;
+                float x2 = x + cw;
+                float y2 = y - ch;
+                array<ref TriMeshDrawCommand> bucket = bands[slot].chunks;
+                TriMeshDrawCommand mesh = null;
+                if (!bucket.IsEmpty()) mesh = bucket[bucket.Count() - 1];
+                if (!mesh || mesh.m_Vertices.Count() == MAX_QUADS_PER_MESH * 8)
+                {
+                    // Same once-per-populated-band conversion as the reference.
+                    // The earlier per-chunk candidate is retained separately.
+                    if (bucket.IsEmpty())
+                    {
+                        bands[slot].colour = BandColour(slot);
+                        if (slot == BANDS) bands[slot].colour = WaterColour();
+                    }
+                    mesh = new TriMeshDrawCommand();
+                    mesh.m_Vertices = new array<float>();
+                    mesh.m_Indices = new array<int>();
+                    mesh.m_iColor = bands[slot].colour;
+                    bucket.Insert(mesh);
+                }
+                array<float> v = mesh.m_Vertices;
+                array<int> ix = mesh.m_Indices;
+                int base = v.Count() / 2;
+                v.Insert(x);  v.Insert(y);
+                v.Insert(x2); v.Insert(y);
+                v.Insert(x2); v.Insert(y2);
+                v.Insert(x);  v.Insert(y2);
+                ix.Insert(base); ix.Insert(base + 1); ix.Insert(base + 2);
+                ix.Insert(base); ix.Insert(base + 2); ix.Insert(base + 3);
+            }
+        }
+        // Publication order is band-major, with row-major quads inside each band.
+        // Both the final command array and each mesh hold their referenced arrays.
+        for (b = 0; b < BANDS + 1; b++)
+            for (int c = 0; c < bands[b].chunks.Count(); c++) commands.Insert(bands[b].chunks[c]);
+    }
+}

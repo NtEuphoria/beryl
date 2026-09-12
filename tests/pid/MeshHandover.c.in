@@ -1,0 +1,57 @@
+// Verification-only instrumentation, gated by MESH's existing acceptance flag.
+modded class SPK_FlightController
+{
+    protected static bool s_BerylHandoverChecked;
+
+    protected void BerylSeed(SPK_PID pid)
+    {
+        pid.Step(2, 0, 0.25);
+        pid.Step(3, 1, 0.25);
+    }
+
+    protected bool BerylCleared(SPK_PID pid)
+    {
+        return pid.GetIntegral() == 0 && pid.be_f_last_5fmeasurement == 0
+            && !pid.be_f_has_5flast && pid.be_f_derivative_5ffiltered == 0
+            && pid.be_f_kp == m_fRateP && pid.be_f_ki == m_fRateI
+            && pid.be_f_kd == m_fRateD && pid.be_f_integral_5flimit == 1
+            && pid.be_f_derivative_5ftau == Math.Max(0, m_fRateDTau);
+    }
+
+    protected bool BerylAllCleared()
+    {
+        return BerylCleared(m_PidRoll) && BerylCleared(m_PidPitch)
+            && BerylCleared(m_PidYaw) && !m_bSaturated;
+    }
+
+    protected bool BerylHandover(IEntity owner)
+    {
+        SPK_AutonomyComponent autonomy = SPK_AutonomyComponent.Cast(owner.FindComponent(SPK_AutonomyComponent));
+        if (!autonomy || !m_PidRoll || !m_PidPitch || !m_PidYaw) return false;
+        SPK_PID roll = m_PidRoll;
+        SPK_PID pitch = m_PidPitch;
+        SPK_PID yaw = m_PidYaw;
+        BerylSeed(roll); BerylSeed(pitch); BerylSeed(yaw);
+        m_bSaturated = true;
+        if (roll.GetIntegral() == 0 || pitch.GetIntegral() == 0 || yaw.GetIntegral() == 0) return false;
+        if (!autonomy.SubmitManualFrame(new SPK_ManualFrame(0.5, 0, 0, 0, 1, 1000), 1000)) return false;
+        if (!autonomy.IsManual() || !BerylAllCleared()) return false;
+        BerylSeed(roll); BerylSeed(pitch); BerylSeed(yaw);
+        m_bSaturated = true;
+        autonomy.ReleaseManual();
+        if (autonomy.IsManual() || !BerylAllCleared()) return false;
+        // Reset must preserve the three generated controller objects as well.
+        return roll == m_PidRoll && pitch == m_PidPitch && yaw == m_PidYaw;
+    }
+
+    override void EOnFixedFrame(IEntity owner, float timeSlice)
+    {
+        if (SPK_AcceptanceTest.IsRequested() && !s_BerylHandoverChecked && IsAuthority(owner))
+        {
+            s_BerylHandoverChecked = true;
+            if (BerylHandover(owner)) Print("[BERYL-PID-HANDOVER] PASS @TOKEN@");
+            else Print("[BERYL-PID-HANDOVER] FAIL @TOKEN@");
+        }
+        super.EOnFixedFrame(owner, timeSlice);
+    }
+}

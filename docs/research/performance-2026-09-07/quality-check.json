@@ -1,0 +1,45 @@
+{
+  "status": "passed",
+  "structure": {
+    "hypotheses": [
+      "H01",
+      "H02",
+      "H03",
+      "H04",
+      "H05",
+      "H06",
+      "H07",
+      "H08",
+      "H09",
+      "H10",
+      "H11",
+      "H12",
+      "H13",
+      "H14"
+    ],
+    "counterexamples": 25,
+    "lines": 888,
+    "words": 11248,
+    "bytes": 85647,
+    "unique_web_sources": 25,
+    "balanced_fences": true,
+    "internal_tool_citations": false,
+    "replacement_characters": 0
+  },
+  "input_files_checked": 152,
+  "changed_inputs": [],
+  "unavailable_inputs": [],
+  "local_links": {
+    "checked": 25,
+    "missing": 0,
+    "out_of_range": 0,
+    "method": "Earlier read-only verification of all absolute Markdown file targets and line anchors"
+  },
+  "agent_review": "Three independent bounded reviews complete; six tightening themes incorporated",
+  "new_performance_measurements": false,
+  "new_engine_execution": false,
+  "compiler_or_mod_code_changed_by_research": false,
+  "published_report": "C:\\Users\\moham\\Desktop\\beryl\\docs\\BERYL_PERFORMANCE_RESEARCH_2026-09-07.md",
+  "published_sha256": "de8081dc7a6d22ece8422faeb70f9bd76aee3875f95f47cf5951a5aac1df27a3",
+  "canonical_matches_published": true
+}

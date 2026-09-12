@@ -8,6 +8,11 @@ Repository: `C:/Users/moham/Desktop/beryl`
 
 Recorded HEAD: `e151db1653063fe1cefd4c20146392d1606739ff`
 
+**Current implementation status:** see
+[FOUNDATION_IMPLEMENTATION.md](FOUNDATION_IMPLEMENTATION.md) for the September 6
+repairs and evidence. The findings below describe their recorded review snapshot;
+they are not an assertion that every listed defect remains in current source.
+
 **Purpose:** turn a comprehensive read-only review into a prioritized, verifiable work queue. This report preserves the owner's ambition: a language capable of competing with Rust on performance, security, speed of development, and systems-programming usefulness.
 
 ## Instructions for Claude Code

@@ -61,8 +61,12 @@ static void pr_expr(Pr *p, const Expr *e) {
         return;
     }
     switch (e->kind) {
-        case EX_INT: sb_fmt(&p->sb, "(int %llu)", (unsigned long long)e->int_lit.val); break;
-        case EX_FLOAT: sb_fmt(&p->sb, "(float %g)", e->float_lit.val); break;
+        case EX_INT:
+            sb_fmt(&p->sb, "(int %llu%.*s)", (unsigned long long)e->int_lit.val,
+                   (int)e->int_lit.suffix.len, e->int_lit.suffix.ptr); break;
+        case EX_FLOAT:
+            sb_fmt(&p->sb, "(float %.17g%.*s)", e->float_lit.val,
+                   (int)e->float_lit.suffix.len, e->float_lit.suffix.ptr); break;
         case EX_STR:
             sb_fmt(&p->sb, "(str \"%.*s\")", (int)e->str_lit.len, e->str_lit.ptr);
             break;

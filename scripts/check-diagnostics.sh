@@ -1,12 +1,22 @@
 #!/usr/bin/env bash
 # Every BE#### code emitted by the compiler must be documented.
-set -uo pipefail
+set -euo pipefail
+for required in dirname grep sort wc; do
+  if ! command -v "$required" >/dev/null 2>&1; then
+    printf 'diagnostic check: required utility unavailable: %s\n' "$required" >&2
+    exit 2
+  fi
+done
 cd "$(dirname "$0")/.."
 
 codes=$(grep -rhoE '(diag_error|diag_warn|[^a-z_](err|fail))\([^,]+, *[0-9]{3}' src/ \
         | grep -oE '[0-9]{3}$' | sort -n -u)
 
 missing=0
+if [ -z "$codes" ]; then
+  printf 'diagnostic check: no codes found; refusing an empty success\n' >&2
+  exit 1
+fi
 for c in $codes; do
   if ! grep -q "BE0$c" docs/DIAGNOSTICS.md 2>/dev/null; then
     echo "undocumented: BE0$c"

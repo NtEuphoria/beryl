@@ -9,9 +9,11 @@
  *   definite initialization — every read sees an initialized binding
  *   moves                   — a `sink` argument consumes its source
  *   exclusivity             — no two overlapping accesses when one is `inout`
+ *                             and projected destinations survive selection/RHS
  *
- * Exclusivity is what licenses `restrict` on every `inout` parameter in the
- * generated C, which is the aliasing information LLVM most wants.
+ * This binding-level analysis does not establish backing-storage disjointness.
+ * Global `restrict` remains disabled. Stronger generated alias contracts require
+ * a separately verified storage-identity and access-lifetime analysis.
  */
 #ifndef BERYL_OWNERSHIP_H
 #define BERYL_OWNERSHIP_H

@@ -1,35 +1,44 @@
-/* build.h — generate C, invoke clang, optionally run the result. */
+/* Native compilation and execution use isolated jobs and explicit argv. */
 #ifndef BERYL_BUILD_H
 #define BERYL_BUILD_H
-
 #include "../back/c_backend.h"
 #include "../common/diag.h"
 #include "../sema/resolve.h"
+#include "process.h"
+#include "../ir/ir.h"
 
 typedef struct {
-    const char *out_exe;   /* where to write the executable */
-    const char *cache_dir; /* scratch for generated C; created if absent */
-    bool        release;   /* -O2 rather than -O0 -g */
-    bool        keep_c;    /* leave the generated C in place for inspection */
-    CgenMode    mode;
+    const char *out_exe;   /* optional published output; never executed directly */
+    const char *cache_dir; /* parent of isolated job directories */
+    const char *clang;     /* native executable, no shell fragment */
+    uint32_t timeout_ms;
+    bool release;
+    bool save_native_evidence;
+    const char *requested_lowering; /* explicit ir is admitted for differential tests only */
+    const IrProgram *ir_tests; /* pre-admitted immutable test IR; no production ABI */
+    const char *optimization_policy; /* auto/off; no family is released yet */
+    Str disabled_optimizations_json;
+    CgenMode mode;
+    CgenTraceWatch trace_watch; /* bounded test-only observed output root */
 } BuildOpts;
+typedef struct {
+    const char *job_dir;
+    const char *exe;
+    const char *c_source;
+    ProcessResult compile;
+    ProcessResult run;
+    ProcessResult compiler_identity;
+    ProcessResult compiler_evidence;
+    bool identity_attempted;
+    bool evidence_attempted;
+    bool executed;
+    const char *native_evidence_path;
+    const char *selected_lowering;
+    Str sources_json, source_fingerprint, compiler_fingerprint, executable_fingerprint;
+} BuildResult;
 
-/* Compiles the program to a native executable. Returns false on failure,
- * having reported why. */
-bool build_native(Arena *a, SourceMap *sm, DiagBag *d, Program *p, BuildOpts o);
-
-/* Runs an executable, returning its exit code.
- *
- * Smart App Control on this machine blocks freshly built unsigned binaries
- * non-deterministically, so a blocked launch is detected and the caller is
- * told to rebuild rather than being handed a bogus exit status. See
- * docs/BUILDING.md. */
-typedef enum { RUN_OK, RUN_BLOCKED, RUN_FAILED } RunStatus;
-
-RunStatus run_exe(Arena *a, const char *exe, int *exit_code);
-
-/* Builds and runs, rebuilding with a fresh content hash when SAC blocks. */
-bool build_and_run(Arena *a, SourceMap *sm, DiagBag *d, Program *p, BuildOpts o,
-                   int *exit_code);
-
-#endif /* BERYL_BUILD_H */
+bool build_native(Arena *a, SourceMap *sm, DiagBag *d, Program *p,
+                  BuildOpts opts, BuildResult *result);
+bool build_and_run(Arena *a, SourceMap *sm, DiagBag *d, Program *p,
+                   BuildOpts opts, BuildResult *result, int *exit_code);
+#endif

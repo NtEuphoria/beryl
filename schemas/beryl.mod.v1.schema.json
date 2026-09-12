@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beryl.invalid/schemas/beryl.mod.v1.schema.json",
+  "title": "Beryl mod description, initial class export profile",
+  "description": "Local schema; no network lookup is required by the compiler or mod tool.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "name", "addon", "binding", "sources", "exports"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "schema_version": {"const": 1},
+    "name": {"type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[ -~]+$"},
+    "addon": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "guid", "dependencies"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "guid": {"$ref": "#/$defs/guid"},
+        "dependencies": {"type": "array", "items": {"$ref": "#/$defs/guid"}, "uniqueItems": true, "maxItems": 64}
+      }
+    },
+    "binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["target", "version"],
+      "properties": {
+        "target": {"const": "enfusion"},
+        "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"}
+      }
+    },
+    "sources": {
+      "type": "object", "additionalProperties": false,
+      "required": ["native", "enfusion", "tests"],
+      "properties": {
+        "native": {"$ref": "#/$defs/sourceSet"},
+        "enfusion": {"$ref": "#/$defs/sourceSet"},
+        "tests": {"$ref": "#/$defs/optionalSourceSet"}
+      }
+    },
+    "exports": {
+      "type": "array", "maxItems": 256,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["source", "name", "methods"],
+        "properties": {
+          "source": {"$ref": "#/$defs/symbol"},
+          "name": {"$ref": "#/$defs/identifier"},
+          "constructor": {"$ref": "#/$defs/symbol"},
+          "methods": {
+            "type": "array", "maxItems": 256,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["source", "name"],
+              "properties": {"source": {"$ref": "#/$defs/symbol"}, "name": {"$ref": "#/$defs/identifier"}}
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$", "maxLength": 120},
+    "symbol": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+$", "maxLength": 512},
+    "guid": {"type": "string", "pattern": "^[0-9A-F]{16}$"},
+    "source": {"type": "string", "pattern": "^[A-Za-z0-9_ ./-]+\\.be$", "maxLength": 512},
+    "sourceSet": {"type": "array", "minItems": 1, "maxItems": 1024, "uniqueItems": true, "items": {"$ref": "#/$defs/source"}},
+    "optionalSourceSet": {"type": "array", "maxItems": 1024, "uniqueItems": true, "items": {"$ref": "#/$defs/source"}}
+  }
+}

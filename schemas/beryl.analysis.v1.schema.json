@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:beryl:analysis:request:v1",
+  "title": "Beryl exact source snapshot analysis request, version 1",
+  "description": "A complete supplied source set. No imports or source discovery from disk. Duplicate decoded object keys are forbidden. Integers must use unsigned decimal JSON tokens without exponent or fractional syntax. Request size is at most 1 MiB. Every content_file is a regular, single-link, non-reparse adjacent file owned and retained by the adapter; the analyzer does not establish directory ownership.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "snapshot_version", "target", "forbid_unsafe", "sources"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "request_id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_.-]+$"},
+    "snapshot_version": {"$ref": "#/$defs/version"},
+    "target": {"enum": ["native", "enfusion", "reference"]},
+    "forbid_unsafe": {"type": "boolean"},
+    "expected_compiler_sha256": {"$ref": "#/$defs/hash"},
+    "sources": {
+      "type": "array", "minItems": 1, "maxItems": 64,
+      "description": "Compilation order. Logical paths and content_file names must each be unique after ASCII case folding. Files are at most 1 MiB each and 8 MiB total. Document versions are client correlation tokens, not a substitute for content hashes.",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["path", "sha256", "document_version", "content_file"],
+        "properties": {
+          "path": {
+            "type": "string", "minLength": 4, "maxLength": 1024,
+            "description": "Logical UTF-8 identity only, never opened. Maximum 1024 UTF-8 bytes. Relative forward-slash .be path, no empty/dot/dot-dot segments, control bytes, backslash, colon, double quote, angle brackets, vertical bar, question mark or asterisk; segments cannot end in a space or dot. Rejected, never normalized silently.",
+            "pattern": "^[^\\\\:<>|?*\"\u0000-\u001f\u007f]+\\.be$"
+          },
+          "sha256": {"$ref": "#/$defs/hash"},
+          "document_version": {"$ref": "#/$defs/version"},
+          "content_file": {
+            "type": "string", "minLength": 1, "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+            "description": "Adjacent ASCII basename. No final dot. CON, PRN, AUX, NUL, COM1-COM9 and LPT1-LPT9, including extension forms and ASCII case variants, are rejected. No subdirectories, absolute paths, streams, links or fallback to the logical path. These restrictions are also enforced by the C request validator."
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "version": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

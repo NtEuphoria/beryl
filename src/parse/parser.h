@@ -2,6 +2,8 @@
 #ifndef BERYL_PARSER_H
 #define BERYL_PARSER_H
 
+#include <setjmp.h>
+
 #include "../common/arena.h"
 #include "../common/diag.h"
 #include "../lex/lexer.h"
@@ -10,6 +12,14 @@
 /* Returns a Module even when errors were reported, so later passes can still
  * run over the well-formed parts. Check diag_errors() before trusting it. */
 Module *parse_file(Arena *a, DiagBag *d, Interner *in, TokenVec toks, uint32_t file);
+
+/* Per-file structural limits. Token admission occurs after lexing; these are
+ * not a lexer allocation limit or a whole-program compiler work budget. */
+#define PARSE_MAX_TOKENS 262144u
+#define PARSE_MAX_RECURSION 256u
+#define PARSE_MAX_AST_DEPTH 128u
+#define PARSE_MAX_AST_NODES 262144u
+#define PARSE_MAX_WORK 1048576u
 
 /* ---- shared parser state, used by parser.c and parser_expr.c ----------- */
 
@@ -25,7 +35,15 @@ typedef struct {
     bool no_struct_lit;
     /* Guards against a recovery loop making no forward progress. */
     uint32_t last_error_pos;
+    uint32_t recursion, work;
+    jmp_buf resource_exit; /* owned only by the active parse_file call */
 } P;
+
+void p_work(P *p);
+void p_enter(P *p);
+void p_leave(P *p);
+void p_validate_tokens(P *p);
+void p_validate_shape(P *p, Module *module);
 
 Token   p_peek(P *p);
 Token   p_peek2(P *p);

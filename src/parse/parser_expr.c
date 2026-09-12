@@ -47,9 +47,22 @@ static Expr *parse_bin(P *p, int min_bp);
 
 static Expr *parse_struct_lit(P *p, Expr *path_expr);
 
-Expr *parse_expr(P *p) { return parse_bin(p, 1); }
+Expr *parse_expr(P *p) {
+    p_enter(p);
+    Expr *result = parse_bin(p, 1);
+    p_leave(p);
+    return result;
+}
 
+static Expr *parse_bin_inner(P *p, int min_bp);
 static Expr *parse_bin(P *p, int min_bp) {
+    p_enter(p);
+    Expr *result = parse_bin_inner(p, min_bp);
+    p_leave(p);
+    return result;
+}
+
+static Expr *parse_bin_inner(P *p, int min_bp) {
     Expr *lhs = parse_unary(p);
     if (!lhs) return NULL;
 
@@ -123,7 +136,15 @@ static Expr *parse_bin(P *p, int min_bp) {
     return lhs;
 }
 
+static Expr *parse_unary_inner(P *p);
 static Expr *parse_unary(P *p) {
+    p_enter(p);
+    Expr *result = parse_unary_inner(p);
+    p_leave(p);
+    return result;
+}
+
+static Expr *parse_unary_inner(P *p) {
     TokKind k = p_kind(p);
     if (k == TK_MINUS || k == TK_BANG || k == TK_TILDE) {
         Token t   = p_next(p);
@@ -150,6 +171,11 @@ static Expr *parse_postfix(P *p) {
     if (!e) return NULL;
 
     for (;;) {
+        if (p_check(p, TK_LBRACE) && !p->no_struct_lit &&
+            (e->kind == EX_PATH || e->kind == EX_FIELD)) {
+            e = parse_struct_lit(p, e);
+            continue;
+        }
         if (p_check(p, TK_DOT)) {
             p_next(p);
             Token id    = p_peek(p);
@@ -272,7 +298,15 @@ static Expr *parse_struct_lit(P *p, Expr *path_expr) {
     return e;
 }
 
+static Expr *parse_if_inner(P *p);
 static Expr *parse_if(P *p) {
+    p_enter(p);
+    Expr *result = parse_if_inner(p);
+    p_leave(p);
+    return result;
+}
+
+static Expr *parse_if_inner(P *p) {
     Token kw = p_next(p); /* if */
 
     bool saved       = p->no_struct_lit;
@@ -338,6 +372,7 @@ static Expr *parse_primary(P *p) {
             Expr *e             = ast_expr(p->a, EX_FLOAT, t.span);
             e->float_lit.val    = t.fval;
             e->float_lit.suffix = t.suffix;
+            e->float_lit.spelling = t.number_text;
             return e;
         }
         case TK_STRING: {

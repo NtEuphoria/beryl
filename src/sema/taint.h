@@ -1,7 +1,6 @@
 /* taint.h — one dataflow engine, several policies.
  *
- * The same flow-sensitive walk serves three purposes, which is what makes it
- * affordable to build at all:
+ * A bounded monotone whole-program analysis serves three source policies:
  *
  *   @untrusted     values arriving from a network or RPC boundary must not
  *                  reach an index without being bounded first
@@ -10,10 +9,13 @@
  *   @server_only   a server-authoritative function must not be reachable from
  *                  client context
  *
- * HONESTY: this is a strong lint, not a proof. It is flow-sensitive and
- * conservative at merge points, but indirect flows through handles or computed
- * indices defeat it. docs/SECURITY.md states this as residual S3, and nothing
- * here should ever be described as making a program "safe".
+ * Record fields retain separate local provenance; indexed elements use a
+ * conservative summary. Calls, returned sources and mutable arguments propagate
+ * to a fixed point before diagnostics. Fixed-array integer bounds are separate
+ * facts, never universal removal of provenance. The initial call analysis is
+ * context-insensitive; symbolic summaries and dynamic-storage facts remain
+ * incomplete. Exhaustion fails explicitly with BE0608. This is not a claim of
+ * complete memory safety, runtime server authority or machine constant time.
  */
 #ifndef BERYL_TAINT_H
 #define BERYL_TAINT_H

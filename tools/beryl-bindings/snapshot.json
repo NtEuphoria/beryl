@@ -1,0 +1,537 @@
+{
+  "schema_version": 1,
+  "scope": "selected installed EnfusionScriptAPI declarations; no semantic contracts",
+  "engine": {
+    "version": "1.8.0.13",
+    "sha256": "7dd36ca1f662b0c13669a4f2f7f10e3c461c2906b021e742272d64b3ab7e9798",
+    "bytes": 67576376
+  },
+  "extractor_sha256": "8de3d901b53f2c2625aab94a2cae8d790e63589cf772fd328c6948d30eab9d5d",
+  "declarations": [
+    {
+      "name": "CanvasWidget.SetDrawCommands",
+      "owner": "CanvasWidget",
+      "signature": "proto external void SetDrawCommands (array< ref CanvasWidgetCommand > drawCommands)",
+      "kind": "method",
+      "source": {
+        "document": "interfaceCanvasWidget.html",
+        "document_sha256": "0c1266b8043610d347e647ce067be3bac118f4d1767cfafb0c0a62eb53f62ee2",
+        "anchor": "aaa494c2cf8fa351ee6a9d5a831df9fc2",
+        "byte_offset": 5140,
+        "byte_length": 372,
+        "line": 123,
+        "fragment_sha256": "67742ffb766f86c62eb220837ff503311961cb7b19384364ee1a0994c21fdf88"
+      }
+    },
+    {
+      "name": "Game.GetWorkspace",
+      "owner": "Game",
+      "signature": "WorkspaceWidget GetWorkspace ()",
+      "kind": "method",
+      "source": {
+        "document": "interfaceGame.html",
+        "document_sha256": "dfcab6b926646b8b56cdcbf38bb3e5f9809e96c9e3efaabc11cf806d6ec4b22e",
+        "anchor": "a57f89cdec83eff6ee5a728eacf0d3b6d",
+        "byte_offset": 5509,
+        "byte_length": 310,
+        "line": 123,
+        "fragment_sha256": "9fb01e37d8eae18fd8cd945319bc404dfd08b89dff5e6b54e2e2ad120f268523"
+      }
+    },
+    {
+      "name": "Math.AbsFloat",
+      "owner": "Math",
+      "signature": "static proto float AbsFloat (float f)",
+      "kind": "method",
+      "source": {
+        "document": "interfaceMath.html",
+        "document_sha256": "76cf907531aba36070c6331786c846d82838bfab0643f33f6fea4141da954f11",
+        "anchor": "a2b87186a31d126e9c233bf211728597d",
+        "byte_offset": 12904,
+        "byte_length": 351,
+        "line": 141,
+        "fragment_sha256": "0e7812e523ee79eb2971eb2f1eeb93e7b3966a761a485b5bd05bb4df54482156"
+      }
+    },
+    {
+      "name": "Math.AbsInt",
+      "owner": "Math",
+      "signature": "static proto int AbsInt (int i)",
+      "kind": "method",
+      "source": {
+        "document": "interfaceMath.html",
+        "document_sha256": "76cf907531aba36070c6331786c846d82838bfab0643f33f6fea4141da954f11",
+        "anchor": "abd77912fea06357baa9a5cacfcda8fc4",
+        "byte_offset": 13437,
+        "byte_length": 341,
+        "line": 143,
+        "fragment_sha256": "c7a6863140976b8c0a3ac6f39976d2c6e52b92b294c100b691b922b707201354"
+      }
+    },
+    {
+      "name": "Math.Clamp",
+      "owner": "Math",
+      "signature": "static proto float Clamp (float value, float min, float max)",
+      "kind": "method",
+      "source": {
+        "document": "interfaceMath.html",
+        "document_sha256": "76cf907531aba36070c6331786c846d82838bfab0643f33f6fea4141da954f11",
+        "anchor": "abaf58954d28a94db7d25de4accbb0d78",
+        "byte_offset": 29546,
+        "byte_length": 464,
+        "line": 189,
+        "fragment_sha256": "b64fb5cb1c20c2603d59f8d21d4a32d461be036f53b47e9a5940d68e4372dec2"
+      }
+    },
+    {
+      "name": "Math.ClampInt",
+      "owner": "Math",
+      "signature": "static proto int ClampInt (int value, int min, int max)",
+      "kind": "method",
+      "source": {
+        "document": "interfaceMath.html",
+        "document_sha256": "76cf907531aba36070c6331786c846d82838bfab0643f33f6fea4141da954f11",
+        "anchor": "a860d5b69aaaa7ccb049cf3fafca7d859",
+        "byte_offset": 30234,
+        "byte_length": 451,
+        "line": 191,
+        "fragment_sha256": "cdff7e1ecfeed5beb84d0e0cbeceba230e94bc1f20a521db51ad84b9cce7f3ed"
+      }
+    },
+    {
+      "name": "Math.Max",
+      "owner": "Math",
+      "signature": "static proto float Max (float x, float y)",
+      "kind": "method",
+      "source": {
+        "document": "interfaceMath.html",
+        "document_sha256": "76cf907531aba36070c6331786c846d82838bfab0643f33f6fea4141da954f11",
+        "anchor": "af13c7eeec9a7aafcd7010a31890fa2c4",
+        "byte_offset": 6686,
+        "byte_length": 400,
+        "line": 119,
+        "fragment_sha256": "c0a1b8c683929cf59047c0dcba236f6e7d28b3c9b458372259cb66307c5bb379"
+      }
+    },
+    {
+      "name": "Math.MaxInt",
+      "owner": "Math",
+      "signature": "static proto int MaxInt (int x, int y)",
+      "kind": "method",
+      "source": {
+        "document": "interfaceMath.html",
+        "document_sha256": "76cf907531aba36070c6331786c846d82838bfab0643f33f6fea4141da954f11",
+        "anchor": "a1b8a82e0baacf900dc5068e91d56ba97",
+        "byte_offset": 7301,
+        "byte_length": 391,
+        "line": 121,
+        "fragment_sha256": "b55ae827ae00535008028f0dc66c262c4b65cf66c9c82ec5b263485f5b8b0e71"
+      }
+    },
+    {
+      "name": "Math.Min",
+      "owner": "Math",
+      "signature": "static proto float Min (float x, float y)",
+      "kind": "method",
+      "source": {
+        "document": "interfaceMath.html",
+        "document_sha256": "76cf907531aba36070c6331786c846d82838bfab0643f33f6fea4141da954f11",
+        "anchor": "a47f760d312a442a0b4f6e89da24dd7b5",
+        "byte_offset": 6072,
+        "byte_length": 400,
+        "line": 117,
+        "fragment_sha256": "8decfd6b32617821efd46c68548d096a04ff6b66bbb30668619e61548edfc03d"
+      }
+    },
+    {
+      "name": "Math.MinInt",
+      "owner": "Math",
+      "signature": "static proto int MinInt (int x, int y)",
+      "kind": "method",
+      "source": {
+        "document": "interfaceMath.html",
+        "document_sha256": "76cf907531aba36070c6331786c846d82838bfab0643f33f6fea4141da954f11",
+        "anchor": "a4e931be1a54891a8f6f3097d35151601",
+        "byte_offset": 7907,
+        "byte_length": 391,
+        "line": 123,
+        "fragment_sha256": "8999efb7150c80055ea60d146cecd5b1385ced6840740ffc5991660f4dabb70d"
+      }
+    },
+    {
+      "name": "Math.Sqrt",
+      "owner": "Math",
+      "signature": "static proto float Sqrt (float val)",
+      "kind": "method",
+      "source": {
+        "document": "interfaceMath.html",
+        "document_sha256": "76cf907531aba36070c6331786c846d82838bfab0643f33f6fea4141da954f11",
+        "anchor": "a241bc13a3a2ef3942fff7643f1deb9eb",
+        "byte_offset": 13960,
+        "byte_length": 349,
+        "line": 145,
+        "fragment_sha256": "a1d684d9ada812ec338a9e9a981e63982a7aaa397e5194ffa3dfd5acbd1d338a"
+      }
+    },
+    {
+      "name": "System.GetTickCount",
+      "owner": "System",
+      "signature": "static proto int GetTickCount (int prev=0)",
+      "kind": "method",
+      "source": {
+        "document": "interfaceSystem.html",
+        "document_sha256": "8dd89af37df55914a074d500300f2ac4e9f3fceae696b5a620c3e7a2175c3116",
+        "anchor": "a5a202e5ab22d99955ca6ea9df97e4fda",
+        "byte_offset": 11943,
+        "byte_length": 352,
+        "line": 138,
+        "fragment_sha256": "ab52acf7da1516c1aa4f4414f97b3b7a08303005f45889db67f1e1544d40195b"
+      }
+    },
+    {
+      "name": "System.MemoryAllocationCount",
+      "owner": "System",
+      "signature": "static proto int MemoryAllocationCount ()",
+      "kind": "method",
+      "source": {
+        "document": "interfaceSystem.html",
+        "document_sha256": "8dd89af37df55914a074d500300f2ac4e9f3fceae696b5a620c3e7a2175c3116",
+        "anchor": "aa53c37da8654a167a4d436b6442194d5",
+        "byte_offset": 4953,
+        "byte_length": 308,
+        "line": 113,
+        "fragment_sha256": "5ded69134f280f230e54093475afc2a84ae2cfcff3679e944c4e8b003c601cf9"
+      }
+    },
+    {
+      "name": "System.MemoryAllocationKB",
+      "owner": "System",
+      "signature": "static proto int MemoryAllocationKB ()",
+      "kind": "method",
+      "source": {
+        "document": "interfaceSystem.html",
+        "document_sha256": "8dd89af37df55914a074d500300f2ac4e9f3fceae696b5a620c3e7a2175c3116",
+        "anchor": "ad0e3fddb19e15aa1d43dcaee32503ac0",
+        "byte_offset": 5432,
+        "byte_length": 305,
+        "line": 115,
+        "fragment_sha256": "5a6aa06b9f17b4620eff3c64c01ded84c0ad27807604796e23d78ca2daddf740"
+      }
+    },
+    {
+      "name": "TriMeshDrawCommand.m_Indices",
+      "owner": "TriMeshDrawCommand",
+      "signature": "ref array< int > m_Indices",
+      "kind": "field",
+      "source": {
+        "document": "interfaceTriMeshDrawCommand.html",
+        "document_sha256": "6b022bf92786b515fa4d1c098da286b45ca74190dce1103111bf31decc8b159f",
+        "anchor": "a06c50eba36d5b4e20f3e4f53f25ad3c7",
+        "byte_offset": 5706,
+        "byte_length": 299,
+        "line": 124,
+        "fragment_sha256": "0acd7d5fb1c16694676ac05a6ce9f5ba555d4fd29f0b84b680cced51493747c1"
+      }
+    },
+    {
+      "name": "TriMeshDrawCommand.m_Vertices",
+      "owner": "TriMeshDrawCommand",
+      "signature": "ref array< float > m_Vertices",
+      "kind": "field",
+      "source": {
+        "document": "interfaceTriMeshDrawCommand.html",
+        "document_sha256": "6b022bf92786b515fa4d1c098da286b45ca74190dce1103111bf31decc8b159f",
+        "anchor": "a02a8d727f4e1f43ee0fd8fa3ac0a72f1",
+        "byte_offset": 5224,
+        "byte_length": 304,
+        "line": 122,
+        "fragment_sha256": "a899cc1626b8eb0b245ce5eaef014910a4d1d6d00fe28229685c23faff6d6acc"
+      }
+    },
+    {
+      "name": "TriMeshDrawCommand.m_fUVScale",
+      "owner": "TriMeshDrawCommand",
+      "signature": "float m_fUVScale",
+      "kind": "field",
+      "source": {
+        "document": "interfaceTriMeshDrawCommand.html",
+        "document_sha256": "6b022bf92786b515fa4d1c098da286b45ca74190dce1103111bf31decc8b159f",
+        "anchor": "aeca3afb28ba6a83b80c01181e28a4524",
+        "byte_offset": 6185,
+        "byte_length": 285,
+        "line": 126,
+        "fragment_sha256": "2b7f9af9629b7a51dcc362d2a319893b530decf6ba7c5f0c7fa89c706bdf5db5"
+      }
+    },
+    {
+      "name": "TriMeshDrawCommand.m_iColor",
+      "owner": "TriMeshDrawCommand",
+      "signature": "int m_iColor = 0xff000000",
+      "kind": "field",
+      "source": {
+        "document": "interfaceTriMeshDrawCommand.html",
+        "document_sha256": "6b022bf92786b515fa4d1c098da286b45ca74190dce1103111bf31decc8b159f",
+        "anchor": "aa826bda4808d5e7fbdad7314eea66d27",
+        "byte_offset": 4931,
+        "byte_length": 292,
+        "line": 121,
+        "fragment_sha256": "658cb6b11999990d2b110db8bb0602fcb547dce30ca01228d9433f9452c3663f"
+      }
+    },
+    {
+      "name": "TriMeshDrawCommand.m_pTexture",
+      "owner": "TriMeshDrawCommand",
+      "signature": "ref SharedItemRef m_pTexture",
+      "kind": "field",
+      "source": {
+        "document": "interfaceTriMeshDrawCommand.html",
+        "document_sha256": "6b022bf92786b515fa4d1c098da286b45ca74190dce1103111bf31decc8b159f",
+        "anchor": "a7a7287e754156409a63d539f915346cb",
+        "byte_offset": 6471,
+        "byte_length": 305,
+        "line": 127,
+        "fragment_sha256": "798f6272c7967bf19ad855117bde3800b8b5838ac4b9bfdd9096279f131033f9"
+      }
+    },
+    {
+      "name": "WorkspaceWidget.CreateWidget",
+      "owner": "WorkspaceWidget",
+      "signature": "proto external Widget CreateWidget (WidgetType type, WidgetFlags flags, Color color, int sort, Widget parentWidget=NULL)",
+      "kind": "method",
+      "source": {
+        "document": "interfaceWorkspaceWidget.html",
+        "document_sha256": "8d6e1d305bdf44ac5d1b1fdd4b373674ef506e742bc81d838fa120ad1d5a91e5",
+        "anchor": "a0e305c63a6f658f014bfae975af9c48d",
+        "byte_offset": 13862,
+        "byte_length": 649,
+        "line": 155,
+        "fragment_sha256": "f50c20b461cc6581e2742b705d6d01c9096308bd40ef2f7d57d2dd145fc23895"
+      }
+    },
+    {
+      "name": "WorkspaceWidget.CreateWidgetInWorkspace",
+      "owner": "WorkspaceWidget",
+      "signature": "proto external Widget CreateWidgetInWorkspace (WidgetType type, int left, int top, int width, int height, WidgetFlags flags, Color color, int sort)",
+      "kind": "method",
+      "source": {
+        "document": "interfaceWorkspaceWidget.html",
+        "document_sha256": "8d6e1d305bdf44ac5d1b1fdd4b373674ef506e742bc81d838fa120ad1d5a91e5",
+        "anchor": "acf216aaf5ec8717bcfe88676d279bdaa",
+        "byte_offset": 14800,
+        "byte_length": 802,
+        "line": 157,
+        "fragment_sha256": "2b86cb940756824680a024c626015e66c7ea1278c1a8aac8dd7742a661d3cfe8"
+      }
+    },
+    {
+      "name": "array.Clear",
+      "owner": "array",
+      "signature": "proto native void Clear ()",
+      "kind": "method",
+      "source": {
+        "document": "interfacearray-1-g.html",
+        "document_sha256": "060248890d8dcb9598c3fd9a0bbee4e73f750b2b2b94e2128add7ae1ed003f3a",
+        "anchor": "a54ed03eb697852a1bfc87ab231681947",
+        "byte_offset": 6243,
+        "byte_length": 250,
+        "line": 128,
+        "fragment_sha256": "91b8a392a47d4bc6862bdb4c3a31b7198a6558ea5cc45569b41d3a803c9f482f"
+      }
+    },
+    {
+      "name": "array.Compact",
+      "owner": "array",
+      "signature": "proto native void Compact ()",
+      "kind": "method",
+      "source": {
+        "document": "interfacearray-1-g.html",
+        "document_sha256": "060248890d8dcb9598c3fd9a0bbee4e73f750b2b2b94e2128add7ae1ed003f3a",
+        "anchor": "a9597e2c7ece9372a8d99ad124a255fb0",
+        "byte_offset": 6682,
+        "byte_length": 252,
+        "line": 130,
+        "fragment_sha256": "feb808f451b9a5c30f24649308c9e1a283178b262c0c43f5968d76996dce6269"
+      }
+    },
+    {
+      "name": "array.Copy",
+      "owner": "array",
+      "signature": "proto int Copy (notnull array< T > from)",
+      "kind": "method",
+      "source": {
+        "document": "interfacearray-1-g.html",
+        "document_sha256": "060248890d8dcb9598c3fd9a0bbee4e73f750b2b2b94e2128add7ae1ed003f3a",
+        "anchor": "ab025060f5d38880701043cb714b24ea2",
+        "byte_offset": 13751,
+        "byte_length": 313,
+        "line": 159,
+        "fragment_sha256": "3a7a49674ce42c7a71da225dd290f1b6b25b2d7777098ba3ccc48c3944e2f9e0"
+      }
+    },
+    {
+      "name": "array.Count",
+      "owner": "array",
+      "signature": "proto native int Count ()",
+      "kind": "method",
+      "source": {
+        "document": "interfacearray-1-g.html",
+        "document_sha256": "060248890d8dcb9598c3fd9a0bbee4e73f750b2b2b94e2128add7ae1ed003f3a",
+        "anchor": "a7e690f1df380da67ee52c7f7350b65f8",
+        "byte_offset": 5508,
+        "byte_length": 292,
+        "line": 125,
+        "fragment_sha256": "0b8ba7cbc1fea11dbaf6cea0cc6db2ccb83a8f5573de891f0ead8a7c8a51e43a"
+      }
+    },
+    {
+      "name": "array.Get",
+      "owner": "array",
+      "signature": "proto T Get (int n)",
+      "kind": "method",
+      "source": {
+        "document": "interfacearray-1-g.html",
+        "document_sha256": "060248890d8dcb9598c3fd9a0bbee4e73f750b2b2b94e2128add7ae1ed003f3a",
+        "anchor": "ab9b830e3fbe5259a8c02d6193c7d2786",
+        "byte_offset": 8589,
+        "byte_length": 286,
+        "line": 138,
+        "fragment_sha256": "8fa6450e047b0392419b4ea4f6b4d13c15831190d026f336c646dd0f6ee2f43a"
+      }
+    },
+    {
+      "name": "array.Insert",
+      "owner": "array",
+      "signature": "proto int Insert (T value)",
+      "kind": "method",
+      "source": {
+        "document": "interfacearray-1-g.html",
+        "document_sha256": "060248890d8dcb9598c3fd9a0bbee4e73f750b2b2b94e2128add7ae1ed003f3a",
+        "anchor": "ac1d500d3ca393e575e8af02daeaba8b1",
+        "byte_offset": 8876,
+        "byte_length": 293,
+        "line": 139,
+        "fragment_sha256": "7bdbecde05598181a634585e2487afcfabddd85488535fdff6adf3b23a9c306e"
+      }
+    },
+    {
+      "name": "array.InsertAll",
+      "owner": "array",
+      "signature": "void InsertAll (notnull array< T > from)",
+      "kind": "method",
+      "source": {
+        "document": "interfacearray-1-g.html",
+        "document_sha256": "060248890d8dcb9598c3fd9a0bbee4e73f750b2b2b94e2128add7ae1ed003f3a",
+        "anchor": "a73180a76291cbac40b050bc29c1f31fb",
+        "byte_offset": 9901,
+        "byte_length": 270,
+        "line": 143,
+        "fragment_sha256": "8c738c5d2a19c73fb06f360e901c31408d199d75264af80c37371d9fe23062b5"
+      }
+    },
+    {
+      "name": "array.IsEmpty",
+      "owner": "array",
+      "signature": "proto native bool IsEmpty ()",
+      "kind": "method",
+      "source": {
+        "document": "interfacearray-1-g.html",
+        "document_sha256": "060248890d8dcb9598c3fd9a0bbee4e73f750b2b2b94e2128add7ae1ed003f3a",
+        "anchor": "a14aa8d095dcb29ae5f89c52ae29461e8",
+        "byte_offset": 5946,
+        "byte_length": 296,
+        "line": 127,
+        "fragment_sha256": "a4e465c54421c8049b182e6e3bc9595c38900b243286cbca60c2d7a3281d32d1"
+      }
+    },
+    {
+      "name": "array.Remove",
+      "owner": "array",
+      "signature": "proto native void Remove (int index)",
+      "kind": "method",
+      "source": {
+        "document": "interfacearray-1-g.html",
+        "document_sha256": "060248890d8dcb9598c3fd9a0bbee4e73f750b2b2b94e2128add7ae1ed003f3a",
+        "anchor": "aab5848df192317d402700f25adf50760",
+        "byte_offset": 10333,
+        "byte_length": 303,
+        "line": 145,
+        "fragment_sha256": "a890e79fa47e8f332041d18806dcb816533ed2240312562c720c0d88dfe2e1b6"
+      }
+    },
+    {
+      "name": "array.RemoveOrdered",
+      "owner": "array",
+      "signature": "proto native void RemoveOrdered (int index)",
+      "kind": "method",
+      "source": {
+        "document": "interfacearray-1-g.html",
+        "document_sha256": "060248890d8dcb9598c3fd9a0bbee4e73f750b2b2b94e2128add7ae1ed003f3a",
+        "anchor": "ab16232067a7c6593d8eb3430a070a091",
+        "byte_offset": 10793,
+        "byte_length": 310,
+        "line": 147,
+        "fragment_sha256": "406de6a7b6cdc0e2814fbd8900712c53bcc42293666374f5224f3ce6dcfed75c"
+      }
+    },
+    {
+      "name": "array.Reserve",
+      "owner": "array",
+      "signature": "proto native void Reserve (int newSize)",
+      "kind": "method",
+      "source": {
+        "document": "interfacearray-1-g.html",
+        "document_sha256": "060248890d8dcb9598c3fd9a0bbee4e73f750b2b2b94e2128add7ae1ed003f3a",
+        "anchor": "a4f2bde991c49a59d83eb017ed97245a6",
+        "byte_offset": 11761,
+        "byte_length": 306,
+        "line": 151,
+        "fragment_sha256": "0abf94a12b6138c82a28813bdcfc9d89b1c97d84cab49e16d9d317c22b598d82"
+      }
+    },
+    {
+      "name": "array.Resize",
+      "owner": "array",
+      "signature": "proto native void Resize (int newSize)",
+      "kind": "method",
+      "source": {
+        "document": "interfacearray-1-g.html",
+        "document_sha256": "060248890d8dcb9598c3fd9a0bbee4e73f750b2b2b94e2128add7ae1ed003f3a",
+        "anchor": "ac4ebdc4b5119a328572526c316201f97",
+        "byte_offset": 11294,
+        "byte_length": 305,
+        "line": 149,
+        "fragment_sha256": "0313e274935da263bf21454579b585dea7f116167f3f9f4ab09cc0c3e14f14a3"
+      }
+    },
+    {
+      "name": "array.Set",
+      "owner": "array",
+      "signature": "proto void Set (int n, T value)",
+      "kind": "method",
+      "source": {
+        "document": "interfacearray-1-g.html",
+        "document_sha256": "060248890d8dcb9598c3fd9a0bbee4e73f750b2b2b94e2128add7ae1ed003f3a",
+        "anchor": "a5c16228eaa5b3e6e0bece06fe9bfcaa5",
+        "byte_offset": 7110,
+        "byte_length": 298,
+        "line": 132,
+        "fragment_sha256": "52548f7ee038b511b18614069cc35664cad8cc628eff45283b6b1bac9688008f"
+      }
+    },
+    {
+      "name": "array.Swap",
+      "owner": "array",
+      "signature": "proto native void Swap (notnull array< T > other)",
+      "kind": "method",
+      "source": {
+        "document": "interfacearray-1-g.html",
+        "document_sha256": "060248890d8dcb9598c3fd9a0bbee4e73f750b2b2b94e2128add7ae1ed003f3a",
+        "anchor": "a30dd5714925597f519277fff216d2877",
+        "byte_offset": 12241,
+        "byte_length": 279,
+        "line": 153,
+        "fragment_sha256": "4a6f87083eab6884001627188cfa0ace6962cf278e0198a0e9b5afa7085dfd0b"
+      }
+    }
+  ]
+}

@@ -14,6 +14,12 @@ It does not mean the identified compiler defects have been fixed or reproduced b
 Sections 45 and 46 resolve earlier recommendations where they explicitly name a replacement policy.
 The current language specification remains the authority for implemented behavior.
 
+**Implementation follow-up (September 6, 2026):** the owner subsequently authorized
+code changes. [FOUNDATION_IMPLEMENTATION.md](FOUNDATION_IMPLEMENTATION.md) records
+the implemented foundation repairs, executing tests, real Workbench compile probes
+and remaining blockers. Read it before implementing a historical finding again.
+The performance models and larger subsystems in this blueprint remain proposals.
+
 The ambition is to make Beryl unusually good at expressing and executing game logic:
 fast enough to challenge carefully optimized Rust on selected native workloads,
 efficient when lowered to EnforceScript, and straightforward for an AI to author,

@@ -1,0 +1,768 @@
+{
+  "schema_version": 1,
+  "purpose": "Read-only research input snapshot; not evidence that these bytes have been benchmarked",
+  "captured_utc": "2026-09-07T17:43:43.9029948Z",
+  "git_head": "a2405eac14e2098a8f6b2f68183f04137fb28e3d",
+  "files": [
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\build\\beryl.exe",
+      "bytes": 404992,
+      "sha256": "c7a7b3b10221b74f9078aeded70206f34f2c76d9b4242f8d0bea6455dac31f85"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\docs\\BENCHMARKS.md",
+      "bytes": 5379,
+      "sha256": "212a7292e7be088e5fa88558e05fa888d71a84b20981ae36bed7eb4ef0dfb937"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\docs\\BERYL_OPTIMIZATION_AND_ENFUSION_BLUEPRINT.md",
+      "bytes": 296819,
+      "sha256": "e4c80525739cda005b51a62b4fd78972291edc8609522ee0ab391318934de5f8"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\docs\\M4_IMPLEMENTATION.md",
+      "bytes": 4767,
+      "sha256": "63044bd662d5477ceb11963f18577b305471ab4c78796188065959e905de290a"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\docs\\SPARKOS_IMPLEMENTATION_PLAN.md",
+      "bytes": 20077,
+      "sha256": "3aa6286903c00a6b644a85d0fbdc38e0b07f9bb66ed9054d494859b19ddd7ff1"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\docs\\SPARKOS_IMPLEMENTATION_STATE.md",
+      "bytes": 12460,
+      "sha256": "af352b4c5cd51845c496c30e885afea86c383a5be4b58014af22ed51df76f986"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\packages\\sparkos\\pid\\beryl.mod.json",
+      "bytes": 1055,
+      "sha256": "f30d95e9a65f4952b3d94afc24f2ef2868963569915daf65ef026039bb0e8409"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\packages\\sparkos\\pid\\pid_test.be",
+      "bytes": 5078,
+      "sha256": "b8aa2931371d10e9a226e87558962826663663421702dcd559a5c9b9445ae0e6"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\packages\\sparkos\\pid\\pid.be",
+      "bytes": 2509,
+      "sha256": "d0a2476377a82e1175fb9af197cb0506d337d6655a34e4117e7d3932460d978f"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\packages\\sparkos\\pid\\README.md",
+      "bytes": 3714,
+      "sha256": "e95482aa324b251d4a243823558037d9d5a57157e2251467c1e0e7f06a680280"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\packages\\sparkos\\pid\\reference\\SPK_PID.c.fixture",
+      "bytes": 4014,
+      "sha256": "f03f8588b9c4c4298db1e933b4aafab5e778725faf30b4c734e23aa2b1bb2460"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\runtime\\beryl_rt.c",
+      "bytes": 4308,
+      "sha256": "924105db22b9f7893d7400fe91ddfa455be6cdd9f3810bfe2bf63eace42bc283"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\runtime\\beryl_rt.h",
+      "bytes": 17335,
+      "sha256": "ec39e08209b6c04d6b3fc6a71acb89e097c0dfbfe07544faf6dac1003f507beb"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\schemas\\beryl.mod.v1.schema.json",
+      "bytes": 2908,
+      "sha256": "619ad1693807d87827c5160353f00fab84e1578d5e553e939d8620bea80aee95"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\back\\c_backend.c",
+      "bytes": 59711,
+      "sha256": "12838c1d382ce6aa26b27d3e1fa758099cbb7361ee9aeec555a4555a5874c8de"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\back\\c_backend.h",
+      "bytes": 778,
+      "sha256": "06f9ee0f2fa9383a380c8e8ee00c91342a70601adff827b7781ab911c15431e2"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\back\\enforce_backend.c",
+      "bytes": 29243,
+      "sha256": "afcc3ccfeb033c054aedd207c976f151d2f21329d2a481367a9f564bf31afca7"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\back\\enforce_backend.h",
+      "bytes": 2118,
+      "sha256": "2c7517dc6328dc2dae0f500ddf8f5ef68e86cbc206c3ca780090c48a50e4f536"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\back\\enforce_exports.c",
+      "bytes": 7206,
+      "sha256": "37edf331e7300e112de79180184bb68128fcfe1e3502273f40d11913133d64cc"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\back\\enforce_expr.c",
+      "bytes": 35865,
+      "sha256": "1efd6e6bc45570803f3c2f72843999d5eac4d85b3f32c5d7c3475bf719948326"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\back\\enforce_int.h",
+      "bytes": 2829,
+      "sha256": "87bd49c510c78b86ddef9e4081114bb95405d2a9886247961eed869625a52af5"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\back\\runtime_embed.h",
+      "bytes": 25697,
+      "sha256": "2460991cab99e18f330e95e0cd0fee83ed4e8233bfe74ff68df3b3ce7e522a54"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\arena.c",
+      "bytes": 2567,
+      "sha256": "2833ae3b2182c20b977d7a3eab2968c57db7295508321042c2f082758935d8b4"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\arena.h",
+      "bytes": 1154,
+      "sha256": "b3049a1fa67a86f50c37b5b443dced1560aa626ee20a83ee32325ba61e327c24"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\diag.c",
+      "bytes": 11691,
+      "sha256": "24635b712eeb8e352681495625bca86f4e1b168f4551faf67fc7a623bd9cd97b"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\diag.h",
+      "bytes": 2046,
+      "sha256": "4b871a8433bf9836d78fc574c0b1680966503b3ec0f57c4e3073f0bf3212f089"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\fs.c",
+      "bytes": 6385,
+      "sha256": "8ea6f1ffb1c6194c48d6ac1f88e2515126f39729d68a231aa5b85ba122ffc260"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\fs.h",
+      "bytes": 971,
+      "sha256": "08b764f790594ba1427faf77cd90e2a24430f8af170e6f2b8adc2a4c179ad768"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\hash.c",
+      "bytes": 3021,
+      "sha256": "f79a503957b924f8793781bfbf7f6ed98f3c10287abb05ecd6259d4935f07c0e"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\hash.h",
+      "bytes": 419,
+      "sha256": "6bdfa5f30f957578922be984d319419319f7707f34c93ea5c6c7b77357b7f859"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\json.c",
+      "bytes": 1523,
+      "sha256": "572df2807777f9574f25f90be889604c74b9166e4409fead464eff6eacfcb7ba"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\json.h",
+      "bytes": 101,
+      "sha256": "267ae51e50dd274a0440f5d15ed4b4522f453686d24d71a7bef14655def21327"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\map.c",
+      "bytes": 2602,
+      "sha256": "9efb432050eedbe700905ff4fa3b0bacb160d1c789c34b7d917f58a33ae781a0"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\map.h",
+      "bytes": 818,
+      "sha256": "218aa7235d0f432587ea90e03a97d6b2cd44985178714453298275277b08f4c1"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\source.c",
+      "bytes": 2335,
+      "sha256": "87c34ae192ad5f511deae6a496ca3df099be3228690ecc007d38413710776da5"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\source.h",
+      "bytes": 1444,
+      "sha256": "8c27f69b95907f559878c888b72e2fd9252bf995d3680e34ffb660403f722cdd"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\str.c",
+      "bytes": 4695,
+      "sha256": "2c7256641147d307417e5cb1e7ed02473e9f3663015a941fbbf6bed41ffbe642"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\str.h",
+      "bytes": 2208,
+      "sha256": "e3e9da6ee53a363d83e67733ba00a433a73db1311472ac0183e73879f5c70f21"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\symbol.c",
+      "bytes": 434,
+      "sha256": "9f62b839addba900affbfe672d06d85e9f4897c6bbd1ac66e0584cf883cc9774"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\symbol.h",
+      "bytes": 288,
+      "sha256": "3bd69c9a2e2009bd52aec95bcc35f898c4dcc258e2cd310c95becf238ae2c282"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\vec.c",
+      "bytes": 419,
+      "sha256": "6d45fa76d45d2db156866319746aa0f4b8f5afa0d5fa010ad75fcbec284029c7"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\common\\vec.h",
+      "bytes": 2073,
+      "sha256": "3902711dcf32a420080b2c4d4914d83b74ab61490057be70c1595abde13c030f"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\driver\\audit.c",
+      "bytes": 5918,
+      "sha256": "916b44199455ab6677664a9f342c2fc6afdeb834580daae29e5d1d6e1dd4055e"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\driver\\audit.h",
+      "bytes": 260,
+      "sha256": "3cac3c58e6d30666051036c724da1a233c2bc95f53141e95ff559d8ad85da4cb"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\driver\\build.c",
+      "bytes": 6767,
+      "sha256": "4ea56440468e86a658e033991158ef51151a2d8584b55d002b4c8edd52a4f26b"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\driver\\build.h",
+      "bytes": 1077,
+      "sha256": "5d24276e81dac03cc40c167ad7345e32435efd3e6a621d39c044571029ca6258"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\driver\\identity.c",
+      "bytes": 716,
+      "sha256": "8b44531b74c90b059b69bb2fce69f54f88e11383af59148bfccadc3e6fad974c"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\driver\\identity.h",
+      "bytes": 282,
+      "sha256": "a2f0ddf9713534a055c9775a334a294f01f25655d743b16aa1d3b5fbdc1541b9"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\driver\\main.c",
+      "bytes": 25972,
+      "sha256": "54993608a05e3d20a5e851920a7376f2d3dda06c23c391d8aa5015015f09a94a"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\driver\\manifest.c",
+      "bytes": 7467,
+      "sha256": "33e7afe66c21c3c23629ae5ed0cdd455da75921c7b719f445bc8f9dee71195d7"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\driver\\manifest.h",
+      "bytes": 990,
+      "sha256": "cf582de095b6f9edb69950ebed7b15ed40e6c7f1003274b6c15c901295039256"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\driver\\mod_driver.c",
+      "bytes": 2646,
+      "sha256": "14b158e744cb4ba6cbd41c10c9feb73776982ebdeb35df91b57e195975747a6a"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\driver\\mod_driver.h",
+      "bytes": 100,
+      "sha256": "0364ecdd4621bdccbc9debd0090b38896299f662f2c174b9d416a9236fc5d7a8"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\driver\\process.c",
+      "bytes": 10641,
+      "sha256": "84e6b151a12b35248de0d37679c9efad496e5dc3cc2a929c20c85d75def45066"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\driver\\process.h",
+      "bytes": 1308,
+      "sha256": "b6cf858a7780742bc130128c5f2f361c61f1e85a7bd6614cafe6dbb260d2c792"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\driver\\reference_driver.c",
+      "bytes": 6369,
+      "sha256": "c6b648a658d840a2e3eab50c325e0f71998ea0ce38a18c6216738b8c4ef3e422"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\driver\\reference_driver.h",
+      "bytes": 280,
+      "sha256": "31b07a16192aeb85da2d5b8a4bc0f93a24aa531f6ffafc4884187baa402d21ba"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\lex\\lexer.c",
+      "bytes": 21136,
+      "sha256": "67aaa859564e8414d75ccaef40a18b26547eedd661e9409c7015717403601e0d"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\lex\\lexer.h",
+      "bytes": 833,
+      "sha256": "b33e98d97b4515787ece777824330b8b2d7501d895836e4f2b7dd5173ddcc1e3"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\lex\\token.h",
+      "bytes": 2490,
+      "sha256": "26a32e1f0b6cfea21e227f627f1812b4a7a6fbfd3390da66fb394c70e7052383"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\parse\\ast.c",
+      "bytes": 1039,
+      "sha256": "906375ff5780e3dc677478a7710b60bc4a418a0991350bb70262cc25753f035a"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\parse\\ast.h",
+      "bytes": 9506,
+      "sha256": "5cca02fae2f8976d41ae073130a5b1ca47ab76e753fa6e949a274a878e2fc492"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\parse\\format.c",
+      "bytes": 17106,
+      "sha256": "90b66632f955d5f281fffeb4f58f4dc6c90a2d29ff3a5c23019c55079db757e6"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\parse\\parser_expr.c",
+      "bytes": 14716,
+      "sha256": "85bbb3c9585b407721f9bc230767d1f37268b27dcbb967c26f30d258104e401f"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\parse\\parser_item.c",
+      "bytes": 15783,
+      "sha256": "0cfbc7a7f1d758fe66bd0557ee5fbd809c4b56ceb735cc83b40ff99ec736b03a"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\parse\\parser.c",
+      "bytes": 9741,
+      "sha256": "b6a7bfdaa773ca7103ed7b661ad1342d637adcecf33e5efbfa874a9c9bdc6754"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\parse\\parser.h",
+      "bytes": 1410,
+      "sha256": "b50adb5327a3dab9436504575579b5a9a0e99dff98288bd40b8c8b0ab4bf1390"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\parse\\print.c",
+      "bytes": 14495,
+      "sha256": "3da66147c799deea93088cfc5a8c3597d2e446a210fa6a10d1cdb8760eb481ba"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\parse\\print.h",
+      "bytes": 492,
+      "sha256": "aa9291203df7aef23e6279882296151013aab27c5ebc59b07965c85edc0e71eb"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\reference\\admit.c",
+      "bytes": 6044,
+      "sha256": "ade330c462fef87145f1db507f75f695406b9cac47c10ef62da91f7c9e00a0d7"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\reference\\arithmetic.c",
+      "bytes": 5767,
+      "sha256": "ebdba0f7b83a8e51cd8a233db8f2d2fa8b12317b67596c928d128a53abbe35cf"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\reference\\eval.c",
+      "bytes": 11036,
+      "sha256": "6f818ea3cfe676d8cdee2152c65437f8f3b16d80ff4c811480c8396d5b5edce3"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\reference\\internal.h",
+      "bytes": 1755,
+      "sha256": "703294b9bbb1ad672e4c1822f6ac793ac8c3484454994e7df290ebf7b3639419"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\reference\\reference.h",
+      "bytes": 1009,
+      "sha256": "67867c5112c2d22c9bd60ed5646b317e0a7fc54bd57ac2a286b92e29ebc22805"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\reference\\value.c",
+      "bytes": 8654,
+      "sha256": "5da1d3c2b8eb5b5d89373ca79ed82b8c4d4351f4c6e55e993eeed118a4dc0f16"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\check_expr.c",
+      "bytes": 44946,
+      "sha256": "8e1535358942224b730d4ea044bf4bb7eea13ebbd844db626e3f66e2426ac00a"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\check.c",
+      "bytes": 14109,
+      "sha256": "bb4ef64db43d9b6a213461e3ae519074abb9a876c771d1b1d23aea77e3d28cee"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\check.h",
+      "bytes": 1494,
+      "sha256": "056b64ca499bf8e20ebb4c633c40353d0f007447af4b674d5160cd7a0563d632"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\constfold.c",
+      "bytes": 13413,
+      "sha256": "425147ef3b7b55201e6189d00e5475583ae1e15abb90498a5e1b08bce6d3bf77"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\constfold.h",
+      "bytes": 1356,
+      "sha256": "2c022c14e1804ef9efab179d073ed1aeba7173f6741ef39531adc18e9e0b245b"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\defaults.c",
+      "bytes": 9208,
+      "sha256": "ac9c86ccbcb07947398f780e53b7978045e021302e7efa9b187a8746d010ec0b"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\defaults.h",
+      "bytes": 275,
+      "sha256": "035c71a3d0cf1d1dd6d41e354e58d1be577a103511d80682c41b633de4c6c195"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\intrinsic.c",
+      "bytes": 1909,
+      "sha256": "369ad120e639b80cded02305443a48515c998535a4090663f3a751c6b3e16f7a"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\intrinsic.h",
+      "bytes": 2868,
+      "sha256": "6e27fe2b870c1c54f50cb4952bd1731920739294de8766a684c16815979e9f40"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\ownership.c",
+      "bytes": 26422,
+      "sha256": "629e748403f4f3bdffaa1f9ef9ba5f2279667609a74bca37544fef99930073d3"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\ownership.h",
+      "bytes": 974,
+      "sha256": "5c13ed00fad4cae5f937c39e776fb5f66425a850aad1f5b91ed269e894d50f90"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\resolve.c",
+      "bytes": 14280,
+      "sha256": "f30a57987058e0497381f5da7da0434fdacdfc63bb10a698f1e468a44f9fe1c4"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\resolve.h",
+      "bytes": 2137,
+      "sha256": "94bf9c052957040834b514d618c2db0edef458614984291838bb2922e0b75077"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\taint.c",
+      "bytes": 12426,
+      "sha256": "afe3435167fa82fd9c92a544fb32e575d36503a336d04e779faf66759bf07e44"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\taint.h",
+      "bytes": 1466,
+      "sha256": "979460b7cbc7bbe27f337c4f995ab53e8905d5aaf310ca8c85ce2bf6a180210c"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\types.c",
+      "bytes": 6684,
+      "sha256": "b0e52d027d84e4d50c3856e82a6866a6bfa8536117de3d26bc9f89dbb76d3a69"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\src\\sema\\types.h",
+      "bytes": 2622,
+      "sha256": "2d3bb9df5bf1b815cdd32772ae377b37360f22da3466f44d0d47ffb259aac882"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\tools\\beryl-mod\\engine-compile.ps1",
+      "bytes": 1890,
+      "sha256": "0ec477d1299fa7150b065b5dcc71d86637ada345931eb6af427cbd169e9c866e"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\tools\\beryl-mod\\install.py",
+      "bytes": 4121,
+      "sha256": "609e53f070b8c08a6be69c2e8e37812e5561ae4f99fe785ece33bd00b991d859"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\tools\\beryl-mod\\mod.py",
+      "bytes": 24969,
+      "sha256": "c9d7969fba3e6e633f71100ace59a6d50a63e139d886d72b4ae14f37d3d93d04"
+    },
+    {
+      "path": "C:\\Users\\moham\\Desktop\\beryl\\tools\\beryl-mod\\process_job.py",
+      "bytes": 1965,
+      "sha256": "e183e843965b61e3a67abf8a92865e3ded15bc427173e40bce261e72522409bd"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Autonomy\\SPK_AutonomyComponent.c",
+      "bytes": 18877,
+      "sha256": "31c8be3e547ac96941132a8bc6b0540ab3f03103e281e1ab9728975301e3cf10"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Autonomy\\SPK_Guidance.c",
+      "bytes": 8311,
+      "sha256": "27b1fc2a192e687a18498b5d269b2c43bdf8313130e1b4f5dc97ba6e9737b9f2"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Autonomy\\SPK_LoiterPattern.c",
+      "bytes": 4849,
+      "sha256": "62f4847b1e93387ec1fb6fa3fbc8b58bfbdb7cf5ca868fb1ba6ab82cd7200c36"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Autonomy\\SPK_Task.c",
+      "bytes": 5532,
+      "sha256": "95e2fce0539a2cb177d7bd372e1ddc36d2da98b557583fe5aebde117d19eb246"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Control\\SPK_DroneCameraComponent.c",
+      "bytes": 3468,
+      "sha256": "cf6fd0ab3a4e4a7db768fd12c141a8203d8efd9565553180c39a061b9309db42"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Control\\SPK_ManualControl.c",
+      "bytes": 5527,
+      "sha256": "613c7019b1f68f9b53e5348d9c6a066a3067c8ac780e32054b5b3c12f15575c1"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Core\\SPK_BluePublisher.c",
+      "bytes": 2979,
+      "sha256": "fd2c25034c0bf4a3977eb799da6c989fa4a95559954d99650daee250b667bacf"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Core\\SPK_CallsignAllocator.c",
+      "bytes": 1973,
+      "sha256": "d34f8cf2dfd471dc9b6996a1df9721a9f8eee567207ad7679f2ab539c92bf25a"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Core\\SPK_MeshBootstrap.c",
+      "bytes": 3459,
+      "sha256": "704f60b43b9c010272d98cefdf64d78a96b3e0b2eaa08d22d717c76d08b3d9e1"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Core\\SPK_MeshComponents.c",
+      "bytes": 2092,
+      "sha256": "fe977d6f1f79684ed040830a49908a67eca8211387581e974e2acc3aae4343c0"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Core\\SPK_MeshCore.c",
+      "bytes": 15046,
+      "sha256": "322395a893f58abbd5b3f7d2cb091cd7e39eb771705fb94c44c9c3305e3272b1"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Core\\SPK_MeshEntity.c",
+      "bytes": 5126,
+      "sha256": "687756c7b363f04cd48446a7cbfd2f7cc5fbd3a88527e85baad1dea5b9fcc494"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Core\\SPK_MeshEnums.c",
+      "bytes": 1173,
+      "sha256": "8c6e10794a7992d883e095ea806abdb12ca4f164c7f9d93532f595f931a30cea"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Core\\SPK_MeshProbe.c",
+      "bytes": 426,
+      "sha256": "a6b886798c8c0edf97fbfcb4df065f15ff34f20ee0374e30427e0a2e7038c1c9"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Core\\SPK_MeshStore.c",
+      "bytes": 2358,
+      "sha256": "7c87e350de5c94e83588ea109507737b52fea66c127afb4f926bbd7286932af1"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Datalink\\SPK_Datalink.c",
+      "bytes": 6633,
+      "sha256": "77535e8e1b890081f27bcead8d5327d22980666fac28aaa6beb48ead1beaf17f"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Debug\\SPK_AcceptanceTest.c",
+      "bytes": 24893,
+      "sha256": "5f3ee570d2735a287b52068d26f1851391fc754cfd15ada31c4d4d61040d6abe"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Debug\\SPK_DebugTrackInjector.c",
+      "bytes": 2006,
+      "sha256": "10f5cc5d8af37ede5354f91d695dd46eb64e9cbff9aac72efa2231479435c0bb"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Debug\\SPK_MeshHarness.c",
+      "bytes": 10189,
+      "sha256": "aa8bf194cb42311c01e9ec6fbd11a7fc8815d859c1ba6ca4a075bd13ad523c1f"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Debug\\SPK_ShotMode.c",
+      "bytes": 7281,
+      "sha256": "e9cbd258239e11def588f116bfe5cec5a36af8b6a3494d727383ce23d871bda4"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Flight\\SPK_FlightController.c",
+      "bytes": 18893,
+      "sha256": "a4a5fec24262f4a0f1fa35ce89cbc60920db9a17d687670a042898147c3e68e4"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Flight\\SPK_FlightSpec.c",
+      "bytes": 6953,
+      "sha256": "482363fe395cb250b643ded29ebfd79713e66a367d05bf1afb34cb111d094d88"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Flight\\SPK_PID.c",
+      "bytes": 4014,
+      "sha256": "f03f8588b9c4c4298db1e933b4aafab5e778725faf30b4c734e23aa2b1bb2460"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Flight\\SPK_QuadMixer.c",
+      "bytes": 3062,
+      "sha256": "3dc587bfd6d6f304062da968463f4fe985e4b5f6b20763b74e3048ddf006e919"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Flight\\SPK_RotorState.c",
+      "bytes": 1980,
+      "sha256": "635be0f369f32eb721ba96f185a25ac05f7de0457fd9bf38e6ce8394753bdbff"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Flight\\SPK_RotorVisual.c",
+      "bytes": 4519,
+      "sha256": "feea51a859a67191edead4cd545454b0c1836117f9b3a12c488e73d7cd24e9af"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Flight\\SPK_RotorVisualComponent.c",
+      "bytes": 8428,
+      "sha256": "88c961064d4a6c03f47b79dbf1cb01b407b5cf59b8504625100a05912234c094"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Input\\SPK_DroneActions.c",
+      "bytes": 8589,
+      "sha256": "faeb200d3da43ea30b4d2db36152b9d634f4b74bf21c1173b6dfc55ec829a113"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Input\\SPK_DroneInputComponent.c",
+      "bytes": 13099,
+      "sha256": "440a493229775ab18233c76020763d4c724adfb4fece3dc41e9ca26747e5695b"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Input\\SPK_DroneKeybinds.c",
+      "bytes": 3714,
+      "sha256": "1123a60363291343d858f3106896260060160a89b340085236b0437808a962ce"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Query\\SPK_EntityQuery.c",
+      "bytes": 2654,
+      "sha256": "cfacc5ba9fe10a413ca51e55d696eb3d8dacdc9b0576f55a7df950d3f922286f"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Query\\SPK_Providers.c",
+      "bytes": 911,
+      "sha256": "f25f31d7edfe3ece7229890056b3cfe5ba533a9ca4883c6d593ece5e52c9d247"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Sensors\\SPK_Gimbal.c",
+      "bytes": 10954,
+      "sha256": "ae206b02974e832141e948f3cc2c4c13576300f888d8a395c48a795a8f3c9543"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Sensors\\SPK_LaserDesignator.c",
+      "bytes": 4927,
+      "sha256": "835a9b97da746cb94410eb665ad478fa915ae0cfedc137b73149f44da8723764"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Sensors\\SPK_SensorComponent.c",
+      "bytes": 15313,
+      "sha256": "924d4a25f730303b2d967189ebbdc4cf4d1e7efb37ef566c86f45615919e04dd"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Sensors\\SPK_SensorModel.c",
+      "bytes": 7927,
+      "sha256": "01693d5f66318f4aa192f23d5481f0fd8ae256835e300c6148f89a66116f50bf"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\SPK_ArsenalProbe.c",
+      "bytes": 5802,
+      "sha256": "8f1bf2d6448082ac349055ab1753616b06382ac30891f097a1c04526d0df13ef"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\SPK_ArsenalRegistration.c",
+      "bytes": 14797,
+      "sha256": "47d95cc8d835dc97bc8ff352f0f91ed631f28e3936b587b4240b0bab6eff6bb5"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\UI\\SPK_MapView2D.c",
+      "bytes": 4060,
+      "sha256": "310285ec64ea7c2cf658008f28dbab39303889c523c0d1e6ad136ca2012a813f"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\UI\\SPK_MapView3D.c",
+      "bytes": 3261,
+      "sha256": "0c27575d1736acc42175078549d5ace422e8c13be000bf686c3cf69469a34f58"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\UI\\SPK_MarkerLayer.c",
+      "bytes": 9501,
+      "sha256": "22b33c853477611c2792c3706e3cbcc0ec65ee54124b098b5db42047af5f6b8b"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\UI\\SPK_ScreenRT.c",
+      "bytes": 4053,
+      "sha256": "6328c5e86787b75c8cf949fcbd914c4fb137e17534a6158150bdba13818e942b"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\UI\\SPK_SymbolRenderer.c",
+      "bytes": 4812,
+      "sha256": "4268ec802ae12c33da6a21811d8b2e06b6025e81cb6deb8f1a83904fc20ecdb9"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\UI\\SPK_TabletChrome.c",
+      "bytes": 25331,
+      "sha256": "53c2fccfb900371ce0ea409d98f0903a20e71e472630e6caea87b29477a1811e"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\UI\\SPK_TabletComponent.c",
+      "bytes": 5051,
+      "sha256": "1f15962cf67a8cc513d7068757e89360260016fadff1c8843719784acc94be3a"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\UI\\SPK_TabletGadget.c",
+      "bytes": 3041,
+      "sha256": "d336244b7d178324eded5bc5e584f721cd2c4f9b7036ac90d1f757ba30b0199c"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\UI\\SPK_TabletTheme.c",
+      "bytes": 4605,
+      "sha256": "2e54d966e20af86da093a414b28b2faa5e2f5ffa49887e6668b6a9ebdaef00e7"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\UI\\SPK_TabletUI.c",
+      "bytes": 36025,
+      "sha256": "4efeab8cce793939d748506f34691aae9b0b47aa8b32ed568ece05accf28a05d"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\UI\\SPK_TerrainMap.c",
+      "bytes": 18123,
+      "sha256": "407074e33a42e971f7d05a445e65996911e277d99e24642260a760e5ff61e317"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\UI\\SPK_UIButton.c",
+      "bytes": 4079,
+      "sha256": "24f45c2d5cc8dc050290047bf8a9c902f536cfd7e3fa5569b07410816cd03c9a"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Weapons\\SPK_DeployAction.c",
+      "bytes": 5233,
+      "sha256": "0c285f72fada20da389c68ae0ce2c3653763b9f1f000c40fc23c17bb55b292a9"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Weapons\\SPK_Warhead.c",
+      "bytes": 4980,
+      "sha256": "ae63df34e0c36f90143844fe673af752a6c1cde09ecfba581efcd6816f17975d"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Weapons\\SPK_WarheadComponent.c",
+      "bytes": 8910,
+      "sha256": "09118daefbf6faca7b2643de55b1018bc2f7b75a8054f53005c2e9bae06c6881"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\Game\\SparkOSMesh\\Weapons\\SPK_WarheadSpec.c",
+      "bytes": 6739,
+      "sha256": "ef6d5a3908b8ab6a770a08b7885354c893b1993a052cda89506dcd428c2812ef"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\WorkbenchGameCommon\\SPK_MeshSelfTest.c",
+      "bytes": 129607,
+      "sha256": "59213fecdd4ecd1ced6e0eee0716b5c86bf3cc184ee6261452da9ac3c4dcda46"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\scripts\\WorkbenchGameCommon\\ValidatePrefab.c",
+      "bytes": 2359,
+      "sha256": "42a25cff73f7cb4fc25f98af57c37696b3b2a9d62719eb5904c249be32413576"
+    }
+  ]
+}

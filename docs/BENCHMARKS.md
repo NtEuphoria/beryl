@@ -1,11 +1,23 @@
 # Benchmarks
 
-Every number here comes from `scripts/bench.sh`, so a claim that drifts is a
-claim that gets caught. Measured on the development machine: Windows 11,
-clang 22 (LLVM-MinGW), `x86_64-w64-windows-gnu`.
+**Historical, unverified measurements.** Do not use the scorecard below for
+current performance claims. Review found an overflowing checked workload, ignored
+process failures, and a generated build fixture without a main function. The
+script has not been replaced with the M8 protocol. The approved
+[advanced implementation plan](BERYL_ADVANCED_IMPLEMENTATION_PLAN.md) defines the required paired
+measurements, semantic checks, baselines, and evidence. No Rust speedup is proven.
 
-**Including the targets that were missed.** The spec set falsifiable numbers so
-that failing them would be visible, and two of them failed.
+The figures below are retained as historical notes attributed to
+`scripts/bench.sh` on Windows 11, Clang 22 (LLVM-MinGW),
+`x86_64-w64-windows-gnu`. That script's defects prevent treating its output as
+verified performance evidence. Current implementation evidence is tracked in
+[the execution state](BERYL_ADVANCED_IMPLEMENTATION_STATE.md).
+
+The new [standalone evidence evaluator](../tools/beryl-experiments/README.md)
+implements the bounded receipt/statistics gate. Its current analytical tests do
+not collect benchmark timings or replace the required workload collectors.
+
+The old pass/fail marks are historical assessments, not current release gates.
 
 ## Scorecard
 
@@ -29,23 +41,17 @@ beryl hello world (--release)                     91,648 bytes
 Beryl's own contribution                           3,584 bytes
 ```
 
-The `< 20 KB` target is **unreachable on this toolchain regardless of
-language**: MinGW's C runtime alone is 88 KB, and a bare `int main(){return 0;}`
-compiled with clang produces exactly that. Beryl adds 3.6 KB on top.
-
-So the target was wrong rather than the implementation. The honest claim is
-"Beryl's contribution to a binary is a few kilobytes", and the honest comparison
-is that a Rust hello world on a comparable target is 150–300 KB — Beryl is
-smaller, just not by the margin the target implied.
-
-Reaching a genuinely small binary means `-nostdlib` with direct Win32 calls and
-a hand-rolled integer formatter. That is a real v0.2 item, not a tweak.
+These recorded sizes apply to an old executable and linking configuration.
+They do not establish a minimum achievable size or an advantage over Rust.
+Repeat size comparisons with exact tool, target, runtime, debug/strip, panic and
+link settings before drawing conclusions. A custom runtime would be a separate
+engineering decision, not a consequence proved by this table.
 
 ## Overflow checking — target missed, and it mattered
 
-The worst case that can be constructed: a dependent multiply-add chain, 80
-million iterations, where every operation is a checked one and there is nothing
-for the branch to hide behind.
+The old experiment attempted a dependent multiply-add chain over 80 million
+iterations. Its checked arithmetic can overflow, and ignored process failures
+mean the compared runs need not have completed equivalent work.
 
 ```
 LCG chain, beryl, checked arithmetic     193 ms
@@ -56,27 +62,18 @@ overhead, checked                        +82%
 overhead, wrapping_*                       -4%   (identical, within noise)
 ```
 
-**The `< 3%` target was badly wrong.** In an arithmetic-bound inner loop,
-checking costs roughly 2x.
-
-This measurement changed the design rather than being written up around: the
-`wrapping_*` and `saturating_*` intrinsics exist *because* of it. They run at
-the speed of unchecked C, so the accurate claim is:
-
-> Correct by default costs about 2x in an arithmetic-bound loop. The opt-out
-> costs nothing, and it says so at the call site.
+The recorded +82% is invalid as a current checking-overhead estimate. No fixed
+cost multiplier follows from this workload. Checked, wrapping and saturating
+arithmetic have different semantics; choosing one changes the program contract
+and is not an exact optimization of the others.
 
 ### On the two numbers that are not here
 
-Earlier revisions of this benchmark reported 9%, then −25%, from loops mixing
-`+` and `%`. Those were measuring the optimizer, not the checks — in one run
-Beryl came out *faster* than unchecked C, which is not a coherent thing for an
-overhead measurement to say. They were removed rather than reported. A number
-known to be noise is worse than no number.
-
-The remaining figure uses a data-dependent chain (so neither compiler can fold
-or vectorise it differently) and best-of-three (so scheduling noise does not
-dominate).
+Earlier notes reported 9% and −25% from different loops. None of these figures
+has the required semantic and measurement evidence. Data dependence alone does
+not prove identical machine work, and best-of-three does not establish
+uncertainty. Use paired independent units, complete execution and retained
+machine output under the approved protocol.
 
 ## Front end throughput
 
@@ -86,13 +83,10 @@ check  10,006 lines     124 ms
 build  10,006 lines   2,333 ms   (includes clang -O2)
 ```
 
-The near-flat curve from 2k to 10k lines is process startup dominating: roughly
-90 ms of the total is spawning the process and reading files, so the front end
-itself is handling 10,000 lines in a few tens of milliseconds. Arena allocation
-throughout, no proc macros, and no trait solver are why.
-
-`beryl check` is the loop you actually live in. The 2.3 s full build is almost
-entirely `clang -O2`, which is the price of getting LLVM's optimizer for free.
+These historical end-to-end times do not isolate process startup, parsing,
+checking or Clang time. The invalid build fixture also prevents using its build
+time as successful compilation evidence. Stage B native evidence preserves
+actual generated code, process arguments and outcomes for future measurements.
 
 ## Compiler
 
@@ -104,17 +98,19 @@ compiler source          ~11,800 lines of C11
 
 ## Not measured
 
-**Hot-loop codegen versus hand-written C.** The claim in the README is parity,
-on the reasoning that both go through clang's optimizer with the same
-information. That is plausible but **unverified**, and it should not be believed
-without a benchmark that does not exist yet.
+**Hot-loop codegen versus handwritten C or Rust.** Sharing an optimizer does
+not establish equivalent lowering, information or performance. Matched workloads
+and measured machine output are required; no current advantage is established.
 
-**Reproducible builds.** Not implemented. `-DBERYL_BUILD_NONCE` deliberately
-varies per attempt to work around Smart App Control ([BUILDING.md](BUILDING.md)),
-which means output is currently *not* byte-identical between builds. These two
-goals are in direct conflict and the conflict has not been resolved.
+**Reproducible builds.** Content-changing rebuild nonces and security-control
+retries were removed by the foundation work. That repair does not itself prove
+byte-identical executable builds across environments. Generated-output
+determinism and executable reproducibility remain distinct checks.
 
-## Reproducing
+## Historical reproduction commands
+
+The following commands are retained for locating the old experiment. Their
+output is not accepted performance evidence. Do not publish it as a new result.
 
 ```bash
 bash scripts/build.sh

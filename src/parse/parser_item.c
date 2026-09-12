@@ -133,6 +133,7 @@ static void check_params(P *p, ParamVec ps) {
                           "a borrow or a move");
         }
         for (uint32_t j = 0; j < i; j++) {
+            p_work(p);
             if (str_eq(ps.data[j].name, pm.name) && !str_empty(pm.name)) {
                 Diag *dg = diag_error(p->d, 205, pm.span, "duplicate parameter `%.*s`",
                                       (int)pm.name.len, pm.name.ptr);
@@ -410,7 +411,16 @@ Module *parse_file(Arena *a, DiagBag *d, Interner *in, TokenVec toks, uint32_t f
 
     Module *m = ARENA_NEW(a, Module);
     m->file   = file;
-    m->span   = toks.len ? toks.data[0].span : SPAN_NONE;
+    m->span   = SPAN_NONE;
+    /* Only m, initialized before setjmp and never reassigned afterward, is
+     * used on the nonlocal error path. Modified automatic parser state must
+     * not be read after longjmp. Arena storage is released by the caller. */
+    if (setjmp(p.resource_exit)) {
+        m->items.len = 0;
+        return m;
+    }
+    p_validate_tokens(&p);
+    m->span = toks.data[0].span;
 
     skip_nl_only(&p);
     m->doc = collect_doc(&p);
@@ -472,5 +482,6 @@ Module *parse_file(Arena *a, DiagBag *d, Interner *in, TokenVec toks, uint32_t f
         if (p.pos == before) p_next(&p);
     }
 
+    p_validate_shape(&p, m);
     return m;
 }

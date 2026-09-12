@@ -1,6 +1,13 @@
 #include "ownership.h"
+#include "intrinsic.h"
+#include "access.h"
 
 typedef enum { OS_UNINIT = 0, OS_INIT, OS_MOVED } OwnState;
+
+typedef struct LoopFlow {
+    uint8_t *breaks, *continues;
+    struct LoopFlow *parent;
+} LoopFlow;
 
 typedef struct {
     Arena   *a;
@@ -11,6 +18,7 @@ typedef struct {
     uint32_t nlocals;
     bool     quiet;       /* true while iterating a loop to a fixpoint */
     bool     unreachable; /* set after a `return` on this path */
+    LoopFlow *loop;
 } O;
 
 /* Diagnostics are suppressed during the quiet fixpoint passes so a loop body
@@ -57,6 +65,26 @@ static bool states_equal(O *o, const uint8_t *s) {
     return true;
 }
 
+static void record_exit(O *o, uint8_t **state) {
+    if (!*state) *state = snapshot(o);
+    else for (uint32_t i = 0; i < o->nlocals; i++)
+        (*state)[i] = merge_state((*state)[i], o->locals[i]->state);
+}
+
+static void check_set_exit(O *o, Span at) {
+    for (uint32_t i = 0; i < o->nlocals; i++) {
+        Local *l = o->locals[i];
+        if (!l->is_param || l->conv != CONV_SET || l->state == OS_INIT) continue;
+        Diag *dg = err(o, 404, at,
+                       "`set` parameter `%.*s` is not initialized on this path",
+                       (int)l->name.len, l->name.ptr);
+        if (dg) {
+            diag_label(dg, l->span, "declared `set` here, so the callee must assign it");
+            diag_label(dg, at, "can return without assigning it");
+        }
+    }
+}
+
 /* Marks the binding declared at `sp` with name `n` as initialized. Used for
  * loop variables and catch bindings, which are bound by the construct itself
  * rather than by an assignment. */
@@ -95,6 +123,7 @@ static Access path_of(const Expr *e) {
     while (cur) {
         if (cur->kind == EX_FIELD) {
             if (n < ACC_MAX_FIELDS) rev[n++] = cur->field.name;
+            else ac.has_index = true; /* collapse to a conservative root overlap */
             cur = cur->field.base;
             continue;
         }
@@ -168,6 +197,17 @@ static void check_read(O *o, const Expr *e) {
 static void walk_expr(O *o, Expr *e);
 static void walk_block(O *o, Expr *b);
 
+/* Compute a destination without treating an uninitialized whole binding as
+ * a read. Index expressions still execute and must receive all analyses. */
+static void walk_place(O *o, Expr *e) {
+    if (!e) return;
+    if (e->kind == EX_FIELD) walk_place(o, e->field.base);
+    else if (e->kind == EX_INDEX) {
+        walk_expr(o, e->index.base);
+        walk_expr(o, e->index.index);
+    } else if (e->kind != EX_PATH && e->kind != EX_SELF) walk_expr(o, e);
+}
+
 static void do_move(O *o, Expr *e) {
     Access ac = path_of(e);
     if (!ac.valid) {
@@ -206,8 +246,9 @@ static void do_move(O *o, Expr *e) {
 /* No two accesses in one call may overlap when either is exclusive. The
  * receiver of a method taking `inout self` counts as one of them. */
 static void check_call_exclusivity(O *o, Expr *call) {
-    Access   acc[17];
-    bool     excl[17];
+    uint32_t capacity = call->call.args.len + 1;
+    Access  *acc = ARENA_ARRAY(o->a, Access, capacity);
+    bool    *excl = ARENA_ARRAY(o->a, bool, capacity);
     uint32_t n = 0;
 
     Expr *callee = call->call.callee;
@@ -222,7 +263,7 @@ static void check_call_exclusivity(O *o, Expr *call) {
         n++;
     }
 
-    for (uint32_t i = 0; i < call->call.args.len && n < 17; i++) {
+    for (uint32_t i = 0; i < call->call.args.len; i++) {
         acc[n] = path_of(call->call.args.data[i].value);
         /* Label the whole argument, `inout a`, not just the operand. */
         acc[n].span = call->call.args.data[i].span;
@@ -244,8 +285,8 @@ static void check_call_exclusivity(O *o, Expr *call) {
                            excl[i] ? "first exclusive borrow here" : "borrowed here");
                 diag_label(dg, acc[j].span,
                            excl[j] ? "second exclusive borrow here" : "borrowed again here");
-                diag_note(dg, "`inout` guarantees non-aliasing, which is what licenses "
-                              "`restrict` in the generated code");
+                diag_note(dg, "overlapping local access paths cannot be borrowed "
+                              "exclusively in the same call");
                 diag_help(dg, "copy one side into a local first");
             }
         }
@@ -288,7 +329,7 @@ static void check_inout_arg(O *o, Access ac, Span at, Conv conv) {
      * uninitialized argument is a read before initialization, and saying so
      * here is the only place it can be caught. */
     if (conv == CONV_SET) {
-        if (l->state == OS_UNINIT || l->state == OS_MOVED) l->state = OS_INIT;
+        /* Initialization happens after every argument has been evaluated. */
         return;
     }
 
@@ -319,20 +360,30 @@ static void walk_expr(O *o, Expr *e) {
 
     switch (e->kind) {
         case EX_PATH:
-        case EX_SELF:
-        case EX_FIELD: check_read(o, e); break;
+        case EX_SELF: check_read(o, e); break;
+
+        case EX_FIELD: walk_expr(o, e->field.base); break;
 
         case EX_INDEX:
-            check_read(o, e);
+            walk_expr(o, e->index.base);
             walk_expr(o, e->index.index);
             break;
 
         case EX_UNARY: walk_expr(o, e->unary.operand); break;
 
-        case EX_BINARY:
+        case EX_BINARY: {
             walk_expr(o, e->binary.lhs);
+            uint8_t *before = NULL;
+            if (e->binary.op == TK_ANDAND || e->binary.op == TK_OROR)
+                before = snapshot(o);
             walk_expr(o, e->binary.rhs);
+            if (before) {
+                if (o->unreachable) restore(o, before);
+                else merge_into(o, before);
+                o->unreachable = false;
+            }
             break;
+        }
 
         case EX_CALL: {
             Expr *callee = e->call.callee;
@@ -341,7 +392,11 @@ static void walk_expr(O *o, Expr *e) {
                             target->fn.params.data[0].is_self;
 
             if (callee && callee->kind == EX_FIELD) {
-                if (has_self && target->fn.params.data[0].conv == CONV_INOUT)
+                bool mutator = e->res_kind == RES_INTRINSIC &&
+                    (e->intrinsic == INTR_LIST_PUSH || e->intrinsic == INTR_LIST_SET ||
+                     e->intrinsic == INTR_LIST_CLEAR);
+                if (mutator || has_self) walk_place(o, callee->field.base);
+                if (mutator || (has_self && target->fn.params.data[0].conv == CONV_INOUT))
                     check_inout_arg(o, path_of(callee->field.base), callee->field.base->span,
                                     CONV_INOUT);
                 else walk_expr(o, callee->field.base);
@@ -354,8 +409,9 @@ static void walk_expr(O *o, Expr *e) {
                 } else if (ar.conv == CONV_INOUT || ar.conv == CONV_SET) {
                     Access ac = path_of(ar.value);
                     if (ac.valid) {
+                        walk_place(o, ar.value);
                         check_inout_arg(o, ac, ar.span, ar.conv);
-                        if (ar.conv == CONV_INOUT && (ac.nfields || ac.has_index))
+                        if (ac.nfields || ac.has_index)
                             check_read(o, ar.value);
                     } else {
                         walk_expr(o, ar.value);
@@ -365,6 +421,12 @@ static void walk_expr(O *o, Expr *e) {
                 }
             }
             check_call_exclusivity(o, e);
+            for (uint32_t i = 0; i < e->call.args.len; i++) {
+                Arg ar = e->call.args.data[i];
+                Access ac = path_of(ar.value);
+                if (ar.conv == CONV_SET && ac.valid && !ac.nfields && !ac.has_index)
+                    ac.root->state = OS_INIT;
+            }
             break;
         }
 
@@ -408,7 +470,10 @@ static void walk_expr(O *o, Expr *e) {
         }
 
         case EX_BLOCK: walk_block(o, e); break;
-        case EX_TRY: walk_expr(o, e->try_expr.inner); break;
+        case EX_TRY:
+            walk_expr(o, e->try_expr.inner);
+            check_set_exit(o, e->span); /* failure propagates out of this function */
+            break;
 
         /* A handler and a fallback run only when the value is an error or
          * empty, so anything they initialize is initialized on one path out
@@ -422,7 +487,9 @@ static void walk_expr(O *o, Expr *e) {
             if (!str_empty(e->catch_expr.binding))
                 mark_init(o, e->span, e->catch_expr.binding);
             walk_expr(o, e->catch_expr.handler);
-            merge_into(o, before);
+            if (o->unreachable) restore(o, before);
+            else merge_into(o, before);
+            o->unreachable = false; /* the success path continues */
             break;
         }
 
@@ -430,7 +497,9 @@ static void walk_expr(O *o, Expr *e) {
             walk_expr(o, e->orelse_expr.value);
             uint8_t *before = snapshot(o);
             walk_expr(o, e->orelse_expr.fallback);
-            merge_into(o, before);
+            if (o->unreachable) restore(o, before);
+            else merge_into(o, before);
+            o->unreachable = false;
             break;
         }
 
@@ -446,12 +515,13 @@ static void walk_expr(O *o, Expr *e) {
 }
 
 static void walk_assign(O *o, Stmt *s) {
-    walk_expr(o, s->assign.value);
+    walk_place(o, s->assign.target);
 
     /* `x += 1` reads `x` before it writes it, so it cannot be the thing that
      * initializes `x`. Checking the read first is what makes that true; the
      * write below then finds the binding already reported and moves on. */
     if (s->assign.op != TK_ASSIGN) check_read(o, s->assign.target);
+    walk_expr(o, s->assign.value);
 
     Access ac = path_of(s->assign.target);
     if (!ac.valid) {
@@ -506,27 +576,38 @@ static void walk_assign(O *o, Stmt *s) {
     check_read(o, s->assign.target);
 }
 
-/* Runs a loop body to a fixpoint quietly, then once more with diagnostics.
- *
- * Both the fixpoint passes and the final one merge with the state on entry,
- * because a loop may run zero times. Without that merge on the *final* pass,
- * `var x: i32` followed by `while false { x = 1 }` left `x` initialized, and
- * the read after the loop was accepted — the C back end then emitted a bare
- * `int32_t x;` and the program read whatever was on the stack. */
-static void walk_loop_body(O *o, Expr *body) {
-    bool saved = o->quiet;
-    o->quiet   = true;
-    for (int pass = 0; pass < 8; pass++) {
-        uint8_t *before = snapshot(o);
-        walk_expr(o, body);
-        merge_into(o, before);
-        if (states_equal(o, before)) break;
-    }
-    o->quiet = saved;
-
+/* A loop has separate fallthrough, continue and break edges. Each pass
+ * rechecks the condition at the current head state; a body return never
+ * makes the zero-iteration path unreachable. The finite state lattice
+ * converges without a guessed iteration cutoff. */
+static void walk_loop(O *o, Expr *cond, Expr *body) {
     uint8_t *entry = snapshot(o);
+    bool saved_quiet = o->quiet;
+    LoopFlow *parent = o->loop;
+    o->quiet = true;
+    for (;;) {
+        uint8_t *head = snapshot(o);
+        LoopFlow flow = {.parent = parent};
+        o->loop = &flow;
+        o->unreachable = false;
+        if (cond) walk_expr(o, cond);
+        walk_expr(o, body);
+        if (!o->unreachable) record_exit(o, &flow.continues);
+        restore(o, entry);
+        if (flow.continues) merge_into(o, flow.continues);
+        if (states_equal(o, head)) break;
+    }
+    o->quiet = saved_quiet;
+    LoopFlow flow = {.parent = parent};
+    o->loop = &flow;
+    o->unreachable = false;
+    if (cond) walk_expr(o, cond);
+    uint8_t *condition_exit = snapshot(o);
     walk_expr(o, body);
-    merge_into(o, entry);
+    restore(o, condition_exit);
+    if (flow.breaks) merge_into(o, flow.breaks);
+    o->unreachable = false;
+    o->loop = parent;
 }
 
 static void walk_stmt(O *o, Stmt *s) {
@@ -555,34 +636,28 @@ static void walk_stmt(O *o, Stmt *s) {
         case ST_ASSIGN: walk_assign(o, s); break;
 
         case ST_WHILE:
-            walk_expr(o, s->while_st.cond);
-            walk_loop_body(o, s->while_st.body);
+            walk_loop(o, s->while_st.cond, s->while_st.body);
             break;
 
         case ST_FOR:
             walk_expr(o, s->for_st.iter);
             mark_init(o, s->span, s->for_st.var); /* the loop binds it */
-            walk_loop_body(o, s->for_st.body);
+            walk_loop(o, NULL, s->for_st.body);
             break;
 
         case ST_RETURN:
             if (s->expr) walk_expr(o, s->expr);
-            for (uint32_t i = 0; i < o->nlocals; i++) {
-                Local *l = o->locals[i];
-                if (l->is_param && l->conv == CONV_SET && l->state != OS_INIT) {
-                    Diag *dg = err(o, 404, s->span,
-                                   "`set` parameter `%.*s` is not initialized on this path",
-                                   (int)l->name.len, l->name.ptr);
-                    if (dg) {
-                        diag_label(dg, l->span,
-                                   "declared `set` here, so the callee must assign it");
-                        diag_label(dg, s->span, "returns without assigning it");
-                    }
-                }
-            }
+            check_set_exit(o, s->span);
             o->unreachable = true;
             break;
 
+        case ST_BREAK:
+        case ST_CONTINUE:
+            if (o->loop) {
+                record_exit(o, s->kind == ST_BREAK ? &o->loop->breaks : &o->loop->continues);
+                o->unreachable = true;
+            }
+            break;
         case ST_DEFER: walk_expr(o, s->expr); break;
         default: break;
     }
@@ -590,7 +665,8 @@ static void walk_stmt(O *o, Stmt *s) {
 
 static void walk_block(O *o, Expr *b) {
     if (!b || b->kind != EX_BLOCK) return;
-    for (uint32_t i = 0; i < b->block.stmts.len; i++) walk_stmt(o, b->block.stmts.data[i]);
+    for (uint32_t i = 0; i < b->block.stmts.len && !o->unreachable; i++)
+        walk_stmt(o, b->block.stmts.data[i]);
 }
 
 static void own_fn(O *o, Item *it, Expr *body) {
@@ -627,6 +703,7 @@ static void own_fn(O *o, Item *it, Expr *body) {
 
 bool ownership_check(DiagBag *d, Program *p) {
     uint32_t before = diag_errors(d);
+    if (!access_check_destinations(d,p)) return false;
 
     O o = {0};
     o.a = p->a;

@@ -1,4 +1,5 @@
 #include "diag.h"
+#include "json.h"
 
 
 #include "vec.h"
@@ -331,6 +332,35 @@ Str diag_render_str(Arena *a, const DiagBag *d) {
         if (dg->next) sb_char(&sb, '\n');
     }
     return sb_finish(&sb);
+}
+
+static void json_span(SB *b, const SourceMap *sm, Span s) {
+    SourceFile *file = span_is_none(s) ? NULL : srcmap_get(sm, s.file);
+    if (!file) { sb_cstr(b, "null"); return; }
+    LineCol lc = srcmap_linecol(sm, s);
+    sb_cstr(b, "{\"file\":"); json_string(b, file->path);
+    sb_fmt(b, ",\"offset\":%u,\"length\":%u,\"line\":%u,\"column\":%u}",
+           s.offset, s.len, lc.line, lc.col);
+}
+
+Str diag_render_json(Arena *a, const DiagBag *d) {
+    SB b; sb_init(&b, a); sb_char(&b, '[');
+    for (Diag *dg = d->head; dg; dg = dg->next) {
+        if (dg != d->head) sb_char(&b, ',');
+        sb_fmt(&b, "{\"code\":\"BE%04u\",\"level\":\"%s\",\"message\":",
+               dg->code, dg->level == DIAG_ERROR ? "error" : "warning");
+        json_string(&b, dg->msg);
+        sb_cstr(&b, ",\"primary\":"); json_span(&b, d->sm, dg->primary);
+        sb_cstr(&b, ",\"related\":[");
+        for (DiagLabel *l = dg->labels; l; l = l->next) {
+            if (l != dg->labels) sb_char(&b, ',');
+            sb_cstr(&b, "{\"span\":"); json_span(&b, d->sm, l->span);
+            sb_cstr(&b, ",\"message\":"); json_string(&b, l->msg); sb_char(&b, '}');
+        }
+        sb_cstr(&b, "],\"note\":"); json_string(&b, dg->note);
+        sb_cstr(&b, ",\"help\":"); json_string(&b, dg->help); sb_char(&b, '}');
+    }
+    sb_char(&b, ']'); return sb_finish(&b);
 }
 
 void diag_render(const DiagBag *d, FILE *out, bool color) {

@@ -1,8 +1,8 @@
 /* beryl_rt.h — the entire Beryl runtime.
  *
  * There is no runtime initialization, no allocator by default, no unwinding
- * machinery and no personality routine. Failure aborts; it never unwinds,
- * which is where most of the binary-size advantage over Rust comes from.
+ * machinery and no personality routine. Failure aborts; it never unwinds.
+ * Binary-size and performance comparisons require matched measured builds.
  *
  * Everything here is either a trap (which does not return) or an inline
  * arithmetic guard that the optimizer folds away when it can prove safety.
@@ -56,13 +56,45 @@ void beryl_newline(void);
 void beryl_test_begin(const char *name);
 void beryl_test_assert(bool ok, const char *expr, const char *file, int line);
 int  beryl_test_summary(void);
+void beryl_test_trace_enable(void);
+bool beryl_test_current_ok(void);
+void beryl_test_event(const char *kind, uint32_t file, uint32_t offset, bool flag);
+void beryl_test_f32(uint32_t file, uint32_t offset, float value);
+/* Test-only call-site identity. Ordinary generated arithmetic does not call
+ * these functions; wrappers below establish the site after operands evaluate. */
+void beryl_test_trap_site(uint32_t file, uint32_t offset);
+void beryl_test_trap_site_clear(void);
+void beryl_test_require_root(uint32_t file, uint32_t offset);
+void beryl_test_root_i32(uint32_t file, uint32_t offset, const int32_t *data, uint32_t length);
 
 /* ---- allocation -------------------------------------------------------- */
-/* The only allocator Beryl needs so far, used by `List<T>`. Failure aborts:
- * a program that cannot grow a list has no useful way to continue. */
+/* List allocation failure aborts. Capacity/byte-size rejection is a resource
+ * failure too; it must not produce an arithmetic-overflow source-trap event. */
 
 void *beryl_grow(void *p, size_t bytes);
 void  beryl_release(void *p);
+_Noreturn void beryl_allocation_size_failure(void);
+
+/* Pure capacity planning, independently testable without a large allocation.
+ * Output arguments are unchanged on invalid input or exhausted capacity.
+ * Length/capacity use i32; bytes are additionally bounded by SIZE_MAX.
+ * Callers commit the returned capacity only after successful allocation. */
+static inline bool be_list_growth_plan(int32_t len, int32_t cap, size_t elem,
+                                       int32_t *next, size_t *bytes) {
+    if (len < 0 || cap < len || !elem || len == INT32_MAX) return false;
+    size_t limit = SIZE_MAX / elem;
+    if (limit > INT32_MAX) limit = INT32_MAX;
+    size_t current = (size_t)cap, need = (size_t)len + 1;
+    if (current > limit || need > limit) return false;
+    size_t grown = current;
+    if (grown < need) {
+        if (!grown) grown = limit < 8 ? limit : 8;
+        else grown = grown > limit / 2 ? limit : grown * 2;
+    }
+    *next = (int32_t)grown;
+    *bytes = grown * elem; /* grown <= SIZE_MAX / elem */
+    return true;
+}
 
 /* ---- bounds ------------------------------------------------------------ */
 
@@ -72,9 +104,10 @@ static inline int64_t be_idx(int64_t i, int64_t n, const char *f, int l) {
 }
 
 /* ---- checked integer arithmetic ---------------------------------------- */
-/* Overflow traps in every build, release included. Rust wraps silently in
- * release, which is a real source of vulnerabilities; the measured cost here
- * is a well-predicted branch. `wrapping_*` opts out where it is wanted. */
+/* Overflow traps in every Beryl build, release included. Rust's overflow
+ * policy is configurable; comparison requires matched settings. The cost of
+ * these checks is workload-dependent and has not been established here.
+ * `wrapping_*` explicitly selects wrapping behavior. */
 
 #define BE_ARITH(T, S, MINV)                                                               \
     static inline T be_add_##S(T a, T b, const char *f, int l) {                           \
@@ -117,16 +150,46 @@ BE_ARITH(uint16_t, u16, 0)
 BE_ARITH(uint32_t, u32, 0)
 BE_ARITH(uint64_t, u64, 0)
 
-/* The explicit opt-outs. Checked arithmetic costs roughly 2x in a dependent
- * multiply-add chain (docs/BENCHMARKS.md); these are how a hot loop declines
- * the check without reaching for @unsafe, and they say so at the call site.
+/* Trace wrappers are deliberately limited to the independently admitted i32
+ * operations. No source trap is inferred from an arbitrary process crash. */
+#define BE_TRACE_I32_BINARY(OP)                                                        \
+    static inline int32_t be_##OP##_i32_at(int32_t a, int32_t b, const char *f, int l,   \
+                                          uint32_t file, uint32_t offset) {             \
+        beryl_test_trap_site(file, offset);                                             \
+        int32_t value = be_##OP##_i32(a, b, f, l);                                       \
+        beryl_test_trap_site_clear();                                                   \
+        return value;                                                                  \
+    }
+BE_TRACE_I32_BINARY(add)
+BE_TRACE_I32_BINARY(sub)
+BE_TRACE_I32_BINARY(mul)
+BE_TRACE_I32_BINARY(div)
+BE_TRACE_I32_BINARY(rem)
+#undef BE_TRACE_I32_BINARY
+static inline int32_t be_neg_i32_at(int32_t a, const char *f, int l,
+                                    uint32_t file, uint32_t offset) {
+    beryl_test_trap_site(file, offset);
+    int32_t value = be_neg_i32(a, f, l);
+    beryl_test_trap_site_clear();
+    return value;
+}
+static inline int64_t be_idx_at(int64_t i, int64_t n, const char *f, int l,
+                                uint32_t file, uint32_t offset) {
+    beryl_test_trap_site(file, offset);
+    int64_t value = be_idx(i, n, f, l);
+    beryl_test_trap_site_clear();
+    return value;
+}
+
+/* The explicit opt-outs select wrapping or saturating arithmetic at the call
+ * site. Their performance relative to checked operations must be measured.
  *
  * Wrapping goes through the unsigned type because signed overflow is
  * undefined in C, and "undefined" is not what `wrapping_add` promises. */
 #define BE_WRAP(T, U, S, MINV, MAXV)                                                       \
-    static inline T be_wadd_##S(T a, T b) { return (T)((U)a + (U)b); }                     \
-    static inline T be_wsub_##S(T a, T b) { return (T)((U)a - (U)b); }                     \
-    static inline T be_wmul_##S(T a, T b) { return (T)((U)a * (U)b); }                     \
+    static inline T be_wadd_##S(T a, T b) { return (T)((uint64_t)(U)a + (uint64_t)(U)b); } \
+    static inline T be_wsub_##S(T a, T b) { return (T)((uint64_t)(U)a - (uint64_t)(U)b); } \
+    static inline T be_wmul_##S(T a, T b) { return (T)((uint64_t)(U)a * (uint64_t)(U)b); } \
     static inline T be_satadd_##S(T a, T b) {                                              \
         T r;                                                                               \
         if (!__builtin_add_overflow(a, b, &r)) return r;                                   \
@@ -154,7 +217,7 @@ BE_WRAP(uint64_t, uint64_t, u64, 0, UINT64_MAX)
 #define BE_SHIFT(T, S, BITS)                                                               \
     static inline T be_shl_##S(T a, T b, const char *f, int l) {                           \
         if ((uint64_t)b >= (BITS)) beryl_trap_overflow(f, l, "<<");                        \
-        return (T)(a << b);                                                                \
+        return (T)((uint64_t)a << (uint64_t)b);                                             \
     }                                                                                      \
     static inline T be_shr_##S(T a, T b, const char *f, int l) {                           \
         if ((uint64_t)b >= (BITS)) beryl_trap_overflow(f, l, ">>");                        \

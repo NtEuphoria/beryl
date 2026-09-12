@@ -57,5 +57,6 @@ Diag    *diag_first(const DiagBag *d);
 
 void diag_render(const DiagBag *d, FILE *out, bool color);
 Str  diag_render_str(Arena *a, const DiagBag *d); /* for golden tests; never coloured */
+Str  diag_render_json(Arena *a, const DiagBag *d); /* JSON array, byte-based locations */
 
 #endif /* BERYL_DIAG_H */

@@ -1,5 +1,23 @@
 # Beryl for Arma Reforger
 
+For the September 6 implementation changes and verified boundaries, read
+[FOUNDATION_IMPLEMENTATION.md](FOUNDATION_IMPLEMENTATION.md). Shared default
+expansion, collision-aware local names, conditional expression preparation and
+indexed stores now have targeted regression coverage and real Workbench compile
+probes. The full PID now has the separate engine-executed parity evidence in
+[M3_IMPLEMENTATION.md](M3_IMPLEMENTATION.md). Other workloads and performance
+claims still require their own engine tests.
+
+The next advanced checkpoint adds a conservative `BE0701` admission rule for
+struct fields containing arrays/lists of records or nested arrays/lists. The
+current generated `BerylCopy` helper uses an `array.Copy` specialization that the
+installed engine rejects for these strong-reference elements. Scalar array fields
+retain their existing admission. Recursive collection value copying remains a
+Stage E requirement; explicit element insertion in a probe shares references and
+does not implement Beryl's independent logical values. See the
+[advanced execution state](BERYL_ADVANCED_IMPLEMENTATION_STATE.md) for the installed
+checkpoint and exact engine probe evidence.
+
 ## Why this exists
 
 Enfusion runs EnforceScript and nothing else. Mods ship as `.c` files that
@@ -52,7 +70,48 @@ beryl build -t enfusion     # writes SPK_Generated.c into `out`
 With no `--out-dir`, the EnforceScript goes to stdout, which is the quickest way
 to see what a change produces.
 
-## What the generated script looks like
+## Generated identities and stable engine exports
+
+The M1 implementation uses qualified, injectively encoded internal names.
+`flight.pid.Pid` becomes `SPK_be_i_flight_2epid_2ePid` with prefix `SPK`;
+fields and methods have separate `be_f_` and `be_m_` namespaces. A `pub`
+declaration grants Beryl module visibility; it does not establish an engine ABI.
+
+For an explicitly stable engine interface, the compiler accepts mappings:
+
+```bash
+beryl build -t enfusion --prefix SPK \
+  --export-class flight.pid.Pid=SPK_PID \
+  --export-method flight.pid.Pid.step=Step examples/pid.be
+```
+
+Mappings require public, concrete declarations. Exported method arguments are
+initially read-only bool/i32/f32 values; results are those scalars or void.
+The receiver may be read-only or inout. Defaults must be scalar literals.
+Unknown sources, duplicate/case-only identities, internal-name conflicts, and
+copy-helper conflicts fail before output. This small example does not expose
+the complete MESH PID; that package is `packages/sparkos/pid/`.
+
+The M3 compiler adds `--export-constructor Type.initialize=EngineClass` with a
+fully qualified source declaration. It requires a public initializer with
+`inout self`, a void result and admitted scalar parameters/state. The emitted
+engine class inherits the Beryl value class and invokes the initializer on its
+own fields. There is no extra state allocation. Ordinary Beryl construction and
+copying keep using the plain base class and do not invoke the engine constructor.
+The PID's exported methods and constructor have compiled and executed in
+Workbench, with state compared against the original implementation.
+
+The initial versioned `beryl.mod.json` schema collects these mappings, explicit
+source sets, addon identity and the engine version. `beryl mod check/build`,
+isolated Workbench compilation and hash-checked owned-output promotion are
+documented in [the package workflow](../packages/sparkos/pid/README.md). Components,
+resources, prefabs, layouts and general runtime scenarios remain later gates.
+
+## Historical illustrative output (before M1)
+
+The following example explains the former lowering shape only. It is not the
+current compiler's output or a supported naming contract; regenerate it to inspect
+the exact current script. The identities above supersede its short names.
 
 Beryl emits in Bohemia's own style, because you will be reading it in Workbench:
 tabs, Allman braces, `//!` doc comments, prefixed class names.
@@ -113,10 +172,9 @@ class SPK_Pid
 }
 ```
 
-Method names are emitted **verbatim**, not PascalCased. That is not only 1:1
-with your Beryl source when you are staring at a Workbench error — it is
-required, because a method overriding an engine callback must match its name
-exactly.
+Current internal method names use injective encoding. Explicit export mappings
+preserve required engine spellings. Component inheritance and callback generation
+remain separate planned facilities; a renamed method alone is not an override.
 
 ## The lowering table
 
@@ -132,7 +190,7 @@ exactly.
 | `List<T>` / `[T; N]` | `array<T>` |
 | `Map<K,V>` | `map<K, ref V>` |
 | `Box<T>` `Rc<T>` | `ref T` — **`Rc` costs nothing here**, the engine already refcounts |
-| `T?` | a generated `SPK_Opt_T` wrapper class |
+| `T?` | a generated wrapper named from its encoded full type identity |
 | `!T` | `bool` return plus an `out` parameter |
 | `inout` / `set` param | `out` param |
 | free function | a static method on a per-module holder class |

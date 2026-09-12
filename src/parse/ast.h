@@ -123,6 +123,8 @@ typedef VEC(FieldInit) FieldInitVec;
 struct Expr {
     ExprKind kind;
     Span     span;
+    bool     has_expansion_site; /* cloned default; span remains template origin */
+    Span     expansion_site;     /* requesting source expression, not generated text */
     Type    *type;     /* filled by sema/check */
     void    *res;      /* filled by sema: see ResKind */
     uint8_t  res_kind;
@@ -131,10 +133,16 @@ struct Expr {
         struct {
             uint64_t val;
             Str      suffix;
+            /* Set by the checker when this literal is the operand of a unary
+             * minus. `-2147483648` is a valid `i32` even though `2147483648`
+             * on its own is not, and the range check needs to know which it
+             * is looking at. */
+            bool     neg_ctx;
         } int_lit;
         struct {
             double val;
             Str    suffix;
+            Str    spelling; /* decimal digits retained until the target width is known */
         } float_lit;
         Str      str_lit;
         uint32_t char_lit;
@@ -308,6 +316,7 @@ struct Item {
     union {
         struct {
             Str        recv;     /* receiver type for a method, empty for free fn */
+            Item      *recv_decl; /* resolved receiver declaration; never spelling-based */
             GenericVec generics;
             ParamVec   params;
             TypeExpr  *ret; /* NULL means void */
@@ -323,6 +332,7 @@ struct Item {
         struct {
             TypeExpr *type;
             Expr     *value;
+            uint8_t   check_state; /* 0 unseen, 1 resolving type, 2 checked */
         } konst;
         struct {
             Str   label; /* test "name" { } */
@@ -344,6 +354,7 @@ typedef struct {
     Span     span;
     Str      doc;
     uint32_t file;
+    void    *scope; /* ModuleScope*: shared by files with the same module path */
 } Module;
 
 /* ---- construction ------------------------------------------------------ */
