@@ -1,5 +1,17 @@
 # Beryl for Arma Reforger
 
+The October private candidate adds [experimental scalar component generation](advanced/P4_COMPONENT_GENERATION.md):
+strict v2 descriptions can build descriptor/instance source wrappers using exact
+compiler names and one persistent scalar state member. Source checking/generation
+is separate from engine validation. The corrected scalar component now compiles
+in Workbench; its former generated constructor was rejected and has been replaced
+by a retained-member initializer. Public v2 verification and promotion remain
+unavailable. The [tablet engine replay](advanced/P5_TABLET_ENGINE_REPLAY.md)
+passes 92 numeric cases with scripted service replies, alongside a separately
+verified plain-script member-state probe. Real component callbacks and tablet
+services require separate evidence. Consult [delivery state](BERYL_DELIVERY_STATE.md)
+for exact identities and open gates.
+
 For the September 6 implementation changes and verified boundaries, read
 [FOUNDATION_IMPLEMENTATION.md](FOUNDATION_IMPLEMENTATION.md). Shared default
 expansion, collision-aware local names, conditional expression preparation and
@@ -314,9 +326,12 @@ of the *generated script*, never of the engine executing it.
 - **`test` blocks are not emitted.** They run natively, which is the point.
 - **`main` is not emitted.** Enfusion has its own entry points.
 - **No component scaffolding yet.** The paired `...ComponentClass` declaration
-  a scripted component needs is v0.2; write that shell by hand and call into
-  Beryl-generated classes from it.
-- **No engine API bindings.** Beryl does not know about `IEntity`, `Print`
-  aside, or anything else in the engine. Today it is for the *pure logic* half
+  a scripted component needs remains handwritten. The experimental strict-v2
+  [component admission profile](advanced/P4_COMPONENT_ADMISSION.md) checks
+  descriptor/instance identities and plain callback signatures through CLI/MCP;
+  it does not generate those shells or verify their lifecycle.
+- **General typed engine calls remain unavailable.** Engine declaration context
+  and the bounded component contract catalog support lookup/admission, not
+  arbitrary calls to `IEntity` APIs from Beryl. Today it is for the *pure logic* half
   of a mod: controllers, state machines, math, data structures. That is also the
   half that most benefits from being testable in milliseconds.

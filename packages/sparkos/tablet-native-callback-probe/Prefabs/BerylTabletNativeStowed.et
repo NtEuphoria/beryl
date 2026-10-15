@@ -1,0 +1,6 @@
+GenericEntity {
+ components {
+  SPK_BerylTabletNativeObserver {
+  }
+ }
+}

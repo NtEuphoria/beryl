@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "profile": "enfusion.layered-minimal-world.source.v1",
+  "state": "source_supported_experimental",
+  "world_name": "BerylCallbackProbe",
+  "engine_authored": false,
+  "engine_loaded": false,
+  "native_creation_helper_called": false,
+  "source_basis": {
+    "archive_path": "C:/Program Files (x86)/Steam/steamapps/common/Arma Reforger/addons/data/data007.pak",
+    "archive_size_bytes": 1994525893,
+    "archive_mtime_ns": 1788469039264200100,
+    "whole_archive_sha256": null,
+    "identity_scope": "exact selected packed entry and retained decoded source; entire2GB archive not hashed",
+    "resource_path": "scripts/WorkbenchGame/WorldEditor/Helpers/SCR_WorldFilesHelper.c",
+    "directory_name_offset": 1994298845,
+    "metadata_after_name_hex": "690dff585d0b0000e03400000000000000000106c88af069000b4f62",
+    "metadata_after_name_sha256": "559bf3ab9fced1823930e74e375dc55035847cbe05ed71539662bab5da0ee787",
+    "packed_offset": 1493110121,
+    "packed_size_bytes": 2909,
+    "packed_sha256": "67063d478bfd438eec97ed3ab18d2b7eddaef17751a8bb6eac5065395b327a6c",
+    "decoded_size_bytes": 13536,
+    "decoded_sha256": "528602403fa19c909d450394bab04ad582b20cd89de0c1962b394249d269071c",
+    "retained_source_path": "build/world-authoring-source-research-20261010-b274dc91/selected/SCR_WorldFilesHelper.c",
+    "retained_receipt_path": "build/world-authoring-source-research-20261010-b274dc91/selected-entry-observations.json",
+    "retained_receipt_sha256": "9a24665c09f5aa6879533b2f0591b93445aa4885e21ad7d0357c0a633024072d",
+    "class": "SCR_WorldFilesHelper",
+    "method": "CreateWorld",
+    "signature_line": 22,
+    "source_module": "WorkbenchGame",
+    "conditional_compilation": "WORKBENCH",
+    "parameters": {
+      "relativeWorldDirectory": "addon-prefixed, fixed owned destination selected by orchestrator",
+      "worldName": "BerylCallbackProbe",
+      "defaultLayerEntities": null,
+      "overwriteWorldFile": false,
+      "overwriteDefaultLayerFile": false
+    }
+  },
+  "primary_declaration": {
+    "path": "C:/Program Files (x86)/Steam/steamapps/common/Arma Reforger Tools/Workbench/docs/ArmaReforgerScriptAPIPublic/html/interfaceSCR__WorldFilesHelper.html",
+    "sha256": "d1e6e5c9c62b7392e584309909895480d2b61e1a043718a8a93f89c0952f6516",
+    "signature_line": 112,
+    "addon_prefixed_directory_line": 180,
+    "return_contract_line": 188
+  },
+  "files": [
+    {
+      "path": "worlds/BerylCallbackProbe.ent",
+      "size_bytes": 27,
+      "sha256": "f1e51134fb42a814e072493a46a67a76853723964cc6eb87a24e45e15921385d",
+      "encoding": "UTF-8 without BOM",
+      "line_ending": "LF",
+      "trailing_newline": true,
+      "exact_text": "Layer default {\n Index 0\n}\n",
+      "source_write_lines": [70, 71, 72]
+    },
+    {
+      "path": "worlds/BerylCallbackProbe_Layers/default.layer",
+      "size_bytes": 29,
+      "sha256": "e4584f0b154cbeea1bd4c9c9db96d5f062580f1886cbf40267392512800dcd4a",
+      "encoding": "UTF-8 without BOM",
+      "line_ending": "LF",
+      "trailing_newline": true,
+      "exact_text": "GenericWorldEntity world {\n}\n",
+      "source_write_lines": [106, 107],
+      "source_name_lines": [5, 44, 45],
+      "no_default_prefabs": true
+    }
+  ],
+  "preservation": {
+    "original_prepared_artifact": "read-only",
+    "legacy_world_template": "retained; replaced only inside a fresh derived owned workspace",
+    "existing_world_meta": "copied unchanged by orchestrator",
+    "existing_world_guid": "unchanged; native registration and roundtrip still required",
+    "new_package_outputs": "no .meta, resource database, executable, generated script or engine output"
+  },
+  "limitations": [
+    "No engine or compiler execution established this package's loadability.",
+    "FileHandle.WriteLine native newline bytes were not measured; LF is the explicit staged-template choice.",
+    "CreateWorld's registration comment is not implemented by a RegisterResourceFile call in its body.",
+    "A returned path or a copied legacy .meta does not prove native registration, resource type or world readiness.",
+    "The discovered helper belongs to WorkbenchGame; direct invocation from another script module was not tested.",
+    "Imported binary EmptyEden contains a GenericTerrainEntity token and is not the selected no-terrain fixture.",
+    "This package does not establish callback delivery, play-mode availability, tablet runtime, multiplayer or performance."
+  ]
+}

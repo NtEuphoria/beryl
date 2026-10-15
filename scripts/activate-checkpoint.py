@@ -12,8 +12,9 @@ rollback --build-dir BUILD --receipt BUILD/checkpoint-*/receipt.json
 
 The strict version-1 activation manifest has target_root, stage_root, and files.
 Each file has path, sha256, expected_prior (a SHA256 or null for absent). Paths
-are exactly the four MUTABLE paths and the complete installed 21-file bundle
-plus bundle.json. HASHES.json is exactly a map of MUTABLE paths to hashes/null.
+are exactly the four MUTABLE paths and the complete legacy 21-file, component-
+admission 24-file, or component-generation 25-file bundle, plus bundle.json.
+No other payload sets are admitted. HASHES.json is exactly a MUTABLE hash/null map.
 The returned receipt records where to find backups and the observed current
 hashes for a subsequent explicitly reviewed rollback. Rollback retains bundles.
 """
@@ -36,6 +37,10 @@ BUNDLE_FILES = {
     "terrain_measurements.py", "terrain-measurement.c.in", "terrain-adapter-v1.c.txt",
     "mcp_server.py", "beryl.analysis.v1.schema.json",
 }
+COMPONENT_FILES = {"component_contracts.py", "tablet-component-contracts.v1.json", "beryl.mod.v2.schema.json"}
+GENERATION_FILES = {"component_generation.py"}
+BUNDLE_PROFILES = (frozenset(BUNDLE_FILES), frozenset(BUNDLE_FILES | COMPONENT_FILES),
+                   frozenset(BUNDLE_FILES | COMPONENT_FILES | GENERATION_FILES))
 MAX_FILE = 32 * 1024 * 1024
 MAX_TOTAL = 128 * 1024 * 1024
 HASH = re.compile(r"[0-9a-f]{64}\Z")
@@ -164,6 +169,15 @@ def current_map(root):
     return {name: state(root / name) for name in MUTABLE}
 
 
+def bundle_files_for_destinations(paths, prefix, name):
+    """Select from three fixed complete profiles before any manifest path is joined."""
+    for profile in BUNDLE_PROFILES:
+        allowed = set(MUTABLE) | {prefix + part for part in profile | {"bundle.json"}}
+        if set(paths) == allowed:
+            return profile
+    raise GuardError(name + " contains unsupported destinations or incomplete bundle")
+
+
 def validate_manifest(root, raw):
     request = parse(raw)
     shape(request, ("schema_version", "target_root", "stage_root", "files"), "manifest")
@@ -178,7 +192,8 @@ def validate_manifest(root, raw):
     directory(stage)
     directory(stage / "beryl-tools")
     files = request["files"]
-    need(type(files) is list and len(files) == len(MUTABLE) + len(BUNDLE_FILES) + 1, "complete fixed file set required")
+    need(type(files) is list and len(files) in {len(MUTABLE) + len(p) + 1 for p in BUNDLE_PROFILES},
+         "complete fixed file set required")
     rows = {}
     for entry in files:
         shape(entry, ("path", "sha256", "expected_prior"), "file entry")
@@ -199,11 +214,10 @@ def validate_manifest(root, raw):
     bundle = pointer["bundle"]
     need(type(bundle) is str and HASH.fullmatch(bundle) is not None, "invalid bundle identity")
     prefix = "beryl-tools/" + bundle + "/"
-    allowed = set(MUTABLE) | {prefix + name for name in BUNDLE_FILES | {"bundle.json"}}
-    need(set(rows) == allowed, "manifest contains unsupported destinations or incomplete bundle")
+    bundle_files = bundle_files_for_destinations(rows, prefix, "manifest")
     bundle_root = stage / "beryl-tools" / bundle
     directory(bundle_root)
-    need({p.name for p in bundle_root.iterdir()} == BUNDLE_FILES | {"bundle.json"}, "stage bundle has extra/missing entries")
+    need({p.name for p in bundle_root.iterdir()} == bundle_files | {"bundle.json"}, "stage bundle has extra/missing entries")
     staged, previous = {}, {}
     total = 0
     for path in sorted(rows):
@@ -228,13 +242,13 @@ def validate_manifest(root, raw):
         if path.startswith(prefix):
             need(prior is None or prior == content, "immutable bundle cannot be overwritten: " + path)
     hashes = parse(staged[prefix + "bundle.json"])
-    shape(hashes, BUNDLE_FILES, "bundle manifest")
-    need(all(hashes[name] == digest(staged[prefix + name]) for name in BUNDLE_FILES), "bundle payload identity mismatch")
+    shape(hashes, bundle_files, "bundle manifest")
+    need(all(hashes[name] == digest(staged[prefix + name]) for name in bundle_files), "bundle payload identity mismatch")
     canonical = json.dumps(hashes, sort_keys=True, separators=(",", ":")).encode()
     need(digest(canonical) == bundle, "bundle directory does not match canonical payload identity")
     existing = root / "beryl-tools" / bundle
     if os.path.lexists(existing):
-        need({p.name for p in existing.iterdir()} == BUNDLE_FILES | {"bundle.json"}, "existing bundle has extra/missing entries")
+        need({p.name for p in existing.iterdir()} == bundle_files | {"bundle.json"}, "existing bundle has extra/missing entries")
     return request, stage, bundle, rows, staged, previous
 
 
@@ -377,17 +391,17 @@ def rollback(root, receipt, expected_path):
     shape(manifest, ("schema_version", "target_root", "stage_root", "files"), "rollback manifest")
     need(type(manifest["schema_version"]) is int and manifest["schema_version"] == 1 and manifest["target_root"] == str(root), "rollback manifest target/schema mismatch")
     need(type(record["bundle"]) is str and HASH.fullmatch(record["bundle"]), "invalid rollback bundle")
-    names = set(MUTABLE) | {"beryl-tools/" + record["bundle"] + "/" + n for n in BUNDLE_FILES | {"bundle.json"}}
-    need(type(manifest["files"]) is list and len(manifest["files"]) == len(names), "invalid rollback manifest file count")
+    need(type(manifest["files"]) is list and len(manifest["files"]) in
+         {len(MUTABLE) + len(p) + 1 for p in BUNDLE_PROFILES}, "invalid rollback manifest file count")
     rows = {}
     for row in manifest["files"]:
         shape(row, ("path", "sha256", "expected_prior"), "rollback manifest row")
-        need(type(row["path"]) is str and row["path"] in names and row["path"] not in rows,
+        need(type(row["path"]) is str and row["path"] not in rows,
              "invalid rollback manifest path")
         need(type(row["sha256"]) is str and HASH.fullmatch(row["sha256"]) and hash_or_absent(row["expected_prior"]),
              "invalid rollback manifest hash")
         rows[row["path"]] = row
-    need(set(rows) == names, "incomplete rollback manifest")
+    bundle_files_for_destinations(rows, "beryl-tools/" + record["bundle"] + "/", "rollback manifest")
     shape(record["mutable"], MUTABLE, "receipt mutable files")
     for index, path in enumerate(MUTABLE):
         row = record["mutable"][path]

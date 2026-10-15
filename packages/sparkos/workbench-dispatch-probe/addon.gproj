@@ -1,0 +1,8 @@
+GameProject {
+ ID "BerylWorkbenchDispatchProbe"
+ GUID "BED15A7C20261008"
+ TITLE "Beryl harmless GameCommon dispatch probe"
+ Dependencies {
+  "58D0FB3206B6F859"
+ }
+}

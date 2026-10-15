@@ -111,6 +111,14 @@ def map_engine_diagnostics(api, artifact_path, artifact, engine_result, project_
                 value = value[int(token)]
             else:
                 raise api.Failure('Companion source-map JSON pointer does not resolve')
+        if companion.get('identity_kind') == 'engine_class':
+            expected = companion.get('expected_value')
+            if (declaration is not None or type(expected) is not str or value != expected or
+                    not re.fullmatch(r'/components/(0|[1-9][0-9]*)/(descriptor|instance)/name', pointer)):
+                raise api.Failure('Companion class origin differs from its exact authored identity')
+            return
+        if 'identity_kind' in companion or 'expected_value' in companion:
+            raise api.Failure('Unsupported companion source-map identity association')
         referred = value.get('source') if type(value) is dict else value
         if referred != declaration:
             raise api.Failure('Companion source-map pointer refers to a different declaration')
@@ -163,9 +171,9 @@ def map_engine_diagnostics(api, artifact_path, artifact, engine_result, project_
         if '..' in PurePosixPath(reported).parts or reported != relative:
             continue
         origin = lines.get(item['Line'])
-        if not origin or origin.get('original') is None:
+        if not origin or (origin.get('original') is None and origin.get('companion') is None):
             continue
-        record.update(mapping_status='mapped_span', original=origin['original'],
+        record.update(mapping_status='mapped_span' if origin.get('original') is not None else 'mapped_companion', original=origin.get('original'),
                       expansion_site=origin.get('expansion_site'), companion=origin.get('companion'),
                       declaration=origin.get('declaration'), kind=origin.get('kind'),
                       generated_sha256=generated_hash,

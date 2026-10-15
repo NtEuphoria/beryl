@@ -1,0 +1,6 @@
+[package]
+name    = "checked_lcg"
+version = "0.2.0"
+
+[security]
+forbid_unsafe = true

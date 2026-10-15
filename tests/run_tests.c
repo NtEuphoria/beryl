@@ -17,6 +17,7 @@ void run_ir_tests(void);
 void run_ir_c_tests(void);
 void run_allocation_tests(void);
 void run_destination_tests(void);
+void run_call_capture_tests(void);
 void run_capability_tests(void);
 void run_storage_admission_tests(void);
 void run_parser_limits_tests(void);
@@ -35,6 +36,7 @@ int main(int argc, char **argv) {
     run_sema_tests();
     run_ownership_tests();
     run_destination_tests();
+    run_call_capture_tests();
     run_storage_admission_tests();
     run_enfusion_tests();
     run_security_tests();

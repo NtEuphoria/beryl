@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "profile": "sparkos.tablet.real-services.n1a.source.v1",
+  "state": "planned_source_only",
+  "installed_scenario": false,
+  "source_basis": [
+    {"path": "build/tablet-recovery-1ae28bbb58d4499d808b467a390b6fc1/inputs/mesh/scripts/Game/SparkOSMesh/UI/SPK_TabletComponent.c", "bytes": 5051, "sha256": "1f15962cf67a8cc513d7068757e89360260016fadff1c8843719784acc94be3a"},
+    {"path": "build/tablet-recovery-1ae28bbb58d4499d808b467a390b6fc1/inputs/mesh/scripts/Game/SparkOSMesh/UI/SPK_ScreenRT.c", "bytes": 4053, "sha256": "6328c5e86787b75c8cf949fcbd914c4fb137e17534a6158150bdba13818e942b"},
+    {"path": "packages/sparkos/tablet-lifecycle-prototype/src/lifecycle.be", "bytes": 7537, "sha256": "34c2b848e94a7a68132804d08a58fcf31d644f2d0e9eb2b4973e84a39249f792"},
+    {"path": "packages/sparkos/tablet-service-prototype/tablet-service.c.in", "bytes": 5132, "sha256": "21479adf12a76a48ad7be9419e6e5047d663cce0ebee1341e5d8bfaf8d20d3c7"}
+  ],
+  "cases": [
+    {"id": "n1a.focus-refused.stowed", "action": "Focus", "arguments": [], "service_events": 0},
+    {"id": "n1a.held.first", "action": "SetHeld", "arguments": [true], "service_events": 3},
+    {"id": "n1a.held.repeated", "action": "SetHeld", "arguments": [true], "service_events": 2},
+    {"id": "n1a.unfocus-refused.held", "action": "Unfocus", "arguments": [], "service_events": 0},
+    {"id": "n1a.stow", "action": "SetHeld", "arguments": [false], "service_events": 2},
+    {"id": "n1a.stow.repeated", "action": "SetHeld", "arguments": [false], "service_events": 2},
+    {"id": "n1a.independent-state", "action": "Observe", "arguments": [], "service_events": 0}
+  ],
+  "domain": {
+    "states": {"STOWED": 0, "HELD": 1, "FOCUSED": 2},
+    "owners": 2,
+    "initial_mode": 0,
+    "accumulator": "decoded numeric zero; bounded finite text; no bit or signed-zero proof",
+    "native_initialization": "required by separate trusted runtime admission before this trace",
+    "selected_owner": "owner.1",
+    "other_owner": "owner.2",
+    "state_tokens": ["state.1", "state.2"],
+    "screen_token": "screen.1",
+    "widget_token": "widget.1",
+    "interference": "no external mutation, nested/reentrant public action, lost widget/owner validity, or focused frame",
+    "excluded_components": ["DroneInput", "Gadget", "Inventory", "EditableEntity", "MeshObject", "Rpl", "MeshCore"],
+    "enable_branches": ["FF", "FT", "TT"],
+    "false_enable": "normal return; HELD remains published; not an engine exception or harness failure"
+  },
+  "identity_fields": ["schema_version", "profile", "token", "source_sha256", "source_contract_sha256"],
+  "completion_fields": ["schema_version", "profile", "token", "source_sha256", "source_contract_sha256", "status", "failure", "executed", "failures", "caseIds", "record_count", "service_event_count", "checksum", "records"],
+  "record_fields": ["case_id", "action", "arguments", "before", "services", "outcome", "after"],
+  "snapshot_fields": ["owner", "state", "mode", "accumulator", "ui", "screen", "screen_enabled", "widget"],
+  "event_fields": ["sequence", "kind", "invocation_id", "owner", "state", "screen", "mode", "accumulator", "argument_owner", "returned", "enabled", "widget"],
+  "hook_signatures": [
+    "protected void BerylObserveScreenCreated()",
+    "protected int BerylObserveScreenEnableEnter()",
+    "protected void BerylObserveScreenEnableExit(int invocationId, bool returned)",
+    "protected int BerylObserveScreenDisableEnter()",
+    "protected void BerylObserveScreenDisableExit(int invocationId)"
+  ],
+  "hook_events": ["screen.create", "screen.enable.enter", "screen.enable.exit", "screen.disable.enter", "screen.disable.exit"],
+  "hook_boundary": "adapter opcodes 10/11/12 only; create after actual allocation/publication; real service exactly once; Enable reply captured in local and still ignored by Beryl; no inferred internal Build/Destroy/Disable/native RT calls",
+  "read_scope": "actual owner/state/service tokens plus GetState/GetUI/GetScreen and SPK_ScreenRT.IsEnabled/GetWidget at before/after public action and actual adapter hook boundaries; protected Beryl accumulator read by future trusted observer; both owners observed at every action boundary",
+  "ordering": "seven actions fixed; service sequence 1..9; invocation-local pairs 1..4; preserve native order without sorting",
+  "checksum": "multiplier 31 modulo 1000003 over each typed record's sorted-key compact ensure_ascii JSON bytes plus LF; this is a proposed serialization contract, not yet native wire admission",
+  "limits": {"records": 7, "service_events": 9, "input_bytes": 2097152, "accumulator_text_bytes": 48},
+  "remaining_obligations": ["native construction/init/valid owner and world", "trusted token assignment and observation origins", "exact candidate/source/artifact identity", "native wire serialization and full transport envelope", "N1a actual service execution", "UI/focused frames/delayed work", "input/profile ownership", "gadget/equipment", "native deletion/service retention", "render-target binding/pixels", "multiplayer", "promotion"]
+}

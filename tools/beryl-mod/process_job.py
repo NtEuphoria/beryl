@@ -13,6 +13,7 @@ class ProcessJob:
     def __enter__(self):
         self.handle = None
         self.process = None
+        self.cleanup_errors = []
         if os.name == "nt":
             import ctypes
             from ctypes import wintypes as w
@@ -139,21 +140,42 @@ class ProcessJob:
                 # Assignment can fail before this process belongs to the job.
                 # Always terminate our exact child; closing the configured job
                 # also terminates any descendants created after a failed resume.
-                process.kill()
-                process.wait(timeout=10)
+                # Cleanup is secondary evidence. It must not replace the
+                # assignment/resume exception that explains this failed launch.
+                for stage, action in (("attach.kill", process.kill),
+                                      ("attach.wait", lambda: process.wait(timeout=10))):
+                    try:
+                        action()
+                    except BaseException as exc:
+                        self.cleanup_errors.append({"stage": stage, "type": type(exc).__name__,
+                                                    "message": str(exc)})
                 raise
 
     def stop(self, process):
-        if self.handle:
-            if not self.api.TerminateJobObject(self.handle, 2):
-                import ctypes
-                raise ctypes.WinError(ctypes.get_last_error())
-        else:
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-        process.wait(timeout=10)
+        error = None
+        try:
+            if self.handle:
+                if not self.api.TerminateJobObject(self.handle, 2):
+                    import ctypes
+                    raise ctypes.WinError(ctypes.get_last_error())
+            else:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+        except BaseException as exc:
+            error = exc
+            self.cleanup_errors.append({"stage": "stop.request", "type": type(exc).__name__,
+                                        "message": str(exc)})
+        try:
+            process.wait(timeout=10)
+        except BaseException as exc:
+            self.cleanup_errors.append({"stage": "stop.wait", "type": type(exc).__name__,
+                                        "message": str(exc)})
+            if error is None:
+                error = exc
+        if error is not None:
+            raise error
 
     def __exit__(self, *args):
         if self.handle:
@@ -163,8 +185,14 @@ class ProcessJob:
             error = None
             if not self.api.TerminateJobObject(self.handle, 2):
                 error = ctypes.WinError(ctypes.get_last_error())
-            if not self.api.CloseHandle(self.handle) and error is None:
-                error = ctypes.WinError(ctypes.get_last_error())
+                self.cleanup_errors.append({"stage": "close.request", "type": type(error).__name__,
+                                            "message": str(error)})
+            if not self.api.CloseHandle(self.handle):
+                close_error = ctypes.WinError(ctypes.get_last_error())
+                self.cleanup_errors.append({"stage": "close.handle", "type": type(close_error).__name__,
+                                            "message": str(close_error)})
+                if error is None:
+                    error = close_error
             self.handle = None
             if error is not None and not any(args):
                 raise error

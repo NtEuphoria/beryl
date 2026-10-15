@@ -1,0 +1,496 @@
+// Installed experimental fixture transport, not an arbitrary project script.
+// This file never invokes tablet callbacks or services directly. Native entity
+// creation owns OnPostInit/EOnFrame; final rows are published only after play.
+class BerylTabletNativeLoadState
+{
+    static string token = "@TOKEN@";
+    static string sourceHash = "@SOURCE_SHA256@";
+    static int requested, submitted, entered, resumed, returned;
+    static bool accepted;
+    static string failure;
+}
+
+void Beryl_OpenTabletNativeWorld()
+{
+    if (BerylTabletNativeLoadState.token != "@TOKEN@" || BerylTabletNativeLoadState.sourceHash != "@SOURCE_SHA256@" || BerylTabletNativeLoadState.requested != 1 || BerylTabletNativeLoadState.entered != 0)
+    { BerylTabletNativeLoadState.failure = "Unexpected deferred tablet world worker entry or identity reset"; return; }
+    BerylTabletNativeLoadState.entered = 1;
+    Print("BERYL_TABLET_NATIVE_LOAD|@TOKEN@|entered");
+    Sleep(200);
+    if (BerylTabletNativeLoadState.token != "@TOKEN@" || BerylTabletNativeLoadState.sourceHash != "@SOURCE_SHA256@" || BerylTabletNativeLoadState.submitted != 1 || BerylTabletNativeLoadState.entered != 1 || BerylTabletNativeLoadState.resumed != 0 || BerylTabletNativeLoadState.returned != 0)
+    { BerylTabletNativeLoadState.failure = "Unexpected deferred tablet world worker resumption or state reset"; return; }
+    BerylTabletNativeLoadState.resumed = 1;
+    Print("BERYL_TABLET_NATIVE_LOAD|@TOKEN@|resumed");
+    // All native references are acquired after the only yield.
+    WorldEditor editor = Workbench.GetModule(WorldEditor);
+    WorldEditorAPI api;
+    if (editor) api = editor.GetApi();
+    string absoluteWorld;
+    bool resolved = Workbench.GetAbsolutePath("$BerylTabletNativeStowedPrototype:worlds/BerylTabletNativeStowed.ent", absoluteWorld, true);
+    string normalizedWorld = absoluteWorld;
+    normalizedWorld.Replace("\\", "/");
+    if (!editor || !api || !resolved || normalizedWorld != "@WORLD_ABSOLUTE@" || (GetGame() && GetGame().InPlayMode()))
+    { BerylTabletNativeLoadState.failure = "Deferred tablet opener lost editor, owned world or edit precondition"; return; }
+    ResourceName registered = Workbench.GetResourceName(absoluteWorld);
+    string registeredAbsolute;
+    bool registeredResolved;
+    if (registered != "") registeredResolved = Workbench.GetAbsolutePath(registered.GetPath(), registeredAbsolute, true);
+    registeredAbsolute.Replace("\\", "/");
+    if (registered != "{BE71570A20261010}worlds/BerylTabletNativeStowed.ent" || !registeredResolved || registeredAbsolute != "@WORLD_ABSOLUTE@" || !api.IsEditMode() || api.IsGameMode())
+    { BerylTabletNativeLoadState.failure = "Deferred tablet opener registration or mode differs from pinned inputs"; return; }
+    string observedPath;
+    api.GetWorldPath(observedPath);
+    if (observedPath != "")
+    {
+        string observedAbsolute;
+        bool observedResolved = Workbench.GetAbsolutePath(observedPath, observedAbsolute, true);
+        observedAbsolute.Replace("\\", "/");
+        if (!observedResolved || observedAbsolute != "@WORLD_ABSOLUTE@")
+        { BerylTabletNativeLoadState.failure = "Another native world is active in the deferred tablet opener"; return; }
+    }
+    Print("BERYL_TABLET_NATIVE_LOAD|@TOKEN@|native-call");
+    bool accepted = editor.SetOpenedResource(absoluteWorld);
+    if (BerylTabletNativeLoadState.token != "@TOKEN@" || BerylTabletNativeLoadState.sourceHash != "@SOURCE_SHA256@" || BerylTabletNativeLoadState.requested != 1 || BerylTabletNativeLoadState.submitted != 1 || BerylTabletNativeLoadState.entered != 1 || BerylTabletNativeLoadState.resumed != 1 || BerylTabletNativeLoadState.returned != 0)
+    { BerylTabletNativeLoadState.failure = "Deferred tablet opener returned into reset state"; return; }
+    BerylTabletNativeLoadState.accepted = accepted;
+    BerylTabletNativeLoadState.returned = 1;
+    if (!accepted) BerylTabletNativeLoadState.failure = "Deferred owned tablet world load request refused";
+    Print("BERYL_TABLET_NATIVE_LOAD|@TOKEN@|returned");
+}
+
+class BerylTabletNativeCallbacksRequest : JsonApiStruct
+{
+    string token, action;
+    void BerylTabletNativeCallbacksRequest() { RegV("token"); RegV("action"); }
+}
+
+class BerylTabletNativeCallbacksResponse : JsonApiStruct
+{
+    string token, action, status, failure, profile, source_contract_sha256, source_sha256;
+    string world_path, current_project, addon_world_path, world_absolute_path;
+    string resource_name, resource_path, resource_absolute_path;
+    bool addon_world_resolved, world_path_resolved, resource_name_resolved;
+    bool module_present, api_present, module_open_requested, module_open_accepted;
+    bool load_accepted, world_matches, edit_mode, game_mode, in_play_mode;
+    bool world_present, game_world_present, frames_ready, stop_requested;
+    int schema_version, load_requested, load_submitted, load_entered, load_resumed, load_returned;
+    int phase, executed, failures, owner_count, row_count, checksum;
+    ref array<string> caseIds = {};
+    ref array<int> frame_counts = {};
+    ref array<string> rows = {};
+    void BerylTabletNativeCallbacksResponse()
+    {
+        RegV("token"); RegV("action"); RegV("status"); RegV("failure"); RegV("profile");
+        RegV("source_contract_sha256"); RegV("source_sha256"); RegV("schema_version");
+        RegV("world_path"); RegV("current_project"); RegV("addon_world_path"); RegV("world_absolute_path");
+        RegV("resource_name"); RegV("resource_path"); RegV("resource_absolute_path");
+        RegV("addon_world_resolved"); RegV("world_path_resolved"); RegV("resource_name_resolved");
+        RegV("module_present"); RegV("api_present"); RegV("module_open_requested"); RegV("module_open_accepted");
+        RegV("load_requested"); RegV("load_submitted"); RegV("load_entered"); RegV("load_resumed"); RegV("load_returned"); RegV("load_accepted");
+        RegV("world_matches"); RegV("edit_mode"); RegV("game_mode"); RegV("in_play_mode");
+        RegV("world_present"); RegV("game_world_present"); RegV("frames_ready"); RegV("stop_requested");
+        RegV("phase"); RegV("executed"); RegV("failures"); RegV("owner_count"); RegV("row_count"); RegV("checksum");
+        RegV("caseIds"); RegV("frame_counts"); RegV("rows");
+    }
+}
+
+// The scan contains scalar observations only. It never follows retained owners
+// or State references; that remains true after the edit-mode handoff.
+class BerylTabletNativeRowScan
+{
+    int initStep, frame1, frame2, pending1, pending2;
+    int mask1, mask2;
+    bool init1, init2;
+    string failure;
+    ref array<string> rows = {};
+    int checksum;
+}
+
+class BerylTabletNativeCallbacks : NetApiHandler
+{
+    protected static bool s_ModuleRequested, s_ModuleAccepted, s_ResourceRequested, s_PlayRequested, s_StopRequested;
+    protected static string s_LoadFailure, s_TraceFailure;
+    protected static int s_Phase;
+    protected static bool s_FailureDiagnosticPrinted;
+    protected static int s_StopFrames1, s_StopFrames2;
+    protected static ref array<string> s_StopPrefix = {};
+
+    protected static string Bit(bool value)
+    {
+        if (value) return "1";
+        return "0";
+    }
+
+    protected static string EncodeRow(int sequence, SPK_BerylTabletNativeObservation item)
+    {
+        // Short concatenations avoid the confirmed Enforce expression limit.
+        string row = sequence.ToString();
+        row += "|" + item.token.ToString();
+        row += "|" + item.stage;
+        row += "|" + item.ordinal.ToString();
+        row += "|" + Bit(item.ownerMatches);
+        row += "|" + Bit(item.ownerWorldPresent);
+        row += "|" + Bit(item.gameWorldPresent);
+        row += "|" + Bit(item.gameWorldMatches);
+        row += "|" + Bit(item.statePresent);
+        row += "|" + Bit(item.sameState);
+        row += "|" + Bit(item.independenceObserved);
+        row += "|" + Bit(item.independentState);
+        row += "|" + item.mode.ToString();
+        row += "|" + item.accumulator.ToString();
+        row += "|" + item.timeSlice.ToString();
+        row += "|" + item.mask.ToString();
+        row += "|" + Bit(item.uiAbsent);
+        row += "|" + Bit(item.screenAbsent);
+        return row;
+    }
+
+    protected static void AddChecksum(BerylTabletNativeRowScan scan, string row)
+    {
+        for (int i = 0; i < row.Length(); i++)
+            scan.checksum = (scan.checksum * 31 + row.ToAscii(i)) % 1000003;
+        scan.checksum = (scan.checksum * 31 + 10) % 1000003;
+    }
+
+    protected static BerylTabletNativeRowScan ScanRows()
+    {
+        BerylTabletNativeRowScan scan = new BerylTabletNativeRowScan();
+        int count = SPK_BerylTabletNativeRegistry.s_Rows.Count();
+        if (SPK_BerylTabletNativeRegistry.s_Failure != "")
+        { scan.failure = SPK_BerylTabletNativeRegistry.s_Failure; return scan; }
+        if (SPK_BerylTabletNativeRegistry.s_PendingToken != 0 || SPK_BerylTabletNativeRegistry.s_Owners.Count() != 2 || SPK_BerylTabletNativeRegistry.s_States.Count() != 2 || count > 1024)
+        { scan.failure = "Native tablet registry identity/count/pending state changed"; return scan; }
+        for (int i = 0; i < count; i++)
+        {
+            SPK_BerylTabletNativeObservation item = SPK_BerylTabletNativeRegistry.s_Rows[i];
+            if (!item || item.token < 1 || item.token > 2 || !item.ownerMatches || !item.ownerWorldPresent || !item.gameWorldPresent || !item.gameWorldMatches || !item.statePresent || !item.sameState)
+            { scan.failure = "Native tablet observation has invalid owner/world/state identity"; return scan; }
+            if (item.mode != 0 || item.accumulator != 0 || !(item.timeSlice >= 0 && item.timeSlice <= 10) || !item.uiAbsent || !item.screenAbsent)
+            { scan.failure = "Native tablet observation left the admitted stowed/no-services domain"; return scan; }
+            if (item.independenceObserved && !item.independentState)
+            { scan.failure = "Native tablet observations share a logical State object"; return scan; }
+            bool isFirst = item.token == 1;
+            if (item.stage == "init.before")
+            {
+                int expectedStep = 0;
+                if (!isFirst) expectedStep = 2;
+                if (scan.initStep != expectedStep || item.ordinal != 1 || item.timeSlice != 0)
+                { scan.failure = "Native tablet init-before order differs from the two registered spawns"; return scan; }
+                scan.initStep++;
+            }
+            else if (item.stage == "init.after")
+            {
+                int afterStep = 1;
+                if (!isFirst) afterStep = 3;
+                if (scan.initStep != afterStep || item.ordinal != 1 || item.timeSlice != 0 || (item.mask & EntityEvent.FRAME) == 0)
+                { scan.failure = "Native tablet init-after order or FRAME mask is invalid"; return scan; }
+                scan.initStep++;
+                if (isFirst) { scan.init1 = true; scan.mask1 = item.mask; }
+                else { scan.init2 = true; scan.mask2 = item.mask; }
+            }
+            else if (item.stage == "frame.before")
+            {
+                int complete = scan.frame1;
+                int pending = scan.pending1;
+                int mask = scan.mask1;
+                bool initialized = scan.init1;
+                if (!isFirst) { complete = scan.frame2; pending = scan.pending2; mask = scan.mask2; initialized = scan.init2; }
+                if (!initialized || pending != 0 || item.ordinal != complete + 1 || item.ordinal > 200 || item.mask != mask)
+                { scan.failure = "Native tablet frame-before ordinal, bound or mask is invalid"; return scan; }
+                if (isFirst) scan.pending1 = item.ordinal;
+                else scan.pending2 = item.ordinal;
+            }
+            else if (item.stage == "frame.after")
+            {
+                int expectedOrdinal = scan.pending1;
+                int afterMask = scan.mask1;
+                if (!isFirst) { expectedOrdinal = scan.pending2; afterMask = scan.mask2; }
+                if (expectedOrdinal == 0 || item.ordinal != expectedOrdinal || item.mask != afterMask)
+                { scan.failure = "Native tablet frame-after does not finish its captured before row"; return scan; }
+                if (isFirst) { scan.frame1 = item.ordinal; scan.pending1 = 0; }
+                else { scan.frame2 = item.ordinal; scan.pending2 = 0; }
+            }
+            else
+            { scan.failure = "Unknown native tablet observation stage"; return scan; }
+            string encoded = EncodeRow(i, item);
+            scan.rows.Insert(encoded);
+            AddChecksum(scan, encoded);
+        }
+        if (scan.initStep != 4 || !scan.init1 || !scan.init2 || scan.pending1 != 0 || scan.pending2 != 0 || SPK_BerylTabletNativeRegistry.s_Rows.Count() != count || SPK_BerylTabletNativeRegistry.s_Failure != "")
+            scan.failure = "Native tablet observations are incomplete or changed during scalar capture";
+        return scan;
+    }
+
+    protected static void PrintFailureDiagnostic()
+    {
+        if (s_FailureDiagnosticPrinted) return;
+        s_FailureDiagnosticPrinted = true;
+        int count = SPK_BerylTabletNativeRegistry.s_Rows.Count();
+        if (count < 0 || count > SPK_BerylTabletNativeRegistry.MAX_ROWS)
+        { Print("BERYL_TABLET_FAILURE_DIAGNOSTIC|@TOKEN@|@SOURCE_SHA256@|invalid-row-bound"); return; }
+        int frames1, frames2, ordinal1, ordinal2, nullRows;
+        float sum1, sum2, min1 = 10, min2 = 10, max1, max2;
+        for (int i = 0; i < count; i++)
+        {
+            SPK_BerylTabletNativeObservation item = SPK_BerylTabletNativeRegistry.s_Rows[i];
+            if (!item) { nullRows++; continue; }
+            if (item.stage != "frame.after") continue;
+            if (item.token == 1)
+            {
+                frames1++; ordinal1 = item.ordinal; sum1 += item.timeSlice;
+                if (item.timeSlice < min1) min1 = item.timeSlice;
+                if (item.timeSlice > max1) max1 = item.timeSlice;
+            }
+            else if (item.token == 2)
+            {
+                frames2++; ordinal2 = item.ordinal; sum2 += item.timeSlice;
+                if (item.timeSlice < min2) min2 = item.timeSlice;
+                if (item.timeSlice > max2) max2 = item.timeSlice;
+            }
+        }
+        string line = "BERYL_TABLET_FAILURE_DIAGNOSTIC|@TOKEN@|@SOURCE_SHA256@";
+        line += "|" + count.ToString() + "|" + nullRows.ToString();
+        line += "|" + frames1.ToString() + "|" + ordinal1.ToString();
+        line += "|" + sum1.ToString() + "|" + min1.ToString() + "|" + max1.ToString();
+        line += "|" + frames2.ToString() + "|" + ordinal2.ToString();
+        line += "|" + sum2.ToString() + "|" + min2.ToString() + "|" + max2.ToString();
+        line += "|" + System.GetFPS().ToString() + "|" + System.GetFrameTimeS().ToString();
+        Print(line);
+    }
+
+    protected static void Progress(BerylTabletNativeCallbacksResponse resp)
+    {
+        resp.phase = s_Phase;
+        resp.stop_requested = s_StopRequested;
+        resp.owner_count = SPK_BerylTabletNativeRegistry.s_Owners.Count();
+        if (s_TraceFailure == "" && SPK_BerylTabletNativeRegistry.s_Failure != "")
+            s_TraceFailure = SPK_BerylTabletNativeRegistry.s_Failure;
+        if (s_Phase == 2 || s_Phase == 3 || s_Phase == 4)
+        {
+            BerylTabletNativeRowScan scan = ScanRows();
+            if (scan.failure != "" && s_TraceFailure == "") s_TraceFailure = scan.failure;
+            if (resp.owner_count == 2)
+            {
+                resp.frame_counts.Insert(scan.frame1);
+                resp.frame_counts.Insert(scan.frame2);
+            }
+            resp.frames_ready = scan.failure == "" && scan.frame1 >= 3 && scan.frame2 >= 3;
+            if (s_Phase == 3 && resp.edit_mode && !resp.game_mode && !resp.in_play_mode && resp.world_matches && resp.world_present && s_TraceFailure == "")
+            {
+                if (!resp.frames_ready || scan.frame1 < s_StopFrames1 || scan.frame2 < s_StopFrames2 || scan.rows.Count() < s_StopPrefix.Count())
+                    s_TraceFailure = "Native tablet trace lost observations across the edit-mode handoff";
+                else
+                {
+                    for (int i = 0; i < s_StopPrefix.Count(); i++)
+                    {
+                        if (scan.rows[i] != s_StopPrefix[i])
+                        { s_TraceFailure = "Native tablet scalar trace prefix changed across the edit-mode handoff"; break; }
+                    }
+                }
+                if (s_TraceFailure == "")
+                {
+                    // Seal the scalar suffix that arrived during the native
+                    // handoff. Later complete responses must match it exactly.
+                    s_StopPrefix.Clear();
+                    foreach (string finalRow : scan.rows) s_StopPrefix.Insert(finalRow);
+                    s_StopFrames1 = scan.frame1; s_StopFrames2 = scan.frame2;
+                    s_Phase = 4;
+                }
+            }
+            // Publishing phase4 again also rechecks failure/cap/reset state and
+            // compares the full previously sealed prefix, without engine refs.
+            if (s_Phase == 4 && s_TraceFailure == "")
+            {
+                if (!resp.edit_mode || resp.game_mode || resp.in_play_mode || !resp.world_matches || !resp.world_present || !resp.frames_ready)
+                    s_TraceFailure = "Final native tablet trace requires the same owned edit world outside play";
+                else if (scan.rows.Count() != s_StopPrefix.Count() || scan.frame1 != s_StopFrames1 || scan.frame2 != s_StopFrames2)
+                    s_TraceFailure = "Final native tablet scalar trace changed after sealing";
+                else
+                {
+                    for (int finalIndex = 0; finalIndex < s_StopPrefix.Count(); finalIndex++)
+                    {
+                        if (scan.rows[finalIndex] != s_StopPrefix[finalIndex])
+                        { s_TraceFailure = "Final native tablet scalar trace prefix changed after sealing"; break; }
+                    }
+                    if (s_TraceFailure == "")
+                    {
+                        foreach (string publishedRow : scan.rows) resp.rows.Insert(publishedRow);
+                        resp.row_count = scan.rows.Count();
+                        resp.checksum = scan.checksum;
+                        resp.executed = 1;
+                        resp.caseIds.Insert("native.init.1"); resp.caseIds.Insert("native.init.2");
+                        resp.caseIds.Insert("native.stowed-frames.1"); resp.caseIds.Insert("native.stowed-frames.2");
+                        resp.caseIds.Insert("native.independent-state");
+                        resp.status = "complete";
+                    }
+                }
+            }
+        }
+        resp.phase = s_Phase;
+        if (s_TraceFailure != "")
+        {
+            PrintFailureDiagnostic();
+            resp.status = "failure"; resp.failure = s_TraceFailure; resp.failures = 1;
+            resp.executed = 0; resp.row_count = 0; resp.checksum = 0;
+            resp.rows.Clear(); resp.caseIds.Clear();
+        }
+    }
+
+    override JsonApiStruct GetRequest() { return new BerylTabletNativeCallbacksRequest(); }
+    override JsonApiStruct GetResponse(JsonApiStruct request)
+    {
+        BerylTabletNativeCallbacksRequest req = BerylTabletNativeCallbacksRequest.Cast(request);
+        BerylTabletNativeCallbacksResponse resp = new BerylTabletNativeCallbacksResponse();
+        resp.token = "@TOKEN@"; resp.source_sha256 = "@SOURCE_SHA256@";
+        resp.source_contract_sha256 = "e31da81b7b8b18beaf4d8760b8ead4b1358a273b0936e42958cfc6e2e5bbc792";
+        resp.schema_version = 1; resp.profile = "sparkos.tablet.native-init-stowed.source.v1";
+        resp.status = "failure";
+        if (!req || req.token != resp.token) { resp.failure = "Compiled native tablet fixture token mismatch"; return resp; }
+        resp.action = req.action;
+        if (req.action != "load" && req.action != "status" && req.action != "play" && req.action != "spawn" && req.action != "stop")
+        { resp.failure = "Unknown installed native tablet action"; return resp; }
+        if (BerylTabletNativeLoadState.token != resp.token || BerylTabletNativeLoadState.sourceHash != resp.source_sha256)
+        { resp.failure = "Deferred native tablet identity differs from compiled fixture"; return resp; }
+        resp.load_requested = BerylTabletNativeLoadState.requested;
+        resp.load_submitted = BerylTabletNativeLoadState.submitted;
+        resp.load_entered = BerylTabletNativeLoadState.entered;
+        resp.load_resumed = BerylTabletNativeLoadState.resumed;
+        resp.load_returned = BerylTabletNativeLoadState.returned;
+        resp.load_accepted = BerylTabletNativeLoadState.accepted;
+        if (BerylTabletNativeLoadState.failure != "")
+        { resp.status = "unavailable"; resp.failure = BerylTabletNativeLoadState.failure; return resp; }
+        WorldEditor observedEditor = Workbench.GetModule(WorldEditor);
+        resp.module_present = observedEditor != null;
+        if (observedEditor) resp.api_present = observedEditor.GetApi() != null;
+        resp.module_open_requested = s_ModuleRequested;
+        resp.module_open_accepted = s_ModuleAccepted;
+        resp.current_project = Workbench.GetCurrentGameProjectFile();
+        resp.addon_world_resolved = Workbench.GetAbsolutePath("$BerylTabletNativeStowedPrototype:worlds/BerylTabletNativeStowed.ent", resp.addon_world_path, true);
+        string ownedWorldPath = resp.addon_world_path;
+        ownedWorldPath.Replace("\\", "/");
+        if (!resp.addon_world_resolved || ownedWorldPath != "@WORLD_ABSOLUTE@")
+        { resp.status = "unavailable"; resp.failure = "Native addon world resolution does not identify the owned tablet fixture"; return resp; }
+        ResourceName registeredResource = Workbench.GetResourceName(resp.addon_world_path);
+        resp.resource_name = registeredResource;
+        if (registeredResource != "") resp.resource_path = registeredResource.GetPath();
+        if (resp.resource_path != "") resp.resource_name_resolved = Workbench.GetAbsolutePath(resp.resource_path, resp.resource_absolute_path, true);
+        string registeredWorldPath = resp.resource_absolute_path;
+        registeredWorldPath.Replace("\\", "/");
+        if (resp.resource_name != "{BE71570A20261010}worlds/BerylTabletNativeStowed.ent" || !resp.resource_name_resolved || registeredWorldPath != "@WORLD_ABSOLUTE@")
+        { resp.status = "unavailable"; resp.failure = "Native resource registration/roundtrip does not identify the owned tablet fixture"; return resp; }
+        if (s_LoadFailure != "") { resp.status = "unavailable"; resp.failure = s_LoadFailure; return resp; }
+        if (req.action == "load")
+        {
+            if (s_ModuleRequested) { resp.status = "unavailable"; resp.failure = "Duplicate installed native tablet load request"; return resp; }
+            if (GetGame() && GetGame().InPlayMode()) { resp.status = "unavailable"; resp.failure = "Another play mode is active before native tablet setup"; return resp; }
+            s_ModuleRequested = true;
+            resp.module_open_requested = true;
+            s_ModuleAccepted = Workbench.OpenModule(WorldEditor);
+            resp.module_open_accepted = s_ModuleAccepted;
+            if (!s_ModuleAccepted)
+            { s_LoadFailure = "WorldEditor module open request refused"; resp.status = "unavailable"; resp.failure = s_LoadFailure; return resp; }
+            WorldEditor openedEditor = Workbench.GetModule(WorldEditor);
+            resp.module_present = openedEditor != null;
+            resp.api_present = false;
+            if (openedEditor) resp.api_present = openedEditor.GetApi() != null;
+            resp.status = "pending"; return resp;
+        }
+        if (!s_ModuleRequested) { resp.status = "unavailable"; resp.failure = "Installed native tablet load was not requested"; return resp; }
+        WorldEditor editor = Workbench.GetModule(WorldEditor);
+        resp.module_present = editor != null;
+        if (!editor) { resp.status = "pending"; return resp; }
+        WorldEditorAPI api = editor.GetApi();
+        resp.api_present = api != null;
+        if (GetGame())
+        {
+            resp.in_play_mode = GetGame().InPlayMode();
+            resp.game_world_present = GetGame().GetWorld() != null;
+        }
+        if (api)
+        {
+            api.GetWorldPath(resp.world_path);
+            resp.edit_mode = api.IsEditMode(); resp.game_mode = api.IsGameMode(); resp.world_present = api.GetWorld() != null;
+            if (resp.world_path != "") resp.world_path_resolved = Workbench.GetAbsolutePath(resp.world_path, resp.world_absolute_path, true);
+            string observedWorldPath = resp.world_absolute_path;
+            observedWorldPath.Replace("\\", "/");
+            resp.world_matches = resp.world_path_resolved && observedWorldPath == "@WORLD_ABSOLUTE@";
+        }
+        if (!s_ResourceRequested)
+        {
+            if (req.action != "status" || resp.game_mode || resp.in_play_mode || (resp.world_path != "" && !resp.world_matches))
+            { resp.status = "unavailable"; resp.failure = "Another world/mode or premature action is active during native tablet setup"; return resp; }
+            if (!api) { resp.status = "pending"; return resp; }
+            s_ResourceRequested = true;
+            BerylTabletNativeLoadState.requested = 1;
+            thread Beryl_OpenTabletNativeWorld();
+            BerylTabletNativeLoadState.submitted = 1;
+            resp.load_requested = 1; resp.load_submitted = 1; resp.load_entered = BerylTabletNativeLoadState.entered;
+            resp.status = "pending"; return resp;
+        }
+        if (BerylTabletNativeLoadState.requested != 1 || BerylTabletNativeLoadState.submitted != 1)
+        { resp.status = "unavailable"; resp.failure = "Deferred native tablet submission state was lost; no resubmission permitted"; return resp; }
+        if (BerylTabletNativeLoadState.returned != 1) { resp.status = "pending"; return resp; }
+        if (!BerylTabletNativeLoadState.accepted)
+        { resp.status = "unavailable"; resp.failure = "Deferred native tablet world load was not accepted"; return resp; }
+        if (!api) { resp.status = "pending"; return resp; }
+        if (!resp.world_matches && !(req.action == "status" && resp.world_path == "" && !resp.game_mode && !resp.in_play_mode && s_Phase == 0))
+        { resp.status = "unavailable"; resp.failure = "Native observed world resolution differs from pinned tablet world"; return resp; }
+        resp.status = "pending";
+        if (req.action == "play")
+        {
+            if (s_PlayRequested || s_Phase != 0 || !resp.world_matches || !resp.edit_mode || resp.game_mode || resp.in_play_mode || !resp.world_present)
+            { resp.status = "unavailable"; resp.failure = "Play requires one request from the owned ready edit world"; return resp; }
+            s_PlayRequested = true;
+            editor.SwitchToGameMode(false, false);
+        }
+        if (req.action == "spawn")
+        {
+            if (!s_PlayRequested || !resp.game_mode || !resp.in_play_mode || !resp.world_present || s_Phase != 0 || !GetGame() || !GetGame().InPlayMode())
+            { resp.status = "unavailable"; resp.failure = "Spawn requires the owned running world and a fresh native tablet registry"; return resp; }
+            if (SPK_BerylTabletNativeRegistry.s_PendingToken != 0 || SPK_BerylTabletNativeRegistry.s_Failure != "" || SPK_BerylTabletNativeRegistry.s_Owners.Count() != 0 || SPK_BerylTabletNativeRegistry.s_States.Count() != 0 || SPK_BerylTabletNativeRegistry.s_Rows.Count() != 0)
+            { resp.status = "unavailable"; resp.failure = "Native tablet registry was not fresh; no reset is permitted"; return resp; }
+            BaseWorld runtimeWorld = GetGame().GetWorld();
+            if (!runtimeWorld)
+            { resp.status = "unavailable"; resp.failure = "Live Game world is unavailable for native tablet spawning"; return resp; }
+            Resource prefab = Resource.Load("{BE71570B20261010}Prefabs/BerylTabletNativeStowed.et");
+            if (!prefab || !prefab.IsValid() || !prefab.GetResource() || !prefab.GetResource().ToEntitySource())
+            { resp.status = "unavailable"; resp.failure = "Owned native tablet prefab did not resolve as entity source"; return resp; }
+            s_Phase = 2;
+            for (int i = 1; i <= 2; i++)
+            {
+                SPK_BerylTabletNativeRegistry.s_PendingToken = i;
+                IEntity owner = GetGame().SpawnEntityPrefab(prefab, runtimeWorld, null);
+                if (!owner || owner.GetWorld() != runtimeWorld || !owner.FindComponent(SPK_BerylTabletNativeObserver) || SPK_BerylTabletNativeRegistry.s_PendingToken != 0 || SPK_BerylTabletNativeRegistry.s_Owners.Count() != i || SPK_BerylTabletNativeRegistry.s_States.Count() != i)
+                { s_TraceFailure = "Native tablet observer was not claimed in the admitted Game world"; break; }
+                if (SPK_BerylTabletNativeRegistry.s_Owners[i - 1] != owner || !SPK_BerylTabletNativeRegistry.s_States[i - 1])
+                { s_TraceFailure = "Native tablet registry claim differs from the returned owner or State"; break; }
+                owner.SetFlags(EntityFlags.ACTIVE, false);
+            }
+        }
+        if (req.action == "stop")
+        {
+            if (s_StopRequested || s_Phase != 2 || !resp.game_mode || !resp.in_play_mode || !resp.game_world_present)
+            { resp.status = "unavailable"; resp.failure = "Stop requires one handoff from the observed live native tablet world"; return resp; }
+            BerylTabletNativeRowScan stopScan = ScanRows();
+            if (s_TraceFailure != "" || stopScan.failure != "" || stopScan.frame1 < 3 || stopScan.frame2 < 3)
+            { resp.status = "failure"; resp.failures = 1; resp.failure = "Stop requires complete bounded native tablet frame observations"; return resp; }
+            s_StopFrames1 = stopScan.frame1; s_StopFrames2 = stopScan.frame2;
+            foreach (string stopRow : stopScan.rows) s_StopPrefix.Insert(stopRow);
+            s_StopRequested = true; s_Phase = 3;
+            editor.SwitchToEditMode();
+            // The response's native mode observations precede this request;
+            // a later status refresh, not the void call, proves completion.
+            resp.stop_requested = true; resp.phase = 3;
+            resp.owner_count = 2; resp.frames_ready = true;
+            resp.frame_counts.Insert(stopScan.frame1); resp.frame_counts.Insert(stopScan.frame2);
+            return resp;
+        }
+        if (s_Phase == 0 && resp.world_matches && resp.world_present)
+        {
+            if (!s_PlayRequested && resp.edit_mode && !resp.game_mode && !resp.in_play_mode) resp.status = "ready";
+            if (s_PlayRequested && resp.game_mode && resp.in_play_mode && resp.game_world_present) resp.status = "ready";
+        }
+        Progress(resp);
+        return resp;
+    }
+}

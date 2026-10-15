@@ -212,4 +212,28 @@ void run_module_tests(void) {
     EnfusionExport missing={.kind=EF_EXPORT_CLASS,.source=str_from("t.Missing"),.name=str_from("SPK_PID")};
     CHECK(!enfusion_lint(f.d,f.p,(EnfusionOpts){.exports={.data=&missing,.len=1,.cap=1}}));
     CHECK_CONTAINS(diag_render_str(f.a,f.d),"BE0326"); arena_free(f.a);
+
+    CASE("codegen: proven inout parameters are restrict");
+    f=fixture();
+    add(&f,"t.be","module t\nfn add(inout y: [i32; 4], inout x: [i32; 4]) {\n"
+        "    y[0] = y[0] + x[0]\n}\n"
+        "fn main() {\n    var y = [1, 2, 3, 4]\n    var x = [1, 1, 1, 1]\n"
+        "    add(inout y, inout x)\n    println(y[0])\n}\n");
+    CHECK(checked(&f));
+    Str native=cgen_program(f.a,f.sm,f.d,f.p,CGEN_PROGRAM);
+    CHECK_CONTAINS(native,"*restrict ");
+    arena_free(f.a);
+
+    CASE("codegen: an unproven exclusive argument revokes restrict");
+    f=fixture();
+    add(&f,"t.be","module t\nstruct P { x: i32 }\n"
+        "fn make() -> P { return P{ x: 1 } }\n"
+        "fn bump(inout p: P) { p.x = p.x + 1 }\n"
+        "fn main() { bump(inout make().x)\n }\n");
+    bool admitted=checked(&f);
+    if (admitted) {
+        Str text=cgen_program(f.a,f.sm,f.d,f.p,CGEN_PROGRAM);
+        CHECK_MISSING(text,"*restrict ");
+    }
+    arena_free(f.a);
 }

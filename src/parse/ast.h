@@ -313,6 +313,11 @@ struct Item {
     void    *owner;     /* Module* this item was declared in */
     void    *locals;    /* Local** recorded by check, consumed by ownership */
     uint32_t nlocals;
+    /* Set by ownership. `restrict` is emitted only when every call's exclusive
+     * arguments are proven local paths. `restrict_blocker` is the first call
+     * that failed that test. */
+    bool     restrict_admitted;
+    Span     restrict_blocker;
     union {
         struct {
             Str        recv;     /* receiver type for a method, empty for free fn */

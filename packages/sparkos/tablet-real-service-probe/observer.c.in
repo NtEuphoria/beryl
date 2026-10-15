@@ -1,0 +1,547 @@
+// Trusted source-only N1a observer; not an installed runtime scenario.
+// Native construction/OnPostInit delivery and wire admission remain separate.
+// Nullable logical fields use boxes: null means logical null, never a guessed value.
+class SPK_BerylN1Token
+{
+	string value;
+}
+
+class SPK_BerylN1Bool
+{
+	bool value;
+}
+
+class SPK_BerylN1Int
+{
+	int value;
+}
+
+class SPK_BerylN1Snapshot
+{
+	string owner;
+	string state;
+	int mode;
+	string accumulator;
+	ref SPK_BerylN1Token ui;
+	ref SPK_BerylN1Token screen;
+	ref SPK_BerylN1Bool screen_enabled;
+	ref SPK_BerylN1Token widget;
+}
+
+class SPK_BerylN1ServiceEvent
+{
+	int sequence;
+	string kind;
+	ref SPK_BerylN1Int invocation_id;
+	string owner;
+	string state;
+	ref SPK_BerylN1Token screen;
+	int mode;
+	string accumulator;
+	ref SPK_BerylN1Token argument_owner;
+	ref SPK_BerylN1Bool returned;
+	bool enabled;
+	ref SPK_BerylN1Token widget;
+}
+
+class SPK_BerylN1Outcome
+{
+	string kind;
+	ref SPK_BerylN1Bool value;
+}
+
+class SPK_BerylN1ActionRecord
+{
+	string case_id;
+	string action;
+	ref array<bool> arguments = {};
+	ref array<ref SPK_BerylN1Snapshot> before = {};
+	ref array<ref SPK_BerylN1ServiceEvent> services = {};
+	ref SPK_BerylN1Outcome outcome;
+	ref array<ref SPK_BerylN1Snapshot> after = {};
+}
+
+// Kept outside oracle records: these scalar witnesses establish initialization,
+// owner/GetOwner/world/mask observations without a later owner dereference.
+class SPK_BerylN1InitWitness
+{
+	int token;
+	string stage;
+	bool owner_matches;
+	bool owner_world_present;
+	bool game_world_present;
+	bool owner_is_game_world;
+	bool state_present;
+	bool same_state;
+	bool independence_observed;
+	bool independent_state;
+	int mode;
+	float accumulator;
+	int mask;
+	bool ui_absent;
+	bool screen_absent;
+}
+
+class SPK_BerylTabletRealServiceRegistry
+{
+	static const string PROFILE = "sparkos.tablet.real-services.n1a.source.v1";
+	static const string SOURCE_CONTRACT_SHA256 = "74aed85740e8d72b5c187eae9b537fffb921b90ec24ac0002500379897e8cd65";
+	static const int MAX_OWNERS = 2;
+	static const int MAX_RECORDS = 7;
+	static const int MAX_EVENTS = 9;
+	static const int MAX_INVOCATIONS = 4;
+	static int s_PendingToken;
+	static string s_Failure;
+	static bool s_OutsideDomain;
+	static bool s_RunRequested;
+	static bool s_Running;
+	static bool s_Completed;
+	static bool s_Observing;
+	static int s_InvocationCount;
+	static ref array<IEntity> s_Owners = {};
+	static ref array<ref @STATE@> s_States = {};
+	static ref array<SPK_BerylTabletRealServicesObserver> s_Observers = {};
+	static ref array<ref SPK_BerylN1InitWitness> s_InitWitnesses = {};
+	static ref array<ref SPK_BerylN1ServiceEvent> s_Events = {};
+	static ref array<ref SPK_BerylN1ActionRecord> s_Records = {};
+	static ref SPK_ScreenRT s_Screen;
+	static RTTextureWidget s_Widget;
+
+	static void Fail(string detail)
+	{
+		// First failure is retained; there is deliberately no registry reset.
+		if (s_Failure == "")
+			s_Failure = detail;
+	}
+
+	static void OutsideDomain(string detail)
+	{
+		// A valid observed lifetime departure is unavailable, not a production bug.
+		// Preserve the first outcome if an earlier structural failure already exists.
+		if (s_Failure == "")
+		{
+			s_Failure = detail;
+			s_OutsideDomain = true;
+		}
+	}
+
+	static SPK_BerylN1Token Token(string value)
+	{
+		ref SPK_BerylN1Token result = new SPK_BerylN1Token();
+		result.value = value;
+		return result;
+	}
+
+	static SPK_BerylN1Bool Boolean(bool value)
+	{
+		ref SPK_BerylN1Bool result = new SPK_BerylN1Bool();
+		result.value = value;
+		return result;
+	}
+
+	static SPK_BerylN1Int Integer(int value)
+	{
+		ref SPK_BerylN1Int result = new SPK_BerylN1Int();
+		result.value = value;
+		return result;
+	}
+
+	// A future owned spawner selects 1 then 2 immediately before native creation.
+	// Claim never constructs a component or invokes a protected callback.
+	static int Claim(IEntity owner, @STATE@ state, SPK_BerylTabletRealServicesObserver observer)
+	{
+		int token = s_PendingToken;
+		s_PendingToken = 0;
+		if (s_RunRequested || !owner || !state || !observer || token < 1 || token > MAX_OWNERS)
+		{
+			Fail("Unregistered native N1a owner/state/component");
+			return 0;
+		}
+		if (token != s_Owners.Count() + 1 || s_States.Count() != s_Owners.Count() || s_Observers.Count() != s_Owners.Count())
+		{
+			Fail("N1a claim order or cardinality changed");
+			return 0;
+		}
+		if (token == 2 && (s_Owners[0] == owner || s_States[0] == state || s_Observers[0] == observer))
+		{
+			Fail("Native N1a owners/components/state are not independent");
+			return 0;
+		}
+		s_Owners.Insert(owner);
+		s_States.Insert(state);
+		s_Observers.Insert(observer);
+		return token;
+	}
+
+	static bool IsRegistered(int token, SPK_BerylTabletRealServicesObserver observer, @STATE@ state)
+	{
+		if (token < 1 || token > s_Observers.Count() || token > s_States.Count())
+			return false;
+		return s_Observers[token - 1] == observer && s_States[token - 1] == state;
+	}
+
+	// Snapshot/getter observations only. No GetOwner, GetGame, service mutation,
+	// public action, queued work or callback occurs along this hook call path.
+	static SPK_BerylN1Snapshot Capture(int token, SPK_BerylTabletRealServicesObserver observer, @STATE@ state, int mode, float accumulator, SPK_TabletUI ui, SPK_ScreenRT screen)
+	{
+		if (!IsRegistered(token, observer, state) || mode < 0 || mode > 1 || accumulator != 0 || ui)
+		{
+			Fail("N1a snapshot outside the registered non-focused zero/UI-absent domain");
+			return null;
+		}
+		ref SPK_BerylN1Snapshot result = new SPK_BerylN1Snapshot();
+		if (token == 1) { result.owner = "owner.1"; result.state = "state.1"; }
+		else { result.owner = "owner.2"; result.state = "state.2"; }
+		result.mode = mode;
+		result.accumulator = accumulator.ToString();
+		if (!screen)
+			return result;
+		if (token != 1 || (s_Screen && s_Screen != screen))
+		{
+			Fail("N1a screen identity exceeded its one-screen domain");
+			return null;
+		}
+		if (!s_Screen)
+			s_Screen = screen;
+		result.screen = Token("screen.1");
+		result.screen_enabled = Boolean(screen.IsEnabled());
+		RTTextureWidget widget = screen.GetWidget();
+		if (s_Widget && widget != s_Widget)
+		{
+			OutsideDomain("N1a observed widget loss/replacement outside the retained-widget domain");
+			return null;
+		}
+		if (widget)
+		{
+			if (!s_Widget)
+				s_Widget = widget;
+			result.widget = Token("widget.1");
+		}
+		return result;
+	}
+
+	static SPK_BerylN1ServiceEvent Event(string kind, int invocationId, bool hasReturned, bool returned, SPK_BerylN1Snapshot snapshot)
+	{
+		if (!s_Running || !snapshot || !snapshot.screen || !snapshot.screen_enabled || snapshot.owner != "owner.1" || s_Events.Count() >= MAX_EVENTS)
+		{
+			Fail("N1a service hook outside the bounded selected public-action run");
+			return null;
+		}
+		ref SPK_BerylN1ServiceEvent result = new SPK_BerylN1ServiceEvent();
+		result.sequence = s_Events.Count() + 1;
+		result.kind = kind;
+		if (invocationId > 0)
+			result.invocation_id = Integer(invocationId);
+		result.owner = snapshot.owner;
+		result.state = snapshot.state;
+		result.screen = snapshot.screen;
+		result.mode = snapshot.mode;
+		result.accumulator = snapshot.accumulator;
+		result.enabled = snapshot.screen_enabled.value;
+		result.widget = snapshot.widget;
+		if (kind == "screen.enable.enter" || kind == "screen.enable.exit")
+			// Registered owner/source-call linkage, not independent argument interception.
+			// Observation hooks deliberately do not evaluate GetOwner again.
+			result.argument_owner = Token("owner.1");
+		if (hasReturned)
+			result.returned = Boolean(returned);
+		s_Events.Insert(result);
+		return result;
+	}
+
+	static int Enter(string kind, SPK_BerylN1Snapshot snapshot)
+	{
+		if (s_InvocationCount >= MAX_INVOCATIONS)
+		{
+			Fail("N1a invocation bound exceeded");
+			return 0;
+		}
+		int invocationId = s_InvocationCount + 1;
+		if (!Event(kind, invocationId, false, false, snapshot))
+			return 0;
+		s_InvocationCount = invocationId;
+		return invocationId;
+	}
+
+	static void Exit(string kind, int invocationId, bool hasReturned, bool returned, SPK_BerylN1Snapshot snapshot)
+	{
+		if (s_Events.Count() == 0 || invocationId < 1 || invocationId > MAX_INVOCATIONS)
+		{
+			Fail("N1a exit has no bounded invocation-local enter");
+			return;
+		}
+		SPK_BerylN1ServiceEvent previous = s_Events[s_Events.Count() - 1];
+		string expectedEnter = "screen.disable.enter";
+		if (kind == "screen.enable.exit")
+			expectedEnter = "screen.enable.enter";
+		if (!previous.invocation_id || previous.invocation_id.value != invocationId || previous.kind != expectedEnter)
+		{
+			Fail("N1a incomplete/reentrant invocation-local service pair");
+			return;
+		}
+		Event(kind, invocationId, hasReturned, returned, snapshot);
+	}
+
+	static void CaptureBoth(array<ref SPK_BerylN1Snapshot> target)
+	{
+		for (int i = 0; i < MAX_OWNERS; i++)
+		{
+			SPK_BerylN1Snapshot snapshot = s_Observers[i].Snapshot();
+			if (!snapshot)
+				return;
+			target.Insert(snapshot);
+		}
+	}
+
+	static SPK_BerylN1ActionRecord BeginRecord(string caseId, string action, bool hasArgument, bool argument)
+	{
+		if (s_Records.Count() >= MAX_RECORDS)
+		{
+			Fail("N1a action record bound exceeded");
+			return null;
+		}
+		ref SPK_BerylN1ActionRecord result = new SPK_BerylN1ActionRecord();
+		result.case_id = caseId;
+		result.action = action;
+		if (hasArgument)
+			result.arguments.Insert(argument);
+		CaptureBoth(result.before);
+		return result;
+	}
+
+	static void FinishRecord(SPK_BerylN1ActionRecord record, int eventStart, SPK_BerylN1Bool returned)
+	{
+		if (!record || eventStart < 0 || eventStart > s_Events.Count())
+		{
+			Fail("N1a missing action record or service prefix");
+			return;
+		}
+		for (int i = eventStart; i < s_Events.Count(); i++)
+			record.services.Insert(s_Events[i]);
+		ref SPK_BerylN1Outcome outcome = new SPK_BerylN1Outcome();
+		outcome.kind = "return";
+		outcome.value = returned;
+		record.outcome = outcome;
+		CaptureBoth(record.after);
+		if (record.before.Count() != MAX_OWNERS || record.after.Count() != MAX_OWNERS)
+			Fail("N1a incomplete both-owner action boundary");
+		s_Records.Insert(record);
+	}
+
+	// The future root-owned play RPC calls this once AFTER real native init.
+	// Public methods run synchronously. No manual callbacks or service replies.
+	static bool RunSevenActions()
+	{
+		if (s_RunRequested || s_Running || s_Observing || s_Failure != "" || s_PendingToken != 0)
+		{
+			Fail("N1a repeated/reentrant or failed registry run");
+			return false;
+		}
+		s_RunRequested = true;
+		if (s_Owners.Count() != 2 || s_States.Count() != 2 || s_Observers.Count() != 2 || s_InitWitnesses.Count() != 4 || s_Events.Count() != 0 || s_Records.Count() != 0 || s_InvocationCount != 0)
+		{
+			Fail("N1a public actions require complete fresh two-owner native initialization");
+			return false;
+		}
+		if (!GetGame() || !GetGame().InPlayMode() || !GetGame().GetWorld())
+		{
+			Fail("N1a public actions require a live Game play world");
+			return false;
+		}
+		BaseWorld gameWorld = GetGame().GetWorld();
+		for (int ownerIndex = 0; ownerIndex < MAX_OWNERS; ownerIndex++)
+		{
+			if (!s_Observers[ownerIndex].InitComplete() || !s_Owners[ownerIndex] || s_Owners[ownerIndex].GetWorld() != gameWorld || !s_Observers[ownerIndex].ClaimMatchesOwner())
+			{
+				Fail("N1a public actions require current registered owner/world/component identities");
+				return false;
+			}
+		}
+		s_Running = true;
+		SPK_BerylTabletRealServicesObserver selected = s_Observers[0];
+		SPK_BerylN1ActionRecord record;
+		int eventStart;
+		bool returned;
+		for (int actionIndex = 0; actionIndex < MAX_RECORDS; actionIndex++)
+		{
+			if (s_Failure != "")
+				break;
+			eventStart = s_Events.Count();
+			if (actionIndex == 0)
+			{
+				record = BeginRecord("n1a.focus-refused.stowed", "Focus", false, false);
+				if (s_Failure != "") break;
+				returned = selected.Focus();
+				FinishRecord(record, eventStart, Boolean(returned));
+			}
+			else if (actionIndex == 1 || actionIndex == 2)
+			{
+				string heldCase = "n1a.held.first";
+				if (actionIndex == 2) heldCase = "n1a.held.repeated";
+				record = BeginRecord(heldCase, "SetHeld", true, true);
+				if (s_Failure != "") break;
+				selected.SetHeld(true);
+				FinishRecord(record, eventStart, null); // The public signature is void.
+			}
+			else if (actionIndex == 3)
+			{
+				record = BeginRecord("n1a.unfocus-refused.held", "Unfocus", false, false);
+				if (s_Failure != "") break;
+				returned = selected.Unfocus();
+				FinishRecord(record, eventStart, Boolean(returned));
+			}
+			else if (actionIndex == 4 || actionIndex == 5)
+			{
+				string stowCase = "n1a.stow";
+				if (actionIndex == 5) stowCase = "n1a.stow.repeated";
+				record = BeginRecord(stowCase, "SetHeld", true, false);
+				if (s_Failure != "") break;
+				selected.SetHeld(false);
+				FinishRecord(record, eventStart, null); // The public signature is void.
+			}
+			else
+			{
+				record = BeginRecord("n1a.independent-state", "Observe", false, false);
+				if (s_Failure != "") break;
+				FinishRecord(record, eventStart, null); // Read-only snapshots, not a production method.
+			}
+		}
+		s_Running = false;
+		if (s_Records.Count() != MAX_RECORDS || s_Events.Count() != MAX_EVENTS || s_InvocationCount != MAX_INVOCATIONS || s_Observing)
+			Fail("N1a action/service observation set was incomplete");
+		s_Completed = s_Failure == "";
+		return s_Completed;
+	}
+}
+
+[ComponentEditorProps(category: "BerylExperimental", description: "Native N1a public tablet and screen observer")]
+class SPK_BerylTabletRealServicesObserverClass : SPK_TabletComponentClass
+{
+}
+
+class SPK_BerylTabletRealServicesObserver : SPK_TabletComponent
+{
+	protected int m_ObservationToken;
+	protected bool m_InitComplete;
+
+	bool InitComplete()
+	{
+		return m_InitComplete;
+	}
+
+	bool ClaimMatchesOwner()
+	{
+		if (!SPK_BerylTabletRealServiceRegistry.IsRegistered(m_ObservationToken, this, m_BerylState))
+			return false;
+		return GetOwner() == SPK_BerylTabletRealServiceRegistry.s_Owners[m_ObservationToken - 1];
+	}
+
+	SPK_BerylN1Snapshot Snapshot()
+	{
+		if (!m_BerylState)
+		{
+			SPK_BerylTabletRealServiceRegistry.Fail("N1a snapshot lost its native state");
+			return null;
+		}
+		int observedMode = GetState();
+		return SPK_BerylTabletRealServiceRegistry.Capture(m_ObservationToken, this, m_BerylState, observedMode, m_BerylState.@ACCUMULATOR@, GetUI(), GetScreen());
+	}
+
+	protected void ObserveInit(string stage, IEntity owner)
+	{
+		if (SPK_BerylTabletRealServiceRegistry.s_InitWitnesses.Count() >= 4 || !SPK_BerylTabletRealServiceRegistry.IsRegistered(m_ObservationToken, this, m_BerylState))
+		{
+			SPK_BerylTabletRealServiceRegistry.Fail("N1a init witness bound/identity");
+			return;
+		}
+		ref SPK_BerylN1InitWitness row = new SPK_BerylN1InitWitness();
+		row.token = m_ObservationToken;
+		row.stage = stage;
+		row.owner_matches = owner == GetOwner();
+		BaseWorld ownerWorld;
+		BaseWorld gameWorld;
+		if (owner) ownerWorld = owner.GetWorld();
+		if (GetGame()) gameWorld = GetGame().GetWorld();
+		row.owner_world_present = ownerWorld != null;
+		row.game_world_present = gameWorld != null;
+		row.owner_is_game_world = row.owner_world_present && row.game_world_present && ownerWorld == gameWorld;
+		row.state_present = m_BerylState != null;
+		row.same_state = m_BerylState == SPK_BerylTabletRealServiceRegistry.s_States[m_ObservationToken - 1];
+		row.independence_observed = SPK_BerylTabletRealServiceRegistry.s_States.Count() == 2;
+		if (row.independence_observed)
+			row.independent_state = SPK_BerylTabletRealServiceRegistry.s_States[0] != SPK_BerylTabletRealServiceRegistry.s_States[1];
+		row.mode = m_BerylState.@MODE@;
+		row.accumulator = m_BerylState.@ACCUMULATOR@;
+		row.mask = GetEventMask();
+		row.ui_absent = GetUI() == null;
+		row.screen_absent = GetScreen() == null;
+		SPK_BerylTabletRealServiceRegistry.s_InitWitnesses.Insert(row);
+		if (!row.owner_matches || !row.owner_is_game_world || !row.state_present || !row.same_state || row.mode != 0 || row.accumulator != 0 || !row.ui_absent || !row.screen_absent)
+			SPK_BerylTabletRealServiceRegistry.Fail("N1a native init witness outside the admitted state/owner/world domain");
+		if (row.independence_observed && !row.independent_state)
+			SPK_BerylTabletRealServiceRegistry.Fail("N1a native init observed shared logical state");
+		if (stage == "init.after" && (row.mask & EntityEvent.FRAME) == 0)
+			SPK_BerylTabletRealServiceRegistry.Fail("N1a native init did not expose its FRAME mask");
+	}
+
+	override void OnPostInit(IEntity owner)
+	{
+		if (m_ObservationToken != 0 || m_InitComplete)
+			SPK_BerylTabletRealServiceRegistry.Fail("N1a native init delivered repeatedly");
+		m_ObservationToken = SPK_BerylTabletRealServiceRegistry.Claim(owner, m_BerylState, this);
+		ObserveInit("init.before", owner);
+		super.OnPostInit(owner);
+		ObserveInit("init.after", owner);
+		m_InitComplete = SPK_BerylTabletRealServiceRegistry.s_Failure == "";
+	}
+
+	protected bool BeginObservation()
+	{
+		if (SPK_BerylTabletRealServiceRegistry.s_Observing || !m_InitComplete || m_ObservationToken != 1 || SPK_BerylTabletRealServiceRegistry.s_Failure != "")
+		{
+			SPK_BerylTabletRealServiceRegistry.Fail("N1a reentrant/uninitialized service observation");
+			return false;
+		}
+		SPK_BerylTabletRealServiceRegistry.s_Observing = true;
+		return true;
+	}
+
+	// These hooks call only reviewed snapshots/getters and scalar record helpers.
+	// There is no GetOwner, receiver/service invocation or public action here.
+	override protected void BerylObserveScreenCreated()
+	{
+		if (!BeginObservation()) return;
+		SPK_BerylTabletRealServiceRegistry.Event("screen.create", 0, false, false, Snapshot());
+		SPK_BerylTabletRealServiceRegistry.s_Observing = false;
+	}
+
+	override protected int BerylObserveScreenEnableEnter()
+	{
+		if (!BeginObservation()) return 0;
+		int invocationId = SPK_BerylTabletRealServiceRegistry.Enter("screen.enable.enter", Snapshot());
+		SPK_BerylTabletRealServiceRegistry.s_Observing = false;
+		return invocationId;
+	}
+
+	override protected void BerylObserveScreenEnableExit(int invocationId, bool returned)
+	{
+		if (!BeginObservation()) return;
+		SPK_BerylTabletRealServiceRegistry.Exit("screen.enable.exit", invocationId, true, returned, Snapshot());
+		SPK_BerylTabletRealServiceRegistry.s_Observing = false;
+	}
+
+	override protected int BerylObserveScreenDisableEnter()
+	{
+		if (!BeginObservation()) return 0;
+		int invocationId = SPK_BerylTabletRealServiceRegistry.Enter("screen.disable.enter", Snapshot());
+		SPK_BerylTabletRealServiceRegistry.s_Observing = false;
+		return invocationId;
+	}
+
+	override protected void BerylObserveScreenDisableExit(int invocationId)
+	{
+		if (!BeginObservation()) return;
+		SPK_BerylTabletRealServiceRegistry.Exit("screen.disable.exit", invocationId, false, false, Snapshot());
+		SPK_BerylTabletRealServiceRegistry.s_Observing = false;
+	}
+}

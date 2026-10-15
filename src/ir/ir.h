@@ -10,6 +10,7 @@
 
 typedef struct Program Program;
 #define IR_NONE UINT32_MAX
+#define IR_SCHEMA_VERSION 5u
 #define IR_MAX_FUNCTIONS 256u
 #define IR_MAX_PLACES 8192u
 #define IR_MAX_VALUES 16384u
@@ -26,7 +27,7 @@ enum { IR_VOID, IR_BOOL, IR_I32, IR_F32, IR_FIRST_AGGREGATE };
 #define IR_MAX_TYPES 256u
 #define IR_MAX_FIELDS 2048u
 #define IR_MAX_CELLS 256u
-typedef enum { IR_LET, IR_INOUT } IrMode;
+typedef enum { IR_LET, IR_INOUT, IR_SET, IR_SINK } IrMode;
 typedef struct { IrType type; Str identity; Span declaration; uint32_t offset; } IrField;
 typedef enum { IR_TYPE_RECORD, IR_TYPE_ARRAY } IrAggregateKind;
 typedef struct {
@@ -41,7 +42,7 @@ typedef enum {
     IR_CONST, IR_LOAD, IR_INIT, IR_STORE, IR_UNARY, IR_BINARY, IR_CALL,
     IR_IF, IR_LOOP, IR_RETURN, IR_BREAK, IR_CONTINUE, IR_YIELD, IR_PRINT, IR_ASSERT,
     IR_CAST, IR_INTRINSIC, IR_RECORD, IR_FIELD, IR_CAPTURE, IR_DESTINATION,
-    IR_ARRAY, IR_INDEX_VALUE, IR_INDEX_BASE, IR_INDEX_PLACE
+    IR_ARRAY, IR_INDEX_VALUE, IR_INDEX_BASE, IR_INDEX_PLACE, IR_DECLARE, IR_MOVE
 } IrOp;
 typedef enum {
     IR_NEG, IR_NOT, IR_BIT_NOT, IR_ADD, IR_SUB, IR_MUL, IR_DIV, IR_REM,
@@ -107,13 +108,15 @@ typedef struct { bool ok; Span source; const char *reason; } IrVerification;
 
 /* Requires an already resolved, checked and ownership-checked Program.
  * Admission emits BE1101; an internally invalid lowered program emits BE1102.
- * Admits void/bool/i32/finite-f32, initialized plain record values, static
- * record field projections, let/inout parameters, expanded defaults and
+ * Admits void/bool/i32/finite-f32, plain record values, static
+ * record field projections, plain let/inout/set/sink parameters, expanded defaults and
  * concrete functions/methods. Captured sources, types and fields own their
  * identities; projected destinations reject overlapping RHS mutation.
  * Fixed arrays preserve value copies and iteration snapshots; dynamic index
  * places require explicit bounds checks and stable access intervals.
- * Uninitialized locals, set/sink and production emitted backends remain gated. */
+ * Plain set destinations have separate logical initialization; whole-root sink
+ * consumes a value at argument evaluation. No partial moves or owned storage.
+ * Production emitted backends remain gated. */
 IrProgram *ir_lower(Arena *arena, DiagBag *diagnostics, const SourceMap *sources, Program *program);
 IrVerification ir_verify(const IrProgram *program);
 /* Ordered manifest v1: domain tag, then little-endian u32 file count and

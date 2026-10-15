@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "profile": "enfusion.tablet.script-component.v1",
+  "target": "enfusion",
+  "engine": {
+    "version": "1.8.0.13",
+    "sha256": "7dd36ca1f662b0c13669a4f2f7f10e3c461c2906b021e742272d64b3ab7e9798"
+  },
+  "parents": {
+    "descriptor": "ScriptComponentClass",
+    "instance": "ScriptComponent"
+  },
+  "limits": {
+    "components": 16,
+    "state_depth": 8,
+    "fields_per_record": 64,
+    "expanded_state_fields": 256
+  },
+  "state_leaf_types": ["bool", "i32", "f32"],
+  "extracted_declarations": {
+    "status": "extracted_only",
+    "document": "core_api/interfaceScriptComponent.html",
+    "document_sha256": "215f2ca81f0d47cbe1dc61dd8471c73c5b5f78c623a247d5f82e8a1e6471c3de",
+    "callbacks": [
+      {
+        "binding": "ScriptComponent.OnPostInit",
+        "declaring_type": "ScriptComponent",
+        "signature": "void OnPostInit(IEntity owner)",
+        "line": 238
+      },
+      {
+        "binding": "ScriptComponent.EOnFrame",
+        "declaring_type": "ScriptComponent",
+        "signature": "void EOnFrame(IEntity owner, float timeSlice)",
+        "line": 210
+      },
+      {
+        "binding": "ScriptComponent.OnDelete",
+        "declaring_type": "ScriptComponent",
+        "signature": "void OnDelete(IEntity owner)",
+        "line": 240
+      }
+    ]
+  },
+  "source_order_review": {
+    "status": "source_reviewed_not_runtime_verified",
+    "document": "mesh/scripts/Game/SparkOSMesh/UI/SPK_TabletComponent.c",
+    "document_sha256": "1f15962cf67a8cc513d7068757e89360260016fadff1c8843719784acc94be3a",
+    "descriptor_line": 9,
+    "instance_line": 19,
+    "callbacks": [
+      {
+        "binding": "ScriptComponent.OnPostInit",
+        "line": 133,
+        "super_order": "first",
+        "observations": ["super.OnPostInit", "state=STOWED", "SetEventMask(FRAME)"]
+      },
+      {
+        "binding": "ScriptComponent.EOnFrame",
+        "line": 150,
+        "super_order": "none",
+        "observations": ["focused-and-ui guard", "UpdateMarkers", "binary32 accumulator addition", "threshold check", "reset to zero then one RefreshTelemetry"]
+      },
+      {
+        "binding": "ScriptComponent.OnDelete",
+        "line": 171,
+        "super_order": "last",
+        "observations": ["Close existing UI", "Destroy existing screen", "super.OnDelete"]
+      }
+    ]
+  },
+  "source_evidence": {
+    "manifest": "build/tablet-recovery-1ae28bbb58d4499d808b467a390b6fc1/source-evidence.json",
+    "sha256": "5be54c47925528e9f585c8dcd92d6988cfda6b82478d5e021fcf1f8080737a78",
+    "scope": "selected_source_extraction_and_order_review_only"
+  },
+  "unknown_contracts": {
+    "lifetime": "unknown",
+    "authority": "unknown",
+    "reentrancy": "unknown",
+    "callback_delivery": "unknown"
+  },
+  "runtime_evidence": {"status": "not_run", "receipts": []},
+  "generation": "unavailable"
+}

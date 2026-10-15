@@ -1,0 +1,8 @@
+GenericEntity {
+ components {
+  RplComponent {
+  }
+  SPK_BerylCallbackObserver {
+  }
+ }
+}

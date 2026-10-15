@@ -1,0 +1,405 @@
+// Trusted bounded N1a scalar encoder. It never dereferences a native owner,
+// component, state, screen or widget. Capture is safe only for retained logical
+// fixture records; it does not establish any native object's post-stop lifetime.
+class SPK_BerylN1WireReceipt
+{
+	bool complete;
+	bool outside_domain;
+	string failure;
+	int checksum;
+	int row_count;
+	int raw_bytes;
+	int init_checksum;
+	int init_count;
+	int owner_count;
+	ref array<string> rows = {};
+	ref array<string> caseIds = {};
+	ref array<string> init_rows = {};
+}
+
+class SPK_BerylN1WireEncoder
+{
+	static const int MAX_ROWS = 44;
+	static const int MAX_ROW_BYTES = 512;
+	static const int MAX_RAW_BYTES = 32768;
+	static const int MAX_ZERO_BYTES = 48;
+	static const int MODULUS = 1000003;
+	static const string PROFILE = "sparkos.tablet.real-services.n1a.wire.v1";
+	static const string WIRE_CONTRACT_SHA256 = "80abd295e0652346df82083ade1409731f3f0b3508a8cd75f09b6afe39920766";
+
+	static void Fail(SPK_BerylN1WireReceipt result, string detail)
+	{
+		if (result.failure == "") result.failure = detail;
+		result.complete = false;
+	}
+
+	static string Boolean(bool value)
+	{
+		if (value) return "1";
+		return "0";
+	}
+
+	static string NullableBoolean(SPK_BerylN1Bool value)
+	{
+		if (!value) return "none";
+		return Boolean(value.value);
+	}
+
+	static string Token(SPK_BerylN1Token value)
+	{
+		if (!value) return "none";
+		return value.value;
+	}
+
+	static string Invocation(SPK_BerylN1Int value)
+	{
+		if (!value) return "none";
+		return value.value.ToString();
+	}
+
+	static string CaseId(int index)
+	{
+		if (index == 0) return "n1a.focus-refused.stowed";
+		if (index == 1) return "n1a.held.first";
+		if (index == 2) return "n1a.held.repeated";
+		if (index == 3) return "n1a.unfocus-refused.held";
+		if (index == 4) return "n1a.stow";
+		if (index == 5) return "n1a.stow.repeated";
+		if (index == 6) return "n1a.independent-state";
+		return "";
+	}
+
+	static string Action(int index)
+	{
+		if (index == 0) return "Focus";
+		if (index == 3) return "Unfocus";
+		if (index == 6) return "Observe";
+		return "SetHeld";
+	}
+
+	static int EventCount(int index)
+	{
+		if (index == 1) return 3;
+		if (index == 2 || index == 4 || index == 5) return 2;
+		return 0;
+	}
+
+	// A bounded lexical zero, preserving the exact stored text. No float parsing,
+	// rounded bitwise comparison, signed-zero claim or locale substitution.
+	static bool ZeroText(string text)
+	{
+		int size = text.Length();
+		if (size < 1 || size > MAX_ZERO_BYTES) return false;
+		int cursor;
+		if (text.ToAscii(cursor) == 45) cursor++;
+		if (cursor >= size || text.ToAscii(cursor) != 48) return false;
+		cursor++;
+		if (cursor < size && text.ToAscii(cursor) == 46)
+		{
+			cursor++;
+			int decimalStart = cursor;
+			while (cursor < size && text.ToAscii(cursor) == 48) cursor++;
+			if (cursor == decimalStart) return false;
+		}
+		if (cursor < size && (text.ToAscii(cursor) == 101 || text.ToAscii(cursor) == 69))
+		{
+			cursor++;
+			if (cursor < size && (text.ToAscii(cursor) == 43 || text.ToAscii(cursor) == 45)) cursor++;
+			int exponentStart = cursor;
+			while (cursor < size && text.ToAscii(cursor) >= 48 && text.ToAscii(cursor) <= 57) cursor++;
+			if (cursor == exponentStart) return false;
+		}
+		return cursor == size;
+	}
+
+	static bool RowValid(string row, int columns)
+	{
+		int size = row.Length();
+		if (size < 1 || size > MAX_ROW_BYTES) return false;
+		int actualColumns = 1;
+		for (int i = 0; i < size; i++)
+		{
+			int value = row.ToAscii(i);
+			if (value < 32 || value > 126) return false;
+			if (value == 124) actualColumns++;
+		}
+		return actualColumns == columns;
+	}
+
+	static int UpdateChecksum(int checksum, string row)
+	{
+		for (int i = 0; i < row.Length(); i++)
+			checksum = (checksum * 31 + row.ToAscii(i)) % MODULUS;
+		return (checksum * 31 + 10) % MODULUS;
+	}
+
+	static bool AppendRow(SPK_BerylN1WireReceipt result, string payload, int columns)
+	{
+		if (result.rows.Count() >= MAX_ROWS) { Fail(result, "N1a wire row budget exceeded"); return false; }
+		int sequence = result.rows.Count() + 1;
+		string row = sequence.ToString();
+		row += "|";
+		row += payload;
+		if (!RowValid(row, columns) || result.raw_bytes + row.Length() + 1 > MAX_RAW_BYTES)
+		{
+			Fail(result, "N1a wire ASCII/column/byte budget mismatch"); return false;
+		}
+		result.rows.Insert(row);
+		result.checksum = UpdateChecksum(result.checksum, row);
+		result.raw_bytes = result.raw_bytes + row.Length() + 1;
+		result.row_count = result.rows.Count();
+		return true;
+	}
+
+	static bool SnapshotRow(SPK_BerylN1WireReceipt result, string caseId, string phase, int role, SPK_BerylN1Snapshot view)
+	{
+		if (!view || role < 1 || role > 2 || (phase != "before" && phase != "after"))
+		{
+			Fail(result, "N1a missing snapshot or invalid phase/role"); return false;
+		}
+		string owner = "owner.1";
+		string state = "state.1";
+		if (role == 2) { owner = "owner.2"; state = "state.2"; }
+		if (view.owner != owner || view.state != state || view.mode < 0 || view.mode > 1 || !ZeroText(view.accumulator) || view.ui)
+		{
+			Fail(result, "N1a snapshot scalar/token domain mismatch"); return false;
+		}
+		if ((view.screen && (view.screen.value != "screen.1" || !view.screen_enabled)) || (!view.screen && (view.screen_enabled || view.widget)) || (view.widget && view.widget.value != "widget.1"))
+		{
+			Fail(result, "N1a malformed nullable snapshot fields"); return false;
+		}
+		string payload = caseId;
+		payload += "|";
+		payload += phase;
+		payload += "|";
+		payload += role.ToString();
+		payload += "|";
+		payload += view.owner;
+		payload += "|";
+		payload += view.state;
+		payload += "|";
+		payload += view.mode.ToString();
+		payload += "|";
+		payload += view.accumulator;
+		payload += "|";
+		payload += Token(view.ui);
+		payload += "|";
+		payload += Token(view.screen);
+		payload += "|";
+		payload += NullableBoolean(view.screen_enabled);
+		payload += "|";
+		payload += Token(view.widget);
+		return AppendRow(result, payload, 12);
+	}
+
+	static bool EventRow(SPK_BerylN1WireReceipt result, string caseId, int sequence, SPK_BerylN1ServiceEvent serviceEvent)
+	{
+		if (!serviceEvent || serviceEvent.sequence != sequence || sequence < 1 || sequence > 9 || serviceEvent.owner != "owner.1" || serviceEvent.state != "state.1" || !serviceEvent.screen || serviceEvent.screen.value != "screen.1" || serviceEvent.mode < 0 || serviceEvent.mode > 1 || !ZeroText(serviceEvent.accumulator) || (serviceEvent.widget && serviceEvent.widget.value != "widget.1"))
+		{
+			Fail(result, "N1a event scalar/token/sequence domain mismatch"); return false;
+		}
+		bool enableEvent = serviceEvent.kind == "screen.enable.enter" || serviceEvent.kind == "screen.enable.exit";
+		bool knownKind = enableEvent || serviceEvent.kind == "screen.create" || serviceEvent.kind == "screen.disable.enter" || serviceEvent.kind == "screen.disable.exit";
+		if (!knownKind || (enableEvent && (!serviceEvent.argument_owner || serviceEvent.argument_owner.value != "owner.1")) || (!enableEvent && serviceEvent.argument_owner) || (serviceEvent.kind == "screen.enable.exit" && !serviceEvent.returned) || (serviceEvent.kind != "screen.enable.exit" && serviceEvent.returned))
+		{
+			Fail(result, "N1a event kind/argument/actual-return domain mismatch"); return false;
+		}
+		if ((serviceEvent.kind == "screen.create" && serviceEvent.invocation_id) || (serviceEvent.kind != "screen.create" && (!serviceEvent.invocation_id || serviceEvent.invocation_id.value < 1 || serviceEvent.invocation_id.value > 4)))
+		{
+			Fail(result, "N1a malformed invocation-local identifier"); return false;
+		}
+		string payload = caseId;
+		payload += "|event|";
+		payload += serviceEvent.sequence.ToString();
+		payload += "|";
+		payload += serviceEvent.kind;
+		payload += "|";
+		payload += Invocation(serviceEvent.invocation_id);
+		payload += "|";
+		payload += serviceEvent.owner;
+		payload += "|";
+		payload += serviceEvent.state;
+		payload += "|";
+		payload += Token(serviceEvent.screen);
+		payload += "|";
+		payload += serviceEvent.mode.ToString();
+		payload += "|";
+		payload += serviceEvent.accumulator;
+		payload += "|";
+		payload += Token(serviceEvent.argument_owner);
+		payload += "|";
+		payload += NullableBoolean(serviceEvent.returned);
+		payload += "|";
+		payload += Boolean(serviceEvent.enabled);
+		payload += "|";
+		payload += Token(serviceEvent.widget);
+		return AppendRow(result, payload, 15);
+	}
+
+	static bool OutcomeRow(SPK_BerylN1WireReceipt result, int index, SPK_BerylN1ActionRecord record)
+	{
+		if (!record.outcome || record.outcome.kind != "return" || record.action != Action(index))
+		{
+			Fail(result, "N1a missing or non-return public outcome"); return false;
+		}
+		string arguments = "none";
+		if (record.action == "SetHeld")
+		{
+			if (record.arguments.Count() != 1 || record.arguments[0] != (index == 1 || index == 2) || record.outcome.value)
+			{
+				Fail(result, "N1a SetHeld argument/void outcome mismatch"); return false;
+			}
+			arguments = Boolean(record.arguments[0]);
+		}
+		else if (record.arguments.Count() != 0 || (index == 6 && record.outcome.value) || (index != 6 && !record.outcome.value))
+		{
+			Fail(result, "N1a argument/nullable public outcome mismatch"); return false;
+		}
+		string value = "void";
+		if (record.outcome.value) value = Boolean(record.outcome.value.value);
+		string payload = record.case_id;
+		payload += "|outcome|";
+		payload += record.action;
+		payload += "|";
+		payload += arguments;
+		payload += "|";
+		payload += record.outcome.kind;
+		payload += "|";
+		payload += value;
+		return AppendRow(result, payload, 7);
+	}
+
+	// Separate native-init witness encoding: 16 columns, exact order and its own
+	// checksum. It is not part of the 44-row semantic wire checksum or codec.
+	static bool InitRow(SPK_BerylN1WireReceipt result, int index, SPK_BerylN1InitWitness witness)
+	{
+		int token = 1;
+		if (index >= 2) token = 2;
+		string stage = "init.before";
+		if (index == 1 || index == 3) stage = "init.after";
+		if (!witness || witness.token != token || witness.stage != stage || !witness.owner_matches || !witness.owner_world_present || !witness.game_world_present || !witness.owner_is_game_world || !witness.state_present || !witness.same_state || witness.independence_observed != (token == 2) || witness.independent_state != (token == 2) || witness.mode != 0 || witness.accumulator != 0 || witness.mask < 0 || !witness.ui_absent || !witness.screen_absent)
+		{
+			Fail(result, "N1a init scalar witness/order domain mismatch"); return false;
+		}
+		if (stage == "init.after" && (witness.mask & EntityEvent.FRAME) == 0)
+		{
+			Fail(result, "N1a init witness lacks native FRAME mask"); return false;
+		}
+		string accumulator = witness.accumulator.ToString();
+		if (!ZeroText(accumulator)) { Fail(result, "N1a init zero text is not admitted"); return false; }
+		int sequence = index + 1;
+		string row = sequence.ToString();
+		row += "|";
+		row += witness.token.ToString();
+		row += "|";
+		row += witness.stage;
+		row += "|";
+		row += Boolean(witness.owner_matches);
+		row += "|";
+		row += Boolean(witness.owner_world_present);
+		row += "|";
+		row += Boolean(witness.game_world_present);
+		row += "|";
+		row += Boolean(witness.owner_is_game_world);
+		row += "|";
+		row += Boolean(witness.state_present);
+		row += "|";
+		row += Boolean(witness.same_state);
+		row += "|";
+		row += Boolean(witness.independence_observed);
+		row += "|";
+		row += Boolean(witness.independent_state);
+		row += "|";
+		row += witness.mode.ToString();
+		row += "|";
+		row += accumulator;
+		row += "|";
+		row += witness.mask.ToString();
+		row += "|";
+		row += Boolean(witness.ui_absent);
+		row += "|";
+		row += Boolean(witness.screen_absent);
+		if (!RowValid(row, 16) || result.init_rows.Count() >= 4)
+		{
+			Fail(result, "N1a init ASCII/column/witness budget mismatch"); return false;
+		}
+		result.init_rows.Insert(row);
+		result.init_checksum = UpdateChecksum(result.init_checksum, row);
+		result.init_count = result.init_rows.Count();
+		return true;
+	}
+
+	// Init-only readiness evidence uses a fresh local receipt. It does not mark
+	// the seven-action receipt complete or fabricate execution/case results.
+	static bool EncodeInitialization(SPK_BerylN1WireReceipt result)
+	{
+		if (!result) return false;
+		result.owner_count = SPK_BerylTabletRealServiceRegistry.s_Owners.Count();
+		if (SPK_BerylTabletRealServiceRegistry.s_Failure != "")
+		{
+			result.failure = SPK_BerylTabletRealServiceRegistry.s_Failure;
+			result.outside_domain = SPK_BerylTabletRealServiceRegistry.s_OutsideDomain;
+			return false;
+		}
+		if (result.complete || result.init_count != 0 || result.init_checksum != 0 || result.init_rows.Count() != 0 || SPK_BerylTabletRealServiceRegistry.s_Running || SPK_BerylTabletRealServiceRegistry.s_Observing || SPK_BerylTabletRealServiceRegistry.s_OutsideDomain || SPK_BerylTabletRealServiceRegistry.s_PendingToken != 0 || result.owner_count != 2 || SPK_BerylTabletRealServiceRegistry.s_States.Count() != 2 || SPK_BerylTabletRealServiceRegistry.s_Observers.Count() != 2 || SPK_BerylTabletRealServiceRegistry.s_InitWitnesses.Count() != 4)
+		{
+			Fail(result, "N1a init encoding requires fresh quiescent four-witness receipt"); return false;
+		}
+		for (int initIndex = 0; initIndex < 4; initIndex++)
+		{
+			if (!InitRow(result, initIndex, SPK_BerylTabletRealServiceRegistry.s_InitWitnesses[initIndex])) return false;
+		}
+		return result.init_count == 4;
+	}
+
+	static SPK_BerylN1WireReceipt Capture()
+	{
+		ref SPK_BerylN1WireReceipt result = new SPK_BerylN1WireReceipt();
+		result.owner_count = SPK_BerylTabletRealServiceRegistry.s_Owners.Count();
+		if (SPK_BerylTabletRealServiceRegistry.s_Failure != "")
+		{
+			result.failure = SPK_BerylTabletRealServiceRegistry.s_Failure;
+			result.outside_domain = SPK_BerylTabletRealServiceRegistry.s_OutsideDomain;
+			return result;
+		}
+		if (!SPK_BerylTabletRealServiceRegistry.s_Completed || !SPK_BerylTabletRealServiceRegistry.s_RunRequested || SPK_BerylTabletRealServiceRegistry.s_Running || SPK_BerylTabletRealServiceRegistry.s_Observing || SPK_BerylTabletRealServiceRegistry.s_OutsideDomain || SPK_BerylTabletRealServiceRegistry.s_PendingToken != 0 || result.owner_count != 2 || SPK_BerylTabletRealServiceRegistry.s_States.Count() != 2 || SPK_BerylTabletRealServiceRegistry.s_Observers.Count() != 2 || SPK_BerylTabletRealServiceRegistry.s_InitWitnesses.Count() != 4 || SPK_BerylTabletRealServiceRegistry.s_Records.Count() != 7 || SPK_BerylTabletRealServiceRegistry.s_Events.Count() != 9 || SPK_BerylTabletRealServiceRegistry.s_InvocationCount != 4)
+		{
+			Fail(result, "N1a encoder requires a complete quiescent scalar record set"); return result;
+		}
+		if (!EncodeInitialization(result)) return result;
+		int eventSequence;
+		for (int index = 0; index < 7; index++)
+		{
+			SPK_BerylN1ActionRecord record = SPK_BerylTabletRealServiceRegistry.s_Records[index];
+			if (!record || record.case_id != CaseId(index) || record.before.Count() != 2 || record.after.Count() != 2 || record.services.Count() != EventCount(index))
+			{
+				Fail(result, "N1a ordered action/snapshot/service cardinality mismatch"); return result;
+			}
+			for (int beforeRole = 1; beforeRole <= 2; beforeRole++)
+			{
+				if (!SnapshotRow(result, record.case_id, "before", beforeRole, record.before[beforeRole - 1])) return result;
+			}
+			for (int eventIndex = 0; eventIndex < record.services.Count(); eventIndex++)
+			{
+				eventSequence++;
+				if (record.services[eventIndex] != SPK_BerylTabletRealServiceRegistry.s_Events[eventSequence - 1])
+				{
+					Fail(result, "N1a record event is not the retained global scalar event"); return result;
+				}
+				if (!EventRow(result, record.case_id, eventSequence, record.services[eventIndex])) return result;
+			}
+			if (!OutcomeRow(result, index, record)) return result;
+			for (int afterRole = 1; afterRole <= 2; afterRole++)
+			{
+				if (!SnapshotRow(result, record.case_id, "after", afterRole, record.after[afterRole - 1])) return result;
+			}
+			result.caseIds.Insert(record.case_id);
+		}
+		if (result.row_count != MAX_ROWS || result.init_count != 4 || result.caseIds.Count() != 7 || eventSequence != 9 || result.failure != "")
+		{
+			Fail(result, "N1a incomplete encoded receipt"); return result;
+		}
+		result.complete = true;
+		return result;
+	}
+}

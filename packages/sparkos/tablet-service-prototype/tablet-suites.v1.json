@@ -1,0 +1,284 @@
+{
+  "addon": {
+    "dependencies": [
+      "58D0FB3206B6F859"
+    ],
+    "guid": "BE71551720261010",
+    "id": "BerylTabletSuitesPrototype"
+  },
+  "external_base_references_unresolved": [
+    "{0877E7C4BB2B2C9A}Configs/System/ResourceTypes/PC/MeshObjectCommon.conf",
+    "{12273E1A0928F0C4}Configs/System/ResourceTypes/PS4/TextureColorMap.conf",
+    "{1B409AA3788B720F}Configs/System/ResourceTypes/XBOX_SERIES/TextureNormalMap.conf",
+    "{30F530559C17A96E}Configs/System/ResourceTypes/PS5/TextureNormalMap.conf",
+    "{3A5B3356978039E8}Configs/System/ResourceTypes/HEADLESS/MeshObjectCommon.conf",
+    "{531A0D167B1ABD97}Configs/System/ResourceTypes/PS5/TextureColorMap.conf",
+    "{53EC476BC921D99A}Configs/System/ResourceTypes/PS4/MeshObjectCommon.conf",
+    "{5B84FAB5D39FB8AA}Configs/System/ResourceTypes/XBOX_ONE/TextureNormalMap.conf",
+    "{5FEAED1642ECE679}Configs/System/ResourceTypes/XBOX_SERIES/TextureColorMap.conf",
+    "{91D862F89991BFBE}Configs/System/ResourceTypes/XBOX_ONE/TextureColorMap.conf",
+    "{9533DFD9EDDCEDD2}Configs/System/ResourceTypes/PS4/TextureNormalMap.conf",
+    "{9D5B6207F7628CE2}Configs/System/ResourceTypes/XBOX_ONE/MeshObjectCommon.conf",
+    "{BEAF5CD0C438676E}Configs/System/ResourceTypes/HEADLESS/TextureColorMap.conf",
+    "{CEA87F769FD618D2}Configs/System/ResourceTypes/PC/TextureNormalMap.conf",
+    "{DD9F02115C764647}Configs/System/ResourceTypes/XBOX_SERIES/MeshObjectCommon.conf",
+    "{EAB5DE3219F9CBA8}Configs/System/ResourceTypes/PC/TextureColorMap.conf",
+    "{F62AA8E7B8EA9D26}Configs/System/ResourceTypes/PS5/MeshObjectCommon.conf",
+    "{FC84ABE4B37D0DA0}Configs/System/ResourceTypes/HEADLESS/TextureNormalMap.conf"
+  ],
+  "limitations": [
+    "Local source and sidecar closure only; binary embedded dependencies and target resource availability remain unverified.",
+    "Eighteen base platform/config references are unresolved and are not copied.",
+    "The five suite requests are declared only; this candidate verifier does not execute them.",
+    "UI, screen, actions, clicks and schema suites do not establish the full tablet runtime, gameplay, multiplayer or visual acceptance."
+  ],
+  "limits": {
+    "candidate_files": 86,
+    "per_file_bytes": 8388608,
+    "resource_bytes": 12655544,
+    "resource_files": 28,
+    "total_bytes": 16777216
+  },
+  "profile": "sparkos.tablet.suites-source.v1",
+  "resource_registrations": {
+    "Assets/Bolt/Data/MAT_SK_body.emat": {
+      "guid": "777F1703FAEE13DC",
+      "line": 2,
+      "resource": "{777F1703FAEE13DC}Assets/Bolt/Data/MAT_SK_body.emat",
+      "sidecar": "Assets/Bolt/Data/MAT_SK_body.emat.meta"
+    },
+    "Assets/Bolt/Data/MAT_SK_rotor.emat": {
+      "guid": "008B754AB93354F8",
+      "line": 2,
+      "resource": "{008B754AB93354F8}Assets/Bolt/Data/MAT_SK_rotor.emat",
+      "sidecar": "Assets/Bolt/Data/MAT_SK_rotor.emat.meta"
+    },
+    "Assets/Bolt/SPK_BoltM.xob": {
+      "guid": "1C7182023A2C32C6",
+      "line": 2,
+      "resource": "{1C7182023A2C32C6}Assets/Bolt/SPK_BoltM.xob",
+      "sidecar": "Assets/Bolt/SPK_BoltM.xob.meta"
+    },
+    "Assets/Bolt/Textures/SK_body_BCR.edds": {
+      "guid": "1C798230515CB885",
+      "line": 2,
+      "resource": "{1C798230515CB885}Assets/Bolt/Textures/SK_body_BCR.edds",
+      "sidecar": "Assets/Bolt/Textures/SK_body_BCR.edds.meta"
+    },
+    "Assets/Bolt/Textures/SK_body_no.edds": {
+      "guid": "FE408F672957DBD0",
+      "line": 2,
+      "resource": "{FE408F672957DBD0}Assets/Bolt/Textures/SK_body_no.edds",
+      "sidecar": "Assets/Bolt/Textures/SK_body_no.edds.meta"
+    },
+    "Assets/Bolt/Textures/SK_rotor_BCR.edds": {
+      "guid": "332A01DED8E8971A",
+      "line": 2,
+      "resource": "{332A01DED8E8971A}Assets/Bolt/Textures/SK_rotor_BCR.edds",
+      "sidecar": "Assets/Bolt/Textures/SK_rotor_BCR.edds.meta"
+    },
+    "Assets/Bolt/Textures/SK_rotor_no.edds": {
+      "guid": "0BE2A70DBC5FBBFE",
+      "line": 2,
+      "resource": "{0BE2A70DBC5FBBFE}Assets/Bolt/Textures/SK_rotor_no.edds",
+      "sidecar": "Assets/Bolt/Textures/SK_rotor_no.edds.meta"
+    },
+    "Assets/Tablet/Data/Material.emat": {
+      "guid": "2E845CA43E3FFF43",
+      "line": 2,
+      "resource": "{2E845CA43E3FFF43}Assets/Tablet/Data/Material.emat",
+      "sidecar": "Assets/Tablet/Data/Material.emat.meta"
+    },
+    "Assets/Tablet/SPK_Tablet.xob": {
+      "guid": "BB50496D23063970",
+      "line": 2,
+      "resource": "{BB50496D23063970}Assets/Tablet/SPK_Tablet.xob",
+      "sidecar": "Assets/Tablet/SPK_Tablet.xob.meta"
+    },
+    "Configs/SPK_MeshArsenal.conf": {
+      "guid": "770D5A8799BDCBB2",
+      "line": 2,
+      "resource": "{770D5A8799BDCBB2}Configs/SPK_MeshArsenal.conf",
+      "sidecar": "Configs/SPK_MeshArsenal.conf.meta"
+    },
+    "Prefabs/SPK_BoltM_Item.et": {
+      "guid": "F4CFA48A57868B92",
+      "line": 2,
+      "resource": "{F4CFA48A57868B92}Prefabs/SPK_BoltM_Item.et",
+      "sidecar": "Prefabs/SPK_BoltM_Item.et.meta"
+    },
+    "Prefabs/SPK_MeshCoreEntity.et": {
+      "guid": "CC0A1009F9F60365",
+      "line": 2,
+      "resource": "{CC0A1009F9F60365}Prefabs/SPK_MeshCoreEntity.et",
+      "sidecar": "Prefabs/SPK_MeshCoreEntity.et.meta"
+    },
+    "Prefabs/SPK_Tablet.et": {
+      "guid": "B37EEB64E149CBAD",
+      "line": 2,
+      "resource": "{B37EEB64E149CBAD}Prefabs/SPK_Tablet.et",
+      "sidecar": "Prefabs/SPK_Tablet.et.meta"
+    }
+  },
+  "resources": {
+    "Assets/Bolt/Data/MAT_SK_body.emat": {
+      "bytes": 196,
+      "sha256": "060a661691f28545974dfdfcd41963d07b9d3c66f74d5b54fe8eb6e38743ef7c"
+    },
+    "Assets/Bolt/Data/MAT_SK_body.emat.meta": {
+      "bytes": 320,
+      "sha256": "85e60042c118217cb9839ea1916ed3db31437cc92b04329e5d63db4d19ab2db6"
+    },
+    "Assets/Bolt/Data/MAT_SK_rotor.emat": {
+      "bytes": 198,
+      "sha256": "5883748c222814534d8eb3b4d79a509c1a11e8162576baa00a9fa88ceb659a4f"
+    },
+    "Assets/Bolt/Data/MAT_SK_rotor.emat.meta": {
+      "bytes": 321,
+      "sha256": "f1aa0ea12b99f7e34e8d22501f0e6e86ff8a4cbb7dcd6ad3116202d25983079c"
+    },
+    "Assets/Bolt/SPK_BoltM.xob": {
+      "bytes": 3648438,
+      "sha256": "5560614d25487b0722c9258daa959e50359a84fb722b0763ac05de8772f5d2b3"
+    },
+    "Assets/Bolt/SPK_BoltM.xob.meta": {
+      "bytes": 1790,
+      "sha256": "948fe36571198dae6ebe6f560958a184ae4c1c0b84ec3b04fdc679dfa8aa424e"
+    },
+    "Assets/Bolt/Textures/SK_body_BCR.edds": {
+      "bytes": 2400780,
+      "sha256": "8ac7c93d56f514fde4842e560c978f585ffd0f044c129979eaeae0e674ac5b65"
+    },
+    "Assets/Bolt/Textures/SK_body_BCR.edds.meta": {
+      "bytes": 766,
+      "sha256": "e059aec3df0094a8f0bdcff1c733ed4e2b35b9e343005c548bd78c229f798d81"
+    },
+    "Assets/Bolt/Textures/SK_body_no.edds": {
+      "bytes": 566432,
+      "sha256": "ecc0a725220a117a59bcbc06f934a5ac34d8fcad5bf3f8d3e6af193da1dce285"
+    },
+    "Assets/Bolt/Textures/SK_body_no.edds.meta": {
+      "bytes": 771,
+      "sha256": "d3f4ea61cb72d4855bfdaa4e26fb4bda5dfdd5fd09f0c6b466e80acd3710bc62"
+    },
+    "Assets/Bolt/Textures/SK_rotor_BCR.edds": {
+      "bytes": 721697,
+      "sha256": "124aeaf8f1f14b14056a943904425b270af2f2761f0dfe8abed13b2b8f4397ea"
+    },
+    "Assets/Bolt/Textures/SK_rotor_BCR.edds.meta": {
+      "bytes": 767,
+      "sha256": "f19507262621a6a542b413bbe5b59c9c3497103cba9dcedf1970eecea7355a00"
+    },
+    "Assets/Bolt/Textures/SK_rotor_no.edds": {
+      "bytes": 352214,
+      "sha256": "a8da955e5403a49b68cedf5ea34c524cc06e648ad106ac72c54514f3e24f569a"
+    },
+    "Assets/Bolt/Textures/SK_rotor_no.edds.meta": {
+      "bytes": 772,
+      "sha256": "3d9881d2cc42170de9e3e683509778045c73026ff3eeb2db9f49a8ae0d900262"
+    },
+    "Assets/Tablet/Data/Material.emat": {
+      "bytes": 15,
+      "sha256": "324a4d878cbd343d17e60f25455eca9dbc7b40dfab562a6e0b91e627fc43f255"
+    },
+    "Assets/Tablet/Data/Material.emat.meta": {
+      "bytes": 319,
+      "sha256": "d320ffbe164b5ec6a4fa635769c229f6fc4fe31df371b52b9eaed8216ceb04c0"
+    },
+    "Assets/Tablet/SPK_Tablet.fbx": {
+      "bytes": 1114732,
+      "sha256": "8fd22da071c552266526289bbedbb223305e38141fc0eebb949ce6621a1b19a5"
+    },
+    "Assets/Tablet/SPK_Tablet.txo": {
+      "bytes": 3235675,
+      "sha256": "24739df0fc55f7632eaade144bdf581898d363fa289445cc0fa2047f947b1585"
+    },
+    "Assets/Tablet/SPK_Tablet.xob": {
+      "bytes": 605161,
+      "sha256": "7c0444ce12f0dae2d2d1b030c38d9c56f576a1eaa4a8269af7bcb424c1aea52d"
+    },
+    "Assets/Tablet/SPK_Tablet.xob.meta": {
+      "bytes": 1466,
+      "sha256": "aecc3e22af19aa3c50b7beecbde13f2eaa9e0c5335ad55a85cde8afce06ff6ca"
+    },
+    "Configs/SPK_MeshArsenal.conf": {
+      "bytes": 752,
+      "sha256": "437296a39d9a42a3f093b86457ea4bd64120f29ae503511940916f0b8054ba98"
+    },
+    "Configs/SPK_MeshArsenal.conf.meta": {
+      "bytes": 315,
+      "sha256": "e5650844ff29d0fa92b196404b29b52b6e72a99d0cbc6a1abbdff0824e9487a6"
+    },
+    "Prefabs/SPK_BoltM_Item.et": {
+      "bytes": 539,
+      "sha256": "58e6bb8ccd1e4f65a3649d3c5ae2572f524fc5912e507ac756dd87b8e1309f77"
+    },
+    "Prefabs/SPK_BoltM_Item.et.meta": {
+      "bytes": 130,
+      "sha256": "6fab9afb1e67e2e2be93f5ae0277b2edb680014fd79a39bcfae9fff5ff058f2b"
+    },
+    "Prefabs/SPK_MeshCoreEntity.et": {
+      "bytes": 118,
+      "sha256": "26ee49311764b61a4efb34bc70792a1b4960b1cf8180d897e50f7bbb669ca564"
+    },
+    "Prefabs/SPK_MeshCoreEntity.et.meta": {
+      "bytes": 134,
+      "sha256": "3497b5f9745cbbdabfd8b9c073a1a300fb435d4d4499f8df140d0a62aff8ddc5"
+    },
+    "Prefabs/SPK_Tablet.et": {
+      "bytes": 593,
+      "sha256": "dabd491efd1b27cf49b311948c1215acf1982f06f6b6de8a0e9ea0e001ae0c22"
+    },
+    "Prefabs/SPK_Tablet.et.meta": {
+      "bytes": 133,
+      "sha256": "7cf10f188f52b7724564b78e7999274854948665b48015ae130dcb7fea267b3a"
+    }
+  },
+  "schema_version": 1,
+  "source_provenance": {
+    "meaning": "historical source review; no runtime receipt dependency",
+    "plan_sha256": "d92937bb070e7ffeee5dcfd919a5bc6a46479ecbf404108cce3d431841456ec8",
+    "resource_inventory_sha256": "5252ea8f48546f8324f0804650f3f145779cc2e926dc8ebad943bfde3f7cc762"
+  },
+  "suite_response_contract": {
+    "detail_type": "string",
+    "fields": [
+      "ok",
+      "detail"
+    ],
+    "ok_type": "i32",
+    "successful_ok": 1
+  },
+  "suite_selections": [
+    {
+      "arg": "",
+      "suite": "ui"
+    },
+    {
+      "arg": "",
+      "suite": "screen"
+    },
+    {
+      "arg": "",
+      "suite": "actions"
+    },
+    {
+      "arg": "",
+      "suite": "clicks"
+    },
+    {
+      "arg": "{B37EEB64E149CBAD}Prefabs/SPK_Tablet.et",
+      "suite": "schema"
+    }
+  ],
+  "workbench_handlers": {
+    "scripts/WorkbenchGameCommon/SPK_MeshSelfTest.c": {
+      "bytes": 129607,
+      "sha256": "59213fecdd4ecd1ced6e0eee0716b5c86bf3cc184ee6261452da9ac3c4dcda46"
+    },
+    "scripts/WorkbenchGameCommon/ValidatePrefab.c": {
+      "bytes": 2359,
+      "sha256": "42a25cff73f7cb4fc25f98af57c37696b3b2a9d62719eb5904c249be32413576"
+    }
+  }
+}

@@ -233,7 +233,7 @@ may read — only `set x` promises the callee will assign one.
 
 | | meaning | lowers to (C) | lowers to (EnforceScript) |
 |---|---|---|---|
-| `let` (default) | immutable borrow | by value | plain parameter |
+| `let` (default) | immutable borrow | scalar by value; aggregate by `const T *` | plain parameter |
 | `inout` | exclusive, non-aliasing borrow | `T *` | `out` parameter |
 | `sink` | ownership transferred | by value; caller's binding dies | plain parameter |
 | `set` | out-parameter; callee **must** assign | `T *` | `out` parameter |
@@ -246,6 +246,18 @@ f(x)          f(inout x)          f(sink x)          f(set x)
 
 A mismatch between declaration and call site is an error, because `inout` at the
 call site is what makes the exclusive borrow visible to a reader.
+
+An implicit method receiver follows its declared `self` convention. A method
+declared with `sink self` consumes its whole owned caller binding; borrowed parameters and
+partial fields cannot be consumed this way. A `set self` method applies the
+same mutability and initialization rules as an explicit `set` argument. It
+can initialize an uninitialized whole binding, but cannot replace an already
+initialized immutable value. Caller initialization occurs after every later
+argument/default has been analyzed, and only on the normal call continuation.
+Receiver index expressions are analyzed once. These rules do not imply
+complete owning-container support. Enfusion receiver replacement/transfer has
+a separate target admission gate; native/reference rules do not establish
+correct engine object replacement.
 
 ### 4.3 Second-class references
 
@@ -269,9 +281,31 @@ f(inout p, inout p.x)     // BE0401: one contains the other
 p.bump(inout p)           // BE0401
 ```
 
-The current checker verifies local access paths. Collection copies can still
-share backing storage, so generated C omits `restrict` until storage identity is
-proved. That implementation limit does not relax the source exclusivity rule.
+The current checker verifies local access paths, including the receiver of a
+`List` method. A `push`, `set`, or `clear` receiver is exclusive; `len` and
+`get` are shared. Native storage admission rejects a second live owner of the
+same list buffer. Generated C may mark the pointer parameters of a function
+`restrict` when every exclusive argument at every call is one of those proven
+paths. An argument the checker cannot place revokes `restrict` for that
+function. That does not relax the source exclusivity rule.
+
+A borrowed call place must remain stable while the compiler selects it and
+evaluates later arguments. This includes a `let` aggregate, `inout`, `set`,
+and an implicit borrowed method receiver. A later helper call or move that may
+change the selected place or its parent is `BE0401`; this check is shared by
+ordinary builds, both targets, and reference admission. The check allows
+provably disjoint plain fields and literal indices. It treats dynamic indices
+and unknown effects conservatively.
+
+```beryl
+observe(parent.child, replace(inout parent)) // BE0401: parent changes during capture
+let snapshot = parent.child
+observe(snapshot, replace(inout parent))     // independent logical value
+```
+
+Scalar `let` arguments and temporary plain aggregates are captured values.
+Their later source mutation does not change the captured value. The new access
+check does not release owning-storage or engine-reference semantics.
 
 ### 4.5 Moves
 

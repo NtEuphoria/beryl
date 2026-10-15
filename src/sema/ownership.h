@@ -11,9 +11,9 @@
  *   exclusivity             — no two overlapping accesses when one is `inout`
  *                             and projected destinations survive selection/RHS
  *
- * This binding-level analysis does not establish backing-storage disjointness.
- * Global `restrict` remains disabled. Stronger generated alias contracts require
- * a separately verified storage-identity and access-lifetime analysis.
+ * `restrict` is emitted only for functions whose exclusive arguments are proven
+ * local paths at every call. Native storage admission rejects shared list
+ * buffers, which is what makes those paths name distinct allocations.
  */
 #ifndef BERYL_OWNERSHIP_H
 #define BERYL_OWNERSHIP_H

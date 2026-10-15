@@ -9,8 +9,8 @@ for required in dirname grep sort wc; do
 done
 cd "$(dirname "$0")/.."
 
-codes=$(grep -rhoE '(diag_error|diag_warn|[^a-z_](err|fail))\([^,]+, *[0-9]{3}' src/ \
-        | grep -oE '[0-9]{3}$' | sort -n -u)
+codes=$(grep -rhoE '(diag_error|diag_warn|[^a-z_](err|fail))\([^,]+, *[0-9]{3,4}' src/ \
+        | grep -oE '[0-9]{3,4}$' | sort -n -u)
 
 missing=0
 if [ -z "$codes" ]; then
@@ -18,8 +18,9 @@ if [ -z "$codes" ]; then
   exit 1
 fi
 for c in $codes; do
-  if ! grep -q "BE0$c" docs/DIAGNOSTICS.md 2>/dev/null; then
-    echo "undocumented: BE0$c"
+  padded=$(printf 'BE%04d' "$c")
+  if ! grep -q "$padded" docs/DIAGNOSTICS.md 2>/dev/null; then
+    echo "undocumented: $padded"
     missing=$((missing + 1))
   fi
 done

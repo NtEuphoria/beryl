@@ -1,0 +1,132 @@
+// Trusted diagnostic only. No world, resource, module-open or gameplay operation.
+class BerylDispatchState
+{
+    static string token = "@TOKEN@";
+    static int phase;
+    static int armed;
+    static int submitted;
+    static int entered;
+    static int resumed;
+    static int afterThread;
+    static int sequence;
+    static int armSequence;
+    static int enterSequence;
+    static int afterSequence;
+    static int resumeSequence;
+    static string failure;
+}
+
+void Beryl_RunSentinel()
+{
+    if (BerylDispatchState.token != "@TOKEN@" || BerylDispatchState.armed != 1 || BerylDispatchState.entered != 0 || BerylDispatchState.resumed != 0)
+    {
+        BerylDispatchState.phase = 4;
+        BerylDispatchState.failure = "Unexpected worker entry or token/state reset";
+        return;
+    }
+    BerylDispatchState.entered = 1;
+    BerylDispatchState.phase = 2;
+    BerylDispatchState.sequence++;
+    BerylDispatchState.enterSequence = BerylDispatchState.sequence;
+    Print("BERYL_DISPATCH|@TOKEN@|entered");
+    Sleep(200);
+    if (BerylDispatchState.token != "@TOKEN@" || BerylDispatchState.phase != 2 || BerylDispatchState.armed != 1 || BerylDispatchState.submitted != 1 || BerylDispatchState.afterThread != 1 || BerylDispatchState.entered != 1 || BerylDispatchState.resumed != 0)
+    {
+        BerylDispatchState.phase = 4;
+        BerylDispatchState.failure = "Unexpected worker resumption or state reset";
+        return;
+    }
+    BerylDispatchState.resumed = 1;
+    BerylDispatchState.sequence++;
+    BerylDispatchState.resumeSequence = BerylDispatchState.sequence;
+    BerylDispatchState.phase = 3;
+    Print("BERYL_DISPATCH|@TOKEN@|resumed");
+}
+
+class BerylDispatchRequest : JsonApiStruct
+{
+    string token;
+    string action;
+    void BerylDispatchRequest() { RegV("token"); RegV("action"); }
+}
+
+class BerylDispatchResponse : JsonApiStruct
+{
+    string token;
+    string action;
+    string status;
+    string failure;
+    bool wb_module_present;
+    bool game_module_present;
+    int phase;
+    int armed;
+    int submitted;
+    int entered;
+    int resumed;
+    int after_thread;
+    int sequence;
+    int arm_sequence;
+    int enter_sequence;
+    int after_sequence;
+    int resume_sequence;
+    void BerylDispatchResponse()
+    {
+        RegV("token"); RegV("action"); RegV("status"); RegV("failure");
+        RegV("wb_module_present"); RegV("game_module_present");
+        RegV("phase"); RegV("armed"); RegV("submitted"); RegV("entered"); RegV("resumed"); RegV("after_thread");
+        RegV("sequence"); RegV("arm_sequence"); RegV("enter_sequence"); RegV("after_sequence"); RegV("resume_sequence");
+    }
+}
+
+class BerylWorkbenchDispatch : NetApiHandler
+{
+    override JsonApiStruct GetRequest() { return new BerylDispatchRequest(); }
+    override JsonApiStruct GetResponse(JsonApiStruct request)
+    {
+        BerylDispatchRequest req = BerylDispatchRequest.Cast(request);
+        BerylDispatchResponse resp = new BerylDispatchResponse();
+        resp.token = "@TOKEN@";
+        resp.status = "failure";
+        if (!req || req.token != resp.token) { resp.failure = "Compiled token mismatch"; return resp; }
+        resp.action = req.action;
+        if (req.action != "arm" && req.action != "status") { resp.failure = "Unknown installed action"; return resp; }
+        if (BerylDispatchState.token != resp.token) { resp.failure = "Sentinel token changed"; return resp; }
+        if (req.action == "arm")
+        {
+            if (BerylDispatchState.phase != 0 || BerylDispatchState.armed != 0)
+            { resp.failure = "Duplicate arm or unexpected initial state"; return resp; }
+            BerylDispatchState.armed = 1;
+            BerylDispatchState.phase = 1;
+            BerylDispatchState.sequence++;
+            BerylDispatchState.armSequence = BerylDispatchState.sequence;
+            Print("BERYL_DISPATCH|@TOKEN@|armed");
+            thread Beryl_RunSentinel();
+            BerylDispatchState.submitted = 1;
+            BerylDispatchState.afterThread = 1;
+            BerylDispatchState.sequence++;
+            BerylDispatchState.afterSequence = BerylDispatchState.sequence;
+            Print("BERYL_DISPATCH|@TOKEN@|after-thread");
+        }
+        if (BerylDispatchState.armed != 1 || BerylDispatchState.phase == 0)
+        { resp.failure = "Lost armed state; no resubmission is permitted"; return resp; }
+        resp.wb_module_present = Workbench.GetWBScriptModule() != null;
+        resp.game_module_present = Workbench.GetWBGameScriptModule() != null;
+        resp.phase = BerylDispatchState.phase;
+        resp.armed = BerylDispatchState.armed;
+        resp.submitted = BerylDispatchState.submitted;
+        resp.entered = BerylDispatchState.entered;
+        resp.resumed = BerylDispatchState.resumed;
+        resp.after_thread = BerylDispatchState.afterThread;
+        resp.sequence = BerylDispatchState.sequence;
+        resp.arm_sequence = BerylDispatchState.armSequence;
+        resp.enter_sequence = BerylDispatchState.enterSequence;
+        resp.after_sequence = BerylDispatchState.afterSequence;
+        resp.resume_sequence = BerylDispatchState.resumeSequence;
+        resp.failure = BerylDispatchState.failure;
+        if (resp.phase == 4 || resp.failure != "") { resp.status = "failure"; return resp; }
+        if (!resp.game_module_present) { resp.status = "unavailable"; resp.failure = "WorkbenchGame script module getter unavailable"; return resp; }
+        if (resp.phase == 3) resp.status = "complete";
+        else resp.status = "pending";
+        return resp;
+    }
+}

@@ -4,6 +4,9 @@
 #include <string.h>
 
 enum { NORMAL=1u, RETURNED=2u, BROKEN=4u, CONTINUED=8u, YIELDED=16u };
+/* Bit sets retain every possible logical state at a structured join. */
+enum { NOT_DECLARED=1u, UNINITIALIZED=2u, INITIALIZED=4u, MOVED=8u };
+typedef struct { uint8_t *breaks, *continues; bool has_break, has_continue; } LoopStates;
 typedef struct {
     const IrProgram *p; IrVerification result;
     uint8_t *regions, *instructions, *values, *arguments, *captures;
@@ -41,7 +44,7 @@ static bool shape(Verify *v,uint32_t r,uint32_t fn,uint32_t parent,IrRegionKind 
     for (uint32_t id=region->first;id!=IR_NONE;) {
         if (id>=p->instructions.len) return bad(v,region->source,"instruction index");
         const IrInstruction *i=&p->instructions.data[id];
-        if (v->instructions[id] || i->region!=r || (uint32_t)i->op>(uint32_t)IR_INDEX_PLACE) return bad(v,i->source.origin,"instruction ownership, opcode or cycle");
+        if (v->instructions[id] || i->region!=r || (uint32_t)i->op>(uint32_t)IR_MOVE) return bad(v,i->source.origin,"instruction ownership, opcode or cycle");
         if (!ir_span_valid(p,i->source.origin) || (i->source.has_expansion && !ir_span_valid(p,i->source.expansion)))
             return bad(v,i->source.origin,"instruction source span outside its captured source");
         v->instructions[id]=1; v->order[id]=ordinal++;
@@ -121,7 +124,7 @@ static bool place_access(Verify *v,uint32_t use,uint32_t place,uint8_t *init,boo
     if (place>=p->places.len || p->places.data[place].function!=p->regions.data[i->region].function)
         return bad(v,i->source.origin,"place index or ownership");
     uint32_t lo,hi,root=place_range(p,place,&lo,&hi);
-    if (root==IR_NONE || !init[root]) return bad(v,i->source.origin,"place access before definite initialization");
+    if (root==IR_NONE || init[root]!=INITIALIZED) return bad(v,i->source.origin,"place access before definite initialization");
     if (writing && !p->places.data[place].mutable) return bad(v,i->source.origin,"write or inout capture to immutable place");
     for (uint32_t at=place;p->places.data[at].parent!=IR_NONE;at=p->places.data[at].parent) {
         uint32_t def=p->places.data[at].definition;
@@ -140,13 +143,13 @@ static bool overlap(const IrProgram *p,uint32_t a,uint32_t b) {
 static bool crosses_capture(const IrProgram *p,uint32_t instruction,uint32_t watched) {
     if (instruction>=p->instructions.len) return true;
     const IrInstruction *i=&p->instructions.data[instruction];
-    if (i->op==IR_INIT || i->op==IR_STORE) return overlap(p,i->place,watched);
+    if (i->op==IR_INIT || i->op==IR_STORE || i->op==IR_DECLARE || i->op==IR_MOVE) return overlap(p,i->place,watched);
     if (i->op==IR_CALL) {
         if (!within(i->args_start,i->args_count,p->arguments.len)) return true;
         for (uint32_t a=0;a<i->args_count;a++) {
             const IrArgument *arg=&p->arguments.data[i->args_start+a];
-            if ((uint32_t)arg->mode>(uint32_t)IR_INOUT) return true;
-            if (arg->mode==IR_INOUT) {
+            if ((uint32_t)arg->mode>(uint32_t)IR_SINK) return true;
+            if (arg->mode==IR_INOUT || arg->mode==IR_SET) {
                 if (!arg->by_place || arg->capture>=p->instructions.len || p->instructions.data[arg->capture].op!=IR_CAPTURE) return true;
                 if (overlap(p,p->instructions.data[arg->capture].place,watched)) return true;
             }
@@ -155,18 +158,41 @@ static bool crosses_capture(const IrProgram *p,uint32_t instruction,uint32_t wat
     }
     return i->op==IR_IF || i->op==IR_LOOP || (i->effects&IR_EXIT);
 }
+/* SET and a whole-root assignment select storage without reading its old
+ * logical value. Physical storage is untouched until the later STORE/CALL. */
+static bool write_place(Verify *v,uint32_t use,uint32_t place,uint8_t *init) {
+    const IrProgram *p=v->p; const IrInstruction *i=&p->instructions.data[use];
+    if (place>=p->places.len || p->places.data[place].function!=p->regions.data[i->region].function)
+        return bad(v,i->source.origin,"destination index or ownership");
+    const IrPlace *q=&p->places.data[place];
+    if (q->parent!=IR_NONE) return place_access(v,use,place,init,true);
+    if (init[place]&NOT_DECLARED) return bad(v,i->source.origin,"destination before declaration");
+    if (q->parameter && q->mode==IR_LET) return bad(v,i->source.origin,"write through let parameter");
+    if (!q->mutable && (init[place]&INITIALIZED)) return bad(v,i->source.origin,"replacement of an initialized immutable root");
+    return true;
+}
 static bool call_argument(Verify *v,uint32_t use,const IrArgument *arg,const IrPlace *parameter,uint8_t *init) {
     const IrProgram *p=v->p; const IrInstruction *call=&p->instructions.data[use]; IrType type;
     if (arg->mode!=parameter->mode) return bad(v,arg->source,"call argument mode");
     if (!arg->by_place) {
-        if (arg->mode!=IR_LET) return bad(v,arg->source,"inout argument is not a captured place");
+        if (arg->mode!=IR_LET && arg->mode!=IR_SINK) return bad(v,arg->source,"mutable argument is not a captured place");
+        if (arg->mode==IR_SINK && arg->capture!=IR_NONE) {
+            if (arg->capture>=p->instructions.len) return bad(v,arg->source,"move capture index");
+            const IrInstruction *move=&p->instructions.data[arg->capture];
+            if (move->op!=IR_MOVE || move->result!=arg->value || move->region!=call->region ||
+                v->order[arg->capture]>=v->order[use] || v->captures[arg->capture]++)
+                return bad(v,arg->source,"move capture ownership, reuse or order");
+        } else if (arg->capture!=IR_NONE) return bad(v,arg->source,"unexpected value capture");
         return operand(v,use,arg->value,&type) && (type==parameter->type || bad(v,arg->source,"call argument type"));
     }
     if (arg->capture>=p->instructions.len) return bad(v,arg->source,"capture index");
     const IrInstruction *capture=&p->instructions.data[arg->capture];
     if (capture->op!=IR_CAPTURE || capture->region!=call->region || v->order[arg->capture]>=v->order[use] || v->captures[arg->capture]++)
         return bad(v,arg->source,"capture ownership, reuse or order");
-    if (capture->flag!=(arg->mode==IR_INOUT) || !place_access(v,use,capture->place,init,arg->mode==IR_INOUT)) return bad(v,arg->source,"capture access mode");
+    if (arg->mode==IR_SINK || capture->immediate!=(int32_t)arg->mode || capture->flag!=(arg->mode!=IR_LET))
+        return bad(v,arg->source,"capture access mode");
+    if (arg->mode==IR_SET) { if (!write_place(v,use,capture->place,init)) return false; }
+    else if (!place_access(v,use,capture->place,init,arg->mode==IR_INOUT)) return false;
     if (p->places.data[capture->place].type!=parameter->type || (arg->mode==IR_LET && parameter->type<IR_FIRST_AGGREGATE))
         return bad(v,arg->source,"captured argument type");
     /* Interposed calls can write only through their explicit inout captures:
@@ -202,7 +228,19 @@ static uint8_t *copy_initialization(Verify *v,uint8_t *init,Span at) {
     if (!copy) { bad(v,at,"verifier allocation unavailable"); return NULL; }
     memcpy(copy,init,n); return copy;
 }
-static uint32_t semantics(Verify *v,uint32_t r,uint8_t *init,uint32_t loops,bool control,uint32_t *effects) {
+static void merge_states(const IrProgram *p,uint8_t *to,const uint8_t *from,bool *present) {
+    if (!*present) memcpy(to,from,p->places.len);
+    else for (uint32_t n=0;n<p->places.len;n++) to[n]|=from[n];
+    *present=true;
+}
+static void set_exit(Verify *v,const IrFunction *fn,const uint8_t *init,Span at) {
+    for (uint32_t n=0;n<fn->parameters;n++) {
+        uint32_t place=fn->places_start+n;
+        if (v->p->places.data[place].mode==IR_SET && init[place]!=INITIALIZED)
+            bad(v,at,"set parameter is not initialized on this return");
+    }
+}
+static uint32_t semantics(Verify *v,uint32_t r,uint8_t *init,uint32_t loops,bool control,uint32_t *effects,LoopStates *loop) {
     const IrProgram *p=v->p; const IrRegion *region=&p->regions.data[r];
     const IrFunction *fn=&p->functions.data[region->function];
     uint32_t flow=NORMAL; *effects=0;
@@ -217,18 +255,34 @@ static uint32_t semantics(Verify *v,uint32_t r,uint8_t *init,uint32_t loops,bool
                 else if (p->values.data[i->result].type==IR_F32 && (i->float_bits&UINT32_C(0x7f800000))==UINT32_C(0x7f800000))
                     bad(v,i->source.origin,"nonfinite f32 constant");
                 break;
-            case IR_LOAD: case IR_INIT: case IR_STORE: {
+            case IR_DECLARE: {
+                if (i->place>=p->places.len) { bad(v,i->source.origin,"declaration place index"); break; }
+                const IrPlace *q=&p->places.data[i->place];
+                if (q->function!=region->function || q->parameter || q->synthetic || q->parent!=IR_NONE)
+                    bad(v,i->source.origin,"declaration must reset one source local root");
+                output(v,i,IR_VOID); required=IR_WRITE; init[i->place]=UNINITIALIZED; break;
+            }
+            case IR_LOAD: case IR_MOVE: case IR_INIT: case IR_STORE: {
                 if (i->place>=p->places.len || p->places.data[i->place].function!=region->function) { bad(v,i->source.origin,"place index or ownership"); break; }
                 const IrPlace *place=&p->places.data[i->place];
-                if (i->op==IR_LOAD) {
+                if (i->op==IR_LOAD || i->op==IR_MOVE) {
                     place_access(v,id,i->place,init,false);
                     output(v,i,place->type); required=IR_READ;
+                    if (i->op==IR_MOVE) {
+                        if (place->parent!=IR_NONE || (place->parameter && place->mode!=IR_SINK && place->mode!=IR_SET))
+                            bad(v,i->source.origin,"partial move or move from borrowed parameter");
+                        init[i->place]=MOVED; required|=IR_WRITE;
+                    }
                 } else {
                     if (operand(v,id,i->a,&a) && a!=place->type) bad(v,i->source.origin,"stored value type");
                     output(v,i,IR_VOID); required=IR_WRITE;
-                    if (i->op==IR_INIT && (place->parameter || place->parent!=IR_NONE || init[i->place])) bad(v,i->source.origin,"place reinitialization");
-                    if (i->op==IR_STORE) { place_access(v,id,i->place,init,true); if (v->result.ok) destination(v,id); }
-                    init[i->place]=1;
+                    if (i->op==IR_INIT) {
+                        uint8_t expected=place->synthetic?NOT_DECLARED:UNINITIALIZED;
+                        if (place->parameter || place->parent!=IR_NONE || init[i->place]!=expected)
+                            bad(v,i->source.origin,"place reinitialization");
+                    }
+                    if (i->op==IR_STORE) { write_place(v,id,i->place,init); if (v->result.ok) destination(v,id); }
+                    init[i->place]=INITIALIZED;
                 }
                 break;
             }
@@ -288,6 +342,14 @@ static uint32_t semantics(Verify *v,uint32_t r,uint8_t *init,uint32_t loops,bool
                             if (overlap(p,captured,p->instructions.data[prior->capture].place)) bad(v,arg->source,"overlapping captured mutable arguments");
                         }
                     }
+                    /* SET commits logical initialization only after every capture is checked. */
+                    for (uint32_t n=0;n<i->args_count && v->result.ok;n++) {
+                        const IrArgument *arg=&p->arguments.data[i->args_start+n];
+                        if (arg->mode==IR_SET) {
+                            uint32_t place=p->instructions.data[arg->capture].place;
+                            if (p->places.data[place].parent==IR_NONE) init[place]=INITIALIZED;
+                        }
+                    }
                     output(v,i,callee->result); required=IR_ALL_EFFECTS;
                 } else {
                     output(v,i,IR_VOID); required=IR_OBSERVE|IR_FAILURE;
@@ -304,7 +366,11 @@ static uint32_t semantics(Verify *v,uint32_t r,uint8_t *init,uint32_t loops,bool
             case IR_DESTINATION:
                 place_access(v,id,i->place,init,true); output(v,i,IR_VOID); required=IR_READ; break;
             case IR_CAPTURE:
-                place_access(v,id,i->place,init,i->flag); output(v,i,IR_VOID); required=IR_READ; break;
+                if (i->immediate<IR_LET || i->immediate>IR_SET || i->flag!=(i->immediate!=IR_LET))
+                    bad(v,i->source.origin,"capture mode encoding");
+                if (i->immediate==IR_SET) write_place(v,id,i->place,init);
+                else place_access(v,id,i->place,init,i->flag);
+                output(v,i,IR_VOID); required=i->immediate==IR_SET?0:IR_READ; break;
             case IR_RECORD: {
                 if (i->result==IR_NONE || p->values.data[i->result].type<IR_FIRST_AGGREGATE) { bad(v,i->source.origin,"record result type"); break; }
                 const IrAggregate *record=&p->aggregates.data[p->values.data[i->result].type-IR_FIRST_AGGREGATE];
@@ -366,10 +432,10 @@ static uint32_t semantics(Verify *v,uint32_t r,uint8_t *init,uint32_t loops,bool
                 uint8_t *yes=copy_initialization(v,init,i->source.origin), *no=copy_initialization(v,init,i->source.origin);
                 uint32_t ye=0,ne=0,yf=0,nf=0;
                 if (yes && no && v->result.ok) {
-                    yf=semantics(v,i->child[0],yes,loops,control,&ye);
-                    nf=semantics(v,i->child[1],no,loops,control,&ne);
+                    yf=semantics(v,i->child[0],yes,loops,control,&ye,loop);
+                    nf=semantics(v,i->child[1],no,loops,control,&ne,loop);
                     for (uint32_t pidx=0;pidx<p->places.len;pidx++) {
-                        if ((yf&NORMAL) && (nf&NORMAL)) init[pidx]=yes[pidx] && no[pidx];
+                        if ((yf&NORMAL) && (nf&NORMAL)) init[pidx]=yes[pidx] | no[pidx];
                         else if (yf&NORMAL) init[pidx]=yes[pidx];
                         else if (nf&NORMAL) init[pidx]=no[pidx];
                     }
@@ -378,26 +444,41 @@ static uint32_t semantics(Verify *v,uint32_t r,uint8_t *init,uint32_t loops,bool
             }
             case IR_LOOP: {
                 output(v,i,IR_VOID); uint32_t ce=0,be=0,se=0;
-                uint32_t cf=semantics(v,i->child[0],init,0,false,&ce);
+                uint8_t *head=copy_initialization(v,init,i->source.origin);
+                uint32_t cf=semantics(v,i->child[0],init,0,false,&ce,NULL);
                 if (cf!=YIELDED) bad(v,i->source.origin,"loop condition must yield exactly one bool");
                 uint8_t *body=copy_initialization(v,init,i->source.origin), *step=copy_initialization(v,init,i->source.origin);
+                LoopStates exits={.breaks=copy_initialization(v,init,i->source.origin),.continues=copy_initialization(v,init,i->source.origin)};
                 uint32_t bf=0,sf=0;
-                if (body && step && v->result.ok) {
-                    bf=semantics(v,i->child[1],body,loops+1,control,&be);
-                    /* A continue may skip any body definition: the step can
-                     * depend only on state known initialized before the body. */
-                    sf=semantics(v,i->child[2],step,0,false,&se);
+                if (head && body && step && exits.breaks && exits.continues && v->result.ok) {
+                    bf=semantics(v,i->child[1],body,loops+1,control,&be,&exits);
+                    bool step_present=false;
+                    if (bf&NORMAL) merge_states(p,step,body,&step_present);
+                    if (exits.has_continue) merge_states(p,step,exits.continues,&step_present);
+                    sf=semantics(v,i->child[2],step,0,false,&se,NULL);
                     if (sf!=NORMAL || (bf&YIELDED)) bad(v,i->source.origin,"invalid loop body or step exit");
+                    if (step_present) for (uint32_t n=0;n<p->places.len;n++) {
+                        /* Newly declared body locals restart their own lifetime.
+                         * Outer roots must retain the same head state on every
+                         * back edge; more general state-changing loops are gated. */
+                        if (head[n]!=NOT_DECLARED && step[n]!=head[n])
+                            bad(v,i->source.origin,"loop back edge changes an outer logical state");
+                    }
+                    if (exits.has_break) for (uint32_t n=0;n<p->places.len;n++) init[n]|=exits.breaks[n];
                 }
-                free(body); free(step); required=ce|be|se; next=NORMAL|(bf&RETURNED); break;
+                free(head); free(body); free(step); free(exits.breaks); free(exits.continues);
+                required=ce|be|se; next=NORMAL|(bf&RETURNED); break;
             }
             case IR_RETURN:
                 if (!control) bad(v,i->source.origin,"return inside a condition or step");
                 if (fn->result==IR_VOID) { if (i->a!=IR_NONE) bad(v,i->source.origin,"void return value"); }
                 else if (operand(v,id,i->a,&a) && a!=fn->result) bad(v,i->source.origin,"return type");
+                set_exit(v,fn,init,i->source.origin);
                 output(v,i,IR_VOID); required=IR_EXIT; next=RETURNED; break;
             case IR_BREAK: case IR_CONTINUE:
-                if (!loops || !control) bad(v,i->source.origin,"loop exit outside a loop body");
+                if (!loops || !control || !loop) bad(v,i->source.origin,"loop exit outside a loop body");
+                else if (i->op==IR_BREAK) merge_states(p,loop->breaks,init,&loop->has_break);
+                else merge_states(p,loop->continues,init,&loop->has_continue);
                 output(v,i,IR_VOID); required=IR_EXIT; next=i->op==IR_BREAK?BROKEN:CONTINUED; break;
             case IR_YIELD:
                 if (region->kind!=IR_REGION_CONDITION) bad(v,i->source.origin,"yield outside a loop condition region");
@@ -411,7 +492,7 @@ static uint32_t semantics(Verify *v,uint32_t r,uint8_t *init,uint32_t loops,bool
 }
 IrVerification ir_verify(const IrProgram *p) {
     Verify v={.p=p,.result={.ok=true,.source=SPAN_NONE,.reason="valid"}};
-    if (!p || p->schema_version!=4 || p->aggregates.len>IR_MAX_TYPES || p->fields.len>IR_MAX_FIELDS || p->functions.len>IR_MAX_FUNCTIONS || p->places.len>IR_MAX_PLACES ||
+    if (!p || p->schema_version!=IR_SCHEMA_VERSION || p->aggregates.len>IR_MAX_TYPES || p->fields.len>IR_MAX_FIELDS || p->functions.len>IR_MAX_FUNCTIONS || p->places.len>IR_MAX_PLACES ||
         p->values.len>IR_MAX_VALUES || p->instructions.len>IR_MAX_INSTRUCTIONS || p->regions.len>IR_MAX_REGIONS || p->arguments.len>IR_MAX_ARGUMENTS)
         return (IrVerification){.ok=false,.source=SPAN_NONE,.reason="schema version or table quota"};
     if ((p->aggregates.len && !p->aggregates.data) || (p->fields.len && !p->fields.data) || (p->functions.len && !p->functions.data) || (p->places.len && !p->places.data) || (p->values.len && !p->values.data) ||
@@ -479,7 +560,7 @@ IrVerification ir_verify(const IrProgram *p) {
         for (uint32_t x=fn->places_start;x<place_end;x++) {
             const IrPlace *place=&p->places.data[x];
             if (place->function!=f || (!ir_type_cells(p,place->type)) || place->parameter!=(x-fn->places_start<fn->parameters) ||
-                (place->parameter && ((uint32_t)place->mode>(uint32_t)IR_INOUT || place->mutable!=(place->mode==IR_INOUT)))) { bad(&v,place->declaration,"place type, parameter or ownership"); break; }
+                (place->parameter && ((uint32_t)place->mode>(uint32_t)IR_SINK || place->mutable!=(place->mode!=IR_LET)))) { bad(&v,place->declaration,"place type, parameter or ownership"); break; }
             if (place->parent!=IR_NONE) {
                 if (place->parent<fn->places_start || place->parent>=x || place->parameter || place->mode!=IR_LET || place->mutable!=p->places.data[place->parent].mutable) { bad(&v,place->declaration,"projection parent, mode or mutability"); break; }
                 IrType parent=p->places.data[place->parent].type;
@@ -506,9 +587,13 @@ IrVerification ir_verify(const IrProgram *p) {
          * distinct INIT instruction must not bypass immutable STORE checks.
          * The only admitted multi-site case is the two mutually exclusive
          * branch definitions of a short-circuit temporary. */
-        uint32_t first[IR_MAX_PLACES]; uint8_t count[IR_MAX_PLACES]={0};
+        uint32_t first[IR_MAX_PLACES]; uint8_t count[IR_MAX_PLACES]={0}, declarations[IR_MAX_PLACES]={0};
         for (uint32_t i=0;i<p->instructions.len && v.result.ok;i++) {
-            const IrInstruction *inst=&p->instructions.data[i]; if (inst->op!=IR_INIT) continue;
+            const IrInstruction *inst=&p->instructions.data[i];
+            if (inst->op==IR_DECLARE) {
+                if (inst->place>=p->places.len || declarations[inst->place]++) bad(&v,inst->source.origin,"duplicate or invalid local lifetime declaration");
+            }
+            if (inst->op!=IR_INIT) continue;
             if (inst->place>=p->places.len) { bad(&v,inst->source.origin,"initialization place index"); break; }
             if (!count[inst->place]) first[inst->place]=i;
             else if (count[inst->place]>=2 || !exclusive_initializers(p,first[inst->place],i))
@@ -517,12 +602,12 @@ IrVerification ir_verify(const IrProgram *p) {
         }
     }
     for (uint32_t f=0;f<p->functions.len && v.result.ok;f++) {
-        memset(init,0,p->places.len); const IrFunction *fn=&p->functions.data[f];
-        for (uint32_t x=0;x<fn->parameters;x++) init[fn->places_start+x]=1;
-        uint32_t effects=0, flow=semantics(&v,fn->body,init,0,true,&effects);
+        memset(init,NOT_DECLARED,p->places.len); const IrFunction *fn=&p->functions.data[f];
+        for (uint32_t x=0;x<fn->parameters;x++) init[fn->places_start+x]=p->places.data[fn->places_start+x].mode==IR_SET?UNINITIALIZED:INITIALIZED;
+        uint32_t effects=0, flow=semantics(&v,fn->body,init,0,true,&effects,NULL);
         if (flow!=RETURNED) bad(&v,fn->declaration,"function has an implicit or invalid exit");
     }
-    if (v.result.ok) for (uint32_t i=0;i<p->instructions.len;i++) if ((p->instructions.data[i].op==IR_CAPTURE || p->instructions.data[i].op==IR_DESTINATION || p->instructions.data[i].op==IR_INDEX_BASE) && !v.captures[i]) bad(&v,p->instructions.data[i].source.origin,"unconsumed argument capture");
+    if (v.result.ok) for (uint32_t i=0;i<p->instructions.len;i++) if ((p->instructions.data[i].op==IR_CAPTURE || p->instructions.data[i].op==IR_DESTINATION || p->instructions.data[i].op==IR_INDEX_BASE || p->instructions.data[i].op==IR_MOVE) && !v.captures[i]) bad(&v,p->instructions.data[i].source.origin,"unconsumed argument capture");
     free(v.captures); free(v.regions); free(v.instructions); free(v.values); free(v.arguments); free(v.order); free(init);
     return v.result;
 }

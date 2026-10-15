@@ -1,0 +1,186 @@
+// Trusted multi-request fixture bridge. Each request returns promptly;
+// no sleeps/poll loops and no direct component callback calls occur in the VM.
+class BerylComponentCallbacksRequest : JsonApiStruct
+{
+    string token;
+    string action;
+    void BerylComponentCallbacksRequest() { RegV("token"); RegV("action"); }
+}
+class BerylComponentCallbacksResponse : JsonApiStruct
+{
+    string token, action, status, failure, world_path, current_project;
+    string addon_world_path, world_absolute_path, resource_name, resource_path, resource_absolute_path;
+    bool world_matches, edit_mode, game_mode, in_play_mode, world_present;
+    bool addon_world_resolved, world_path_resolved;
+    bool resource_name_resolved, module_present, api_present;
+    bool module_open_requested, module_open_accepted;
+    int phase, executed, checks, failures, event_count, checksum;
+    ref array<string> caseIds = {};
+    ref array<string> rows = {};
+    void BerylComponentCallbacksResponse()
+    {
+        RegV("token"); RegV("action"); RegV("status"); RegV("failure"); RegV("world_path"); RegV("current_project");
+        RegV("addon_world_path"); RegV("world_absolute_path"); RegV("addon_world_resolved"); RegV("world_path_resolved");
+        RegV("resource_name"); RegV("resource_path"); RegV("resource_absolute_path"); RegV("resource_name_resolved"); RegV("module_present"); RegV("api_present");
+        RegV("module_open_requested"); RegV("module_open_accepted");
+        RegV("world_matches"); RegV("edit_mode"); RegV("game_mode"); RegV("in_play_mode"); RegV("world_present");
+        RegV("phase"); RegV("executed"); RegV("checks"); RegV("failures"); RegV("event_count"); RegV("checksum");
+        RegV("caseIds"); RegV("rows");
+    }
+}
+class BerylComponentCallbacks : NetApiHandler
+{
+    protected static bool s_ModuleRequested;
+    protected static bool s_ModuleAccepted;
+    protected static bool s_ResourceRequested;
+    protected static string s_LoadFailure;
+    override JsonApiStruct GetRequest() { return new BerylComponentCallbacksRequest(); }
+    override JsonApiStruct GetResponse(JsonApiStruct request)
+    {
+        BerylComponentCallbacksRequest req = BerylComponentCallbacksRequest.Cast(request);
+        BerylComponentCallbacksResponse resp = new BerylComponentCallbacksResponse();
+        resp.token = "@TOKEN@"; resp.status = "failure";
+        if (!req || req.token != resp.token) { resp.failure = "Compiled fixture token mismatch"; return resp; }
+        resp.action = req.action;
+        if (req.action != "load" && req.action != "status" && req.action != "play" && req.action != "spawn" && req.action != "delete" && req.action != "stop")
+        { resp.failure = "Unknown installed action"; return resp; }
+        WorldEditor observedEditor = Workbench.GetModule(WorldEditor);
+        resp.module_present = observedEditor != null;
+        if (observedEditor) resp.api_present = observedEditor.GetApi() != null;
+        resp.module_open_requested = s_ModuleRequested;
+        resp.module_open_accepted = s_ModuleAccepted;
+        resp.current_project = Workbench.GetCurrentGameProjectFile();
+        // The game project may be the base project. Verify the exact addon world
+        // through the installed native resolver instead of substituting an alias.
+        resp.addon_world_resolved = Workbench.GetAbsolutePath("$BerylComponentCallbackProbe:worlds/BerylCallbackProbe.ent", resp.addon_world_path, true);
+        string ownedWorld = resp.addon_world_path;
+        ownedWorld.Replace("\\", "/");
+        if (!resp.addon_world_resolved || ownedWorld != "@WORLD_ABSOLUTE@")
+        { resp.status = "unavailable"; resp.failure = "Native addon world resolution does not identify the owned fixture"; return resp; }
+        // Registration and file resolution are distinct observations. This
+        // fixed experiment opens only the native resource spelling, after its
+        // identity and native roundtrip resolve to the exact frozen world.
+        ResourceName registeredResource = Workbench.GetResourceName(resp.addon_world_path);
+        resp.resource_name = registeredResource;
+        if (registeredResource != "") resp.resource_path = registeredResource.GetPath();
+        if (resp.resource_path != "") resp.resource_name_resolved = Workbench.GetAbsolutePath(resp.resource_path, resp.resource_absolute_path, true);
+        string registeredWorld = resp.resource_absolute_path;
+        registeredWorld.Replace("\\", "/");
+        if (resp.resource_name != "{BCCBA11B20261008}worlds/BerylCallbackProbe.ent" || !resp.resource_name_resolved || registeredWorld != "@WORLD_ABSOLUTE@")
+        { resp.status = "unavailable"; resp.failure = "Native resource registration/roundtrip does not identify the owned fixture"; return resp; }
+        if (s_LoadFailure != "") { resp.status = "unavailable"; resp.failure = s_LoadFailure; return resp; }
+        if (req.action == "load")
+        {
+            if (s_ModuleRequested) { resp.status = "unavailable"; resp.failure = "Duplicate installed load request"; return resp; }
+            if (GetGame() && GetGame().InPlayMode()) { resp.status = "unavailable"; resp.failure = "Another play mode is active before setup"; return resp; }
+            s_ModuleRequested = true;
+            resp.module_open_requested = true;
+            // A registered module pointer did not establish an open editor in
+            // the preceding native observation. Request opening exactly once.
+            s_ModuleAccepted = Workbench.OpenModule(WorldEditor);
+            resp.module_open_accepted = s_ModuleAccepted;
+            if (!s_ModuleAccepted)
+            {
+                s_LoadFailure = "WorldEditor module open request refused";
+                resp.status = "unavailable"; resp.failure = s_LoadFailure; return resp;
+            }
+            WorldEditor openedEditor = Workbench.GetModule(WorldEditor);
+            resp.module_present = openedEditor != null;
+            if (openedEditor) resp.api_present = openedEditor.GetApi() != null;
+            // Do not assume that OpenModule initializes its API synchronously.
+            resp.status = "pending"; return resp;
+        }
+        if (!s_ModuleRequested) { resp.status = "unavailable"; resp.failure = "Installed load was not requested"; return resp; }
+        WorldEditor editor = Workbench.GetModule(WorldEditor);
+        resp.module_present = editor != null;
+        if (!editor) { resp.status = "pending"; return resp; }
+        WorldEditorAPI api = editor.GetApi();
+        resp.api_present = api != null;
+        if (GetGame()) resp.in_play_mode = GetGame().InPlayMode();
+        if (api)
+        {
+            api.GetWorldPath(resp.world_path);
+            resp.edit_mode = api.IsEditMode(); resp.game_mode = api.IsGameMode(); resp.world_present = api.GetWorld() != null;
+            // Keep both the raw editor observation and native resolution result.
+            if (resp.world_path != "") resp.world_path_resolved = Workbench.GetAbsolutePath(resp.world_path, resp.world_absolute_path, true);
+            string observedWorld = resp.world_absolute_path;
+            observedWorld.Replace("\\", "/");
+            resp.world_matches = resp.world_path_resolved && observedWorld == "@WORLD_ABSOLUTE@";
+        }
+        if (!s_ResourceRequested)
+        {
+            if (req.action != "status" || resp.game_mode || resp.in_play_mode || (resp.world_path != "" && !resp.world_matches))
+            { resp.status = "unavailable"; resp.failure = "Another world/mode or premature action is active during setup"; return resp; }
+            // One predeclared spelling per fresh owned noOpenLastResource job.
+            // Acceptance does not prove later editor readiness or VM health.
+            s_ResourceRequested = true;
+            if (!Workbench.OpenResource(resp.resource_name))
+            {
+                s_LoadFailure = "Owned world load request refused";
+                resp.status = "unavailable"; resp.failure = s_LoadFailure; return resp;
+            }
+            resp.status = "pending"; return resp;
+        }
+        if (!api) { resp.status = "pending"; return resp; }
+        if (!resp.world_matches && !(req.action == "status" && resp.world_path == "" && !resp.game_mode && !resp.in_play_mode && SPK_BerylCallbackRegistry.phase == 0))
+        { resp.status = "unavailable"; resp.failure = "Native observed world resolution differs from pinned owned world"; return resp; }
+        if (req.action == "play")
+        {
+            if (!resp.edit_mode || resp.game_mode || resp.in_play_mode || !resp.world_present)
+            { resp.status = "unavailable"; resp.failure = "World is not ready in edit mode"; return resp; }
+            editor.SwitchToGameMode(false, false);
+        }
+        if (req.action == "spawn")
+        {
+            if (!resp.game_mode || !resp.in_play_mode || !resp.world_present || SPK_BerylCallbackRegistry.phase != 0)
+            { resp.status = "unavailable"; resp.failure = "Spawn requires the owned running world and a fresh registry"; return resp; }
+            Resource prefab = Resource.Load("{BCCFA11B20261008}Prefabs/BerylCallbackProbe.et");
+            if (!prefab || !prefab.IsValid() || !prefab.GetResource() || !prefab.GetResource().ToEntitySource())
+            { resp.status = "unavailable"; resp.failure = "Owned fixture prefab did not resolve as entity source"; return resp; }
+            SPK_BerylCallbackRegistry.Reset();
+            for (int i = 1; i <= 2; i++)
+            {
+                SPK_BerylCallbackRegistry.pending = i;
+                IEntity owner = GetGame().SpawnEntityPrefab(prefab, api.GetWorld(), null);
+                SPK_BerylCallbackRegistry.Bind(i, owner);
+                SPK_BerylCallbackRegistry.pending = 0;
+                if (!owner || !owner.FindComponent(SPK_BerylCallbackObserver)) { SPK_BerylCallbackRegistry.Unavailable("Observer component was not instantiated by prefab"); break; }
+                owner.SetFlags(EntityFlags.ACTIVE, false);
+                if (!SPK_BerylCallbackRegistry.Authority(i, true)) { SPK_BerylCallbackRegistry.Unavailable("Fixture entity is not replication authority"); break; }
+            }
+            SPK_BerylCallbackRegistry.phase = 2;
+        }
+        if (req.action == "delete")
+        {
+            SPK_BerylCallbackRegistry.Progress();
+            if (!resp.game_mode || !resp.in_play_mode || SPK_BerylCallbackRegistry.phase != 3 || SPK_BerylCallbackRegistry.deleteRequested)
+            { resp.status = "unavailable"; resp.failure = "Delete requires complete live callback observations"; return resp; }
+            if (!SPK_BerylCallbackRegistry.Authority(1, true) || !SPK_BerylCallbackRegistry.Authority(2, true))
+            { resp.status = "unavailable"; resp.failure = "Owned entities lost authority before deletion"; return resp; }
+            SPK_BerylCallbackRegistry.deleteRequested = true;
+            // Native entity lifecycle owns callback delivery. Do not call OnDelete.
+            RplComponent.DeleteRplEntity(SPK_BerylCallbackRegistry.owners[0], false);
+            RplComponent.DeleteRplEntity(SPK_BerylCallbackRegistry.owners[1], false);
+        }
+        if (req.action == "stop") editor.SwitchToEditMode();
+        SPK_BerylCallbackRegistry.Progress();
+        resp.phase = SPK_BerylCallbackRegistry.phase; resp.checks = SPK_BerylCallbackRegistry.checks;
+        resp.failures = SPK_BerylCallbackRegistry.failures; resp.failure = SPK_BerylCallbackRegistry.failure;
+        foreach (string row : SPK_BerylCallbackRegistry.rows) resp.rows.Insert(row);
+        resp.event_count = resp.rows.Count(); resp.checksum = SPK_BerylCallbackRegistry.checksum;
+        resp.status = "pending";
+        if (resp.phase == 0 && resp.world_matches && resp.world_present && (resp.edit_mode || (resp.game_mode && resp.in_play_mode))) resp.status = "ready";
+        if (resp.phase == 3) resp.status = "ready";
+        if (resp.phase == 4 && resp.failures == 0)
+        {
+            resp.status = "complete"; resp.executed = 1;
+            resp.caseIds.Insert("runtime.post-init.1"); resp.caseIds.Insert("runtime.post-init.2");
+            resp.caseIds.Insert("runtime.frames.1"); resp.caseIds.Insert("runtime.frames.2");
+            resp.caseIds.Insert("runtime.independent-state");
+            resp.caseIds.Insert("runtime.delete.1"); resp.caseIds.Insert("runtime.delete.2");
+        }
+        if (resp.failures > 0) resp.status = "failure";
+        if (SPK_BerylCallbackRegistry.unavailable) resp.status = "unavailable";
+        return resp;
+    }
+}

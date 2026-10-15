@@ -1,0 +1,34 @@
+// Trusted suite identity only. Never opens a world or calls tablet callbacks.
+class BerylTabletSuiteIdentityRequest : JsonApiStruct
+{
+	string token;
+	void BerylTabletSuiteIdentityRequest() { RegV("token"); }
+}
+class BerylTabletSuiteIdentityResponse : JsonApiStruct
+{
+	string token;
+	string profile;
+	string source_sha256;
+	void BerylTabletSuiteIdentityResponse()
+	{
+		RegV("token");
+		RegV("profile");
+		RegV("source_sha256");
+	}
+}
+class BerylTabletSuiteIdentity : NetApiHandler
+{
+	override JsonApiStruct GetRequest() { return new BerylTabletSuiteIdentityRequest(); }
+	override JsonApiStruct GetResponse(JsonApiStruct request)
+	{
+		BerylTabletSuiteIdentityResponse response = new BerylTabletSuiteIdentityResponse();
+		BerylTabletSuiteIdentityRequest req = BerylTabletSuiteIdentityRequest.Cast(request);
+		if (!req || req.token != "@TOKEN@")
+			return response;
+		// Literal compiled values; none are copied from request data.
+		response.token = "@TOKEN@";
+		response.profile = "sparkos.tablet.existing-suites-runtime.v1";
+		response.source_sha256 = "@SOURCE_SHA256@";
+		return response;
+	}
+}

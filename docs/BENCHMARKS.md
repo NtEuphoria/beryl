@@ -1,17 +1,24 @@
 # Benchmarks
 
-**Historical, unverified measurements.** Do not use the scorecard below for
-current performance claims. Review found an overflowing checked workload, ignored
-process failures, and a generated build fixture without a main function. The
-script has not been replaced with the M8 protocol. The approved
-[advanced implementation plan](BERYL_ADVANCED_IMPLEMENTATION_PLAN.md) defines the required paired
-measurements, semantic checks, baselines, and evidence. No Rust speedup is proven.
+**v0.2 collector:** [tools/beryl-bench](../tools/beryl-bench/README.md) builds a
+Beryl kernel and a C baseline, checks stdout and exit status, then writes
+evaluator-v1 receipts. Eligibility is decided by
+[evaluate.py](../tools/beryl-experiments/evaluate.py), not by this document.
+No Rust speedup is proven.
 
-The figures below are retained as historical notes attributed to
-`scripts/bench.sh` on Windows 11, Clang 22 (LLVM-MinGW),
-`x86_64-w64-windows-gnu`. That script's defects prevent treating its output as
-verified performance evidence. Current implementation evidence is tracked in
-[the execution state](BERYL_ADVANCED_IMPLEMENTATION_STATE.md).
+```powershell
+python tools/beryl-bench/run.py collect --workload checked_lcg --beryl build/beryl.exe
+```
+
+`scripts/bench.sh` is retired. The tables below are historical notes attributed
+to that script on Windows 11, Clang 22 (LLVM-MinGW), `x86_64-w64-windows-gnu`.
+Review found an overflowing checked workload, ignored process failures, and a
+generated build fixture without a main function. Do not republish them.
+
+The approved
+[v0.2 performance plan](V0_2_PERFORMANCE_PLAN.md) and
+[advanced implementation plan](BERYL_ADVANCED_IMPLEMENTATION_PLAN.md) §4.3
+define paired measurements, semantic checks, baselines, and evidence.
 
 The new [standalone evidence evaluator](../tools/beryl-experiments/README.md)
 implements the bounded receipt/statistics gate. Its current analytical tests do
@@ -107,12 +114,11 @@ retries were removed by the foundation work. That repair does not itself prove
 byte-identical executable builds across environments. Generated-output
 determinism and executable reproducibility remain distinct checks.
 
-## Historical reproduction commands
+## Reproduction
 
-The following commands are retained for locating the old experiment. Their
-output is not accepted performance evidence. Do not publish it as a new result.
-
-```bash
-bash scripts/build.sh
-bash scripts/bench.sh
+```powershell
+python tools/beryl-bench/test_run.py
+python tools/beryl-bench/run.py collect --workload checked_lcg --beryl build/beryl.exe --out build/bench-checked_lcg
 ```
+
+The retired `scripts/bench.sh` exits 2 and prints the collector command.

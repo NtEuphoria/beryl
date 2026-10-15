@@ -1,7 +1,7 @@
 #ifndef BERYL_IR_C_EMIT_H
 #define BERYL_IR_C_EMIT_H
 #include "ir.h"
-/* Experimental schema-4 differential test emitter. No production entry point.
+/* Experimental schema-5 differential test emitter. No production entry point.
  * Callers must compile with binary32 semantics, contraction/fast-math disabled.
  * Output is empty on invalid IR, unsupported configuration or output budget. */
 typedef struct { bool trace_tests; uint32_t max_output_bytes; } IrCOpts;

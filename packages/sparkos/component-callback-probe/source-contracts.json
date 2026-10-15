@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "scope": "exact extracted declarations and source-only resource seeds; no runtime contract verification",
+  "inputs": [
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\interfaceWorldEditor.html",
+      "bytes": 18548,
+      "sha256": "51af7415047780b9efa7302dfa3b4573dd89d78c4d90b46968273f010f16f275"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\interfaceGenericWorldEntity.html",
+      "bytes": 98965,
+      "sha256": "a8b06ae27be50a3edb343b88480e29d0f1fd184e928c499ad779dda1196353c1"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\interfaceWBModuleDef.html",
+      "bytes": 17148,
+      "sha256": "ca3377a5fa8aea08913f782ed770fe9421e8adfe6abb40d40c594d6aa13d550d"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\interfaceWorldEditorAPI.html",
+      "bytes": 180190,
+      "sha256": "202fbc3822d1c8d9cd465ad4968a9541e90353b51cf4329046187ef8cba1d7b2"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\interfaceWorkbench.html",
+      "bytes": 48808,
+      "sha256": "6da66bb00dd8cadb84463605e7272d93a01e179c8bd651dbdc614d3a68bbdf0f"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\interfaceResourceName.html",
+      "bytes": 29087,
+      "sha256": "ad6bacd660254a8f476338de963a59ae1f525cad9bd00680c6d7a7ba15764c9f"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\interfaceGame.html",
+      "bytes": 82811,
+      "sha256": "dfcab6b926646b8b56cdcbf38bb3e5f9809e96c9e3efaabc11cf806d6ec4b22e"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\interfaceScriptComponent.html",
+      "bytes": 88394,
+      "sha256": "215f2ca81f0d47cbe1dc61dd8471c73c5b5f78c623a247d5f82e8a1e6471c3de"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\interfaceIEntity.html",
+      "bytes": 162196,
+      "sha256": "ec2e7f4c76ab91af50a9448ccd13db7aa7590ba3584fbfdacbd6773d899ec585"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\interfaceBaseRplComponent.html",
+      "bytes": 64643,
+      "sha256": "aabcd54698fff04edc9c8eb3a960f506bd8acfe98ba984ae7df1651db79c1ba1"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\group__Entities.html",
+      "bytes": 51225,
+      "sha256": "350e64c086c1d0a931a359357f6ac2b9872e44c9365e6024c62fb31780695b4d"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\group__Replication.html",
+      "bytes": 44316,
+      "sha256": "c7d8e01b2b4f54962dbb7a142f6c34796345d3635f21992501aa4432de0f4624"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\interfaceResource.html",
+      "bytes": 11814,
+      "sha256": "fedd151770703c749deafc1920cb3386ecfe4604a015185a8bb3d045d69f36cb"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\interfaceBaseResourceObject.html",
+      "bytes": 15902,
+      "sha256": "458840e35278a550985cae5e5392662df99b61215ac85c10d36f57dc6099bc7c"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\interfaceString.html",
+      "bytes": 87686,
+      "sha256": "3928a194290f3e1d72f64d65e1c3c2a7a161100ed23ba8e8ed69e225c9d20387"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\ArmaReforgerScriptAPIPublic\\html\\interfaceRplComponent.html",
+      "bytes": 18879,
+      "sha256": "bf2a18873cce62ca6d3777ff7fbe2078049cb467e4660b8f682bffce7424dbe2"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\worlds\\test1.ent",
+      "bytes": 61,
+      "sha256": "52b4c60d224aee6927ac6c75802a79603b7e8a9d3cbaabb7bb5f43aff5dbde66"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\worlds\\test1.ent.meta",
+      "bytes": 297,
+      "sha256": "82592ef548ba056b4481cc8958af55d7c9aab74b5582c48ab01af6f0fde5d3c1"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\Prefabs\\SPK_MeshCoreEntity.et",
+      "bytes": 118,
+      "sha256": "26ee49311764b61a4efb34bc70792a1b4960b1cf8180d897e50f7bbb669ca564"
+    },
+    {
+      "path": "C:\\Users\\moham\\Documents\\My Games\\ArmaReforgerWorkbench\\addons\\SparkOS_Mesh\\Prefabs\\SPK_MeshCoreEntity.et.meta",
+      "bytes": 134,
+      "sha256": "3497b5f9745cbbdabfd8b9c073a1a300fb435d4d4499f8df140d0a62aff8ddc5"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma Reforger Tools\\Workbench\\docs\\EnfusionScriptAPI\\html\\Page_Enforce_Syntax.html",
+      "bytes": 69063,
+      "sha256": "df83332c65707ce3e9a751c76fe323f1e5fee5459814ba7b5ee850fb325a572d"
+    }
+  ]
+}

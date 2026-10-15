@@ -214,7 +214,6 @@ static void admit_statement(Lower *l,Stmt *s) {
     if (!s || l->failed) return;
     switch (s->kind) {
         case ST_LET:
-            if (!s->let.init) unavailable(l,s->span,"an uninitialized local");
             admit_expression(l,s->let.init); break;
         case ST_EXPR: case ST_RETURN: case ST_DEFER: admit_expression(l,s->expr); break;
         case ST_ASSIGN:
@@ -271,7 +270,7 @@ static void admit_expression(Lower *l,Expr *e) {
             if (e->call.args.len>IR_MAX_CALL_ARGUMENTS) unavailable(l,e->span,"more than 256 call arguments");
             for (uint32_t a=0;a<e->call.args.len && !l->failed;a++) {
                 IrType actual; Arg *arg=&e->call.args.data[a];
-                if ((arg->conv!=CONV_LET && arg->conv!=CONV_INOUT) || !admitted_type(l,arg->value->type,&actual,arg->span) || actual==IR_VOID)
+                if ((arg->conv!=CONV_LET && arg->conv!=CONV_INOUT && arg->conv!=CONV_SET && arg->conv!=CONV_SINK) || !admitted_type(l,arg->value->type,&actual,arg->span) || actual==IR_VOID)
                     unavailable(l,arg->span,"this call argument type or mode");
                 else if (e->res_kind==RES_INTRINSIC && actual>=IR_FIRST_AGGREGATE)
                     unavailable(l,arg->span,"aggregate observations or numeric intrinsic arguments");
@@ -320,13 +319,37 @@ static uint32_t branch(Lower *l,uint32_t owner,Expr *e) {
     if (r!=IR_NONE) { l->region=r; if (e) expression(l,e); l->region=saved; }
     return r;
 }
+static IrMode ir_mode(Conv mode) {
+    return mode==CONV_INOUT?IR_INOUT:mode==CONV_SET?IR_SET:mode==CONV_SINK?IR_SINK:IR_LET;
+}
+static void declare_place(Lower *l,uint32_t place,IrSource source) {
+    uint32_t id=emit(l,IR_DECLARE,IR_VOID,source);
+    if (id!=IR_NONE) { l->ir->instructions.data[id].place=place; l->ir->instructions.data[id].effects=IR_WRITE; }
+}
 static IrArgument argument(Lower *l,Expr *e,Conv mode,Span at) {
-    IrArgument arg={.value=IR_NONE,.source=at,.mode=mode==CONV_INOUT?IR_INOUT:IR_LET,.capture=IR_NONE};
+    IrArgument arg={.value=IR_NONE,.source=at,.mode=ir_mode(mode),.capture=IR_NONE};
     IrType type;
-    if (!admitted_type(l,e->type,&type,at) || type==IR_VOID || (mode!=CONV_LET && mode!=CONV_INOUT)) { unavailable(l,at,"this argument type or mode"); return arg; }
-    if (mode==CONV_INOUT || (type>=IR_FIRST_AGGREGATE && is_place(e))) {
+    if (!admitted_type(l,e->type,&type,at) || type==IR_VOID ||
+        (mode!=CONV_LET && mode!=CONV_INOUT && mode!=CONV_SET && mode!=CONV_SINK)) {
+        unavailable(l,at,"this argument type or mode"); return arg;
+    }
+    if (mode==CONV_SINK && is_place(e)) {
+        uint32_t place=local_place(l,e);
+        if (l->failed) return arg;
+        const IrPlace *source=&l->ir->places.data[place];
+        if (source->parent!=IR_NONE || (source->parameter && source->mode!=IR_SINK && source->mode!=IR_SET)) {
+            unavailable(l,at,"a partial move or move from a borrowed parameter"); return arg;
+        }
+        uint32_t id=emit(l,IR_MOVE,type,origin(at));
+        if (id!=IR_NONE) { l->ir->instructions.data[id].place=place; l->ir->instructions.data[id].effects=IR_READ|IR_WRITE; }
+        arg.value=value_of(l,id); arg.capture=id;
+    } else if (mode==CONV_INOUT || mode==CONV_SET || (mode==CONV_LET && type>=IR_FIRST_AGGREGATE && is_place(e))) {
         uint32_t place=local_place(l,e), id=emit(l,IR_CAPTURE,IR_VOID,origin(at));
-        if (id!=IR_NONE) { l->ir->instructions.data[id].place=place; l->ir->instructions.data[id].effects=IR_READ; l->ir->instructions.data[id].flag=mode==CONV_INOUT; }
+        if (id!=IR_NONE) {
+            IrInstruction *capture=&l->ir->instructions.data[id]; capture->place=place;
+            capture->effects=mode==CONV_SET?0:IR_READ; capture->flag=mode!=CONV_LET;
+            capture->immediate=(int32_t)arg.mode;
+        }
         arg.by_place=true; arg.capture=id;
     } else arg.value=expression(l,e);
     return arg;
@@ -521,6 +544,7 @@ static void loop(Lower *l,Stmt *s,bool for_loop) {
             if (get!=IR_NONE) { l->ir->instructions.data[get].a=snapshot; l->ir->instructions.data[get].b=current; l->ir->instructions.data[get].effects=IR_FAILURE; }
             value=value_of(l,get);
         }
+        declare_place(l,binding,src);
         store(l,binding,value,true,src);
     }
     expression(l,for_loop?s->for_st.body:s->while_st.body);
@@ -541,8 +565,10 @@ static void statement(Lower *l,Stmt *s) {
     IrSource src=origin(s->span);
     switch (s->kind) {
         case ST_LET: {
-            if (!s->let.init) { unavailable(l,s->span,"an uninitialized local"); break; }
-            uint32_t p=declaration(l,s->let.name,s->span), v=expression(l,s->let.init); store(l,p,v,true,src); break;
+            uint32_t p=declaration(l,s->let.name,s->span), v=expression(l,s->let.init);
+            declare_place(l,p,src);
+            if (s->let.init) store(l,p,v,true,src);
+            break;
         }
         case ST_EXPR: case ST_DEFER: expression(l,s->expr); break; /* current immediate semantics */
         case ST_ASSIGN: {
@@ -578,7 +604,7 @@ static void statement(Lower *l,Stmt *s) {
 }
 IrProgram *ir_lower(Arena *a,DiagBag *d,const SourceMap *sources,Program *program) {
     if (!a || !d || !sources || !program || diag_errors(d)) return NULL;
-    IrProgram *ir=ARENA_NEW(a,IrProgram); ir->schema_version=4;
+    IrProgram *ir=ARENA_NEW(a,IrProgram); ir->schema_version=IR_SCHEMA_VERSION;
     Lower l={.a=a,.d=d,.ir=ir};
     uint32_t count=srcmap_count(sources); uint64_t source_bytes=0;
     if (!count || count>IR_MAX_SOURCE_FILES) { unavailable(&l,SPAN_NONE,"an absent or oversized source manifest"); return NULL; }
@@ -609,8 +635,8 @@ IrProgram *ir_lower(Arena *a,DiagBag *d,const SourceMap *sources,Program *progra
         if (!bounded(&l,ir->functions.len,IR_MAX_FUNCTIONS,it->span)) break;
         if (it->kind==IT_FN) for (uint32_t p=0;p<it->fn.params.len;p++) {
             Param *pm=&it->fn.params.data[p]; IrType t;
-            if ((pm->conv!=CONV_LET && pm->conv!=CONV_INOUT) || !admitted_type(&l,pm->rtype,&t,pm->span) || t==IR_VOID)
-                unavailable(&l,pm->span,"parameters other than admitted let/inout types");
+            if ((pm->conv!=CONV_LET && pm->conv!=CONV_INOUT && pm->conv!=CONV_SET && pm->conv!=CONV_SINK) || !admitted_type(&l,pm->rtype,&t,pm->span) || t==IR_VOID)
+                unavailable(&l,pm->span,"parameters other than admitted plain-value modes");
             admit_expression(&l,pm->deflt);
         }
         items[ir->functions.len]=it;
@@ -628,7 +654,7 @@ IrProgram *ir_lower(Arena *a,DiagBag *d,const SourceMap *sources,Program *progra
             if (!local || local->id!=p || !admitted_type(&l,local->type,&t,local->span) || t==IR_VOID || !bounded(&l,ir->places.len,IR_MAX_PLACES,l.item->span)) {
                 if (!l.failed) unavailable(&l,l.item->span,"this local type or identity"); break;
             }
-            IrPlace place={.type=t,.function=f,.source_local=p,.declaration=local->span,.parameter=local->is_param,.mutable=local->is_mut,.mode=local->is_param && l.item->fn.params.data[p].conv==CONV_INOUT?IR_INOUT:IR_LET,.parent=IR_NONE,.field=IR_NONE,.definition=IR_NONE};
+            IrPlace place={.type=t,.function=f,.source_local=p,.declaration=local->span,.parameter=local->is_param,.mutable=local->is_param?l.item->fn.params.data[p].conv!=CONV_LET:local->is_mut,.mode=local->is_param?ir_mode(l.item->fn.params.data[p].conv):IR_LET,.parent=IR_NONE,.field=IR_NONE,.definition=IR_NONE};
             vec_push(a,ir->places,place);
         }
         if (l.failed) break;
@@ -644,7 +670,7 @@ IrProgram *ir_lower(Arena *a,DiagBag *d,const SourceMap *sources,Program *progra
     if (!checked.ok) {
         if (!strcmp(checked.reason,"write or control effect crosses projected destination") || !strcmp(checked.reason,"write or control effect crosses captured argument interval") ||
             !strcmp(checked.reason,"write or control effect crosses index base capture") || !strcmp(checked.reason,"write or control effect crosses dynamic place interval") ||
-            !strcmp(checked.reason,"overlapping captured mutable arguments"))
+            !strcmp(checked.reason,"overlapping captured mutable arguments") || !strcmp(checked.reason,"loop back edge changes an outer logical state"))
             diag_error(d,1101,checked.source,"experimental IR rejects this alias/evaluation-order boundary: %s",checked.reason);
         else diag_error(d,1102,checked.source,"invalid experimental structured IR: %s",checked.reason);
         return NULL;

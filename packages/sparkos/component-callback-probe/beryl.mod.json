@@ -1,0 +1,31 @@
+{
+  "schema_version": 2,
+  "name": "Isolated real engine-delivered scalar component callback probe",
+  "addon": {
+    "id": "BerylComponentCallbackProbe",
+    "guid": "BCBCA11B20261008",
+    "dependencies": ["58D0FB3206B6F859"]
+  },
+  "binding": {
+    "target": "enfusion",
+    "version": "1.8.0.13",
+    "sha256": "7dd36ca1f662b0c13669a4f2f7f10e3c461c2906b021e742272d64b3ab7e9798",
+    "contract_profile": "enfusion.tablet.script-component.v1"
+  },
+  "sources": {
+    "native": ["src/state.be"],
+    "enfusion": ["src/state.be"],
+    "tests": []
+  },
+  "exports": [],
+  "components": [{
+    "descriptor": {"name": "SPK_BerylCallbackProbeClass", "parent": "ScriptComponentClass"},
+    "instance": {"name": "SPK_BerylCallbackProbe", "parent": "ScriptComponent"},
+    "state": "sparkos.component_callback_probe.State",
+    "callbacks": [
+      {"binding": "ScriptComponent.OnPostInit", "handler": "sparkos.component_callback_probe.on_init", "super_order": "first"},
+      {"binding": "ScriptComponent.EOnFrame", "handler": "sparkos.component_callback_probe.on_frame", "super_order": "none"},
+      {"binding": "ScriptComponent.OnDelete", "handler": "sparkos.component_callback_probe.on_delete", "super_order": "last"}
+    ]
+  }]
+}

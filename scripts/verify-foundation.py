@@ -24,6 +24,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--clang", default="clang")
     parser.add_argument("--sanitize", action="store_true", help="enable UBSan, failing on its first report")
+    parser.add_argument("--unit-only", action="store_true", help="build the candidate and run compiler unit tests only; no generated-program or engine-export coverage")
     opts = parser.parse_args()
     compiler = shutil.which(opts.clang)
     if not compiler:
@@ -32,7 +33,9 @@ def main():
     output = Path(tempfile.mkdtemp(prefix="foundation-", dir=ROOT / "build"))
     env = os.environ.copy()
     env["PATH"] = str(Path(compiler).parent) + os.pathsep + env.get("PATH", "")
-    evidence = {"status": "running", "sanitizers": opts.sanitize, "commands": [], "programs": []}
+    evidence = {"status": "running", "sanitizers": opts.sanitize, "commands": [], "programs": [],
+                "execution_scope": "compiler_build_and_unit_tests" if opts.unit_only else "full_foundation",
+                "native_regression_execution": "not_selected" if opts.unit_only else "incomplete"}
     def source_hashes():
         return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                 for folder in ("src", "runtime", "tests", "scripts", "examples", "lib", "packages", "schemas", "tools")
@@ -81,6 +84,12 @@ def main():
         evidence["unit_summary"] = run([unit]).stdout.strip()
         print(evidence["unit_summary"], flush=True)
         run([compiler, *common, "-O2", *sanitize, *source, "-o", beryl])
+        evidence["compiler_sha256"] = hashlib.sha256(beryl.read_bytes()).hexdigest()
+        if opts.unit_only:
+            if source_hashes() != evidence["source_hashes"]:
+                raise RuntimeError("Source changed during unit verification; this run is stale")
+            evidence["status"] = "passed"
+            return
 
         # Regression: a diagnostic/read failure cannot count as successful check.
         missing = output / "missing.be"
@@ -118,7 +127,7 @@ def main():
                 target = output / (name + opt + exe)
                 run([compiler, "-std=c11", "-Wall", "-Wextra", "-Wno-unused-variable",
                      "-Wno-unused-parameter", "-Wno-unused-function", opt, *sanitize,
-                     "-Iruntime", cfile, "runtime/beryl_rt.c", "-o", target])
+                     "-Iruntime", cfile, "-o", target])
                 result = run([target], expected=None, timeout=20)
                 if expected.exists():
                     want = expected.read_text(encoding="utf-8")
@@ -154,7 +163,7 @@ def main():
             for opt in ("-O0", "-O2"):
                 target = output / (name + opt + exe)
                 run([compiler, "-std=c11", opt, "-ffp-contract=off", "-fno-fast-math",
-                     *sanitize, "-Iruntime", cfile, "runtime/beryl_rt.c", "-o", target])
+                     *sanitize, "-Iruntime", cfile, "-o", target])
                 result = run([target], timeout=20)
                 if result.stderr or (not test_mode and result.stdout != "32\n"):
                     raise RuntimeError(f"Wrong multi-module result: {result.stdout!r} {result.stderr!r}")
@@ -188,13 +197,13 @@ def main():
             cfile = output / (src.stem + ".c")
             cfile.write_text(code, encoding="utf-8", newline="\n")
             target = output / (src.stem + exe)
-            run([compiler, "-std=c11", "-O2", *sanitize, "-Iruntime", cfile,
-                 "runtime/beryl_rt.c", "-o", target])
+            run([compiler, "-std=c11", "-O2", *sanitize, "-Iruntime", cfile, "-o", target])
             result = run([target], timeout=20)
             print(f"passed {src.name}: {result.stdout.strip()}", flush=True)
         if source_hashes() != evidence["source_hashes"]:
             raise RuntimeError("Source changed during verification; this run is stale")
         evidence["compiler_sha256"] = hashlib.sha256(beryl.read_bytes()).hexdigest()
+        evidence["native_regression_execution"] = "completed"
         evidence["status"] = "passed"
     except Exception as exc:
         evidence["status"] = "failed"

@@ -1,0 +1,192 @@
+// Trusted isolated plain member-box probe, outside generated source.
+// Handler calls below do not establish component construction or event delivery.
+class @CLASS@Request : JsonApiStruct
+{
+    string token;
+    void @CLASS@Request() { RegV("token"); }
+}
+class @CLASS@Response : JsonApiStruct
+{
+    string token;
+    int executed;
+    int checks;
+    int failures;
+    int checksum;
+    ref array<string> caseIds = {};
+    ref array<string> rows = {};
+    void @CLASS@Response()
+    {
+        RegV("token"); RegV("executed"); RegV("checks"); RegV("failures");
+        RegV("checksum"); RegV("caseIds"); RegV("rows");
+    }
+}
+class @CLASS@MemberBox
+{
+    protected ref @STATE@ m_BerylState = new @STATE@();
+    @STATE@ ProbeState() { return m_BerylState; }
+    void ManualFrame(float delta) { @FRAME_HOLDER@.@FRAME_METHOD@(m_BerylState, delta); }
+    void MutateFields() { @MUTATE_HOLDER@.@MUTATE_METHOD@(m_BerylState); }
+    void ReplaceState() { @REPLACE_HOLDER@.@REPLACE_METHOD@(m_BerylState); }
+    void ResetState() { @RESET_HOLDER@.@RESET_METHOD@(m_BerylState); }
+    void InitHandlerOnly() { @INIT_HOLDER@.@INIT_METHOD@(m_BerylState); }
+    void DeleteHandlerOnly() { @DELETE_HOLDER@.@DELETE_METHOD@(m_BerylState); }
+    // A scripted target-ABI nested call, not spontaneous engine reentry.
+    void ManualNestedFieldCall() { NestedField(m_BerylState); }
+    protected void NestedField(out @STATE@ active)
+    {
+        active.@COUNT@ += 1;
+        ManualFrame(0.125);
+        active.@COUNT@ += 2;
+    }
+}
+class @CLASS@ : NetApiHandler
+{
+    ref @CLASS@Response m_Result;
+    string m_Case;
+    override JsonApiStruct GetRequest() { return new @CLASS@Request(); }
+    override JsonApiStruct GetResponse(JsonApiStruct request)
+    {
+        @CLASS@Request req = @CLASS@Request.Cast(request);
+        m_Result = new @CLASS@Response();
+        m_Result.token = "@TOKEN@";
+        if (!req || req.token != m_Result.token) return m_Result;
+        RunCases();
+        if (m_Result.failures == 0 && m_Result.caseIds.Count() == 11 && m_Result.checks == 73 && m_Result.rows.Count() == 95)
+            m_Result.executed = 1;
+        return m_Result;
+    }
+    void Emit(string row)
+    {
+        m_Result.rows.Insert(row);
+        for (int i = 0; i < row.Length(); i++)
+            m_Result.checksum = (m_Result.checksum * 31 + row.ToAscii(i)) % 1000003;
+        m_Result.checksum = (m_Result.checksum * 31 + 10) % 1000003;
+    }
+    void Begin(string id) { m_Case = id; m_Result.caseIds.Insert(id); Emit("case|" + id); }
+    void End() { Emit("end|" + m_Case); }
+    void IntValue(string key, int actual, int expected)
+    {
+        m_Result.checks++;
+        if (actual != expected) m_Result.failures++;
+        Emit("int|" + m_Case + "|" + key + "|" + actual.ToString());
+    }
+    void BoolValue(string kind, string key, bool actual, bool expected)
+    {
+        m_Result.checks++;
+        if (actual != expected) m_Result.failures++;
+        int encoded = 0;
+        if (actual) encoded = 1;
+        Emit(kind + "|" + m_Case + "|" + key + "|" + encoded.ToString());
+    }
+    void FloatValue(string key, float actual, float expected)
+    {
+        // Wire data records the target's comparison outcome, not rounded float text.
+        BoolValue("float_equal", key, actual == expected, true);
+    }
+    void StateValue(string prefix, @STATE@ state, bool ready, int count, float elapsed)
+    {
+        int present = 0;
+        if (state) present = 1;
+        IntValue(prefix + ".present", present, 1);
+        if (!state) return;
+        BoolValue("bool", prefix + ".ready", state.@READY@, ready);
+        IntValue(prefix + ".count", state.@COUNT@, count);
+        FloatValue(prefix + ".elapsed", state.@ELAPSED@, elapsed);
+    }
+    void RunCases()
+    {
+        Begin("record-defaults");
+        @STATE@ record = new @STATE@();
+        StateValue("record", record, true, 17, 0.125);
+        End();
+
+        Begin("member-box-defaults");
+        @CLASS@MemberBox defaults = new @CLASS@MemberBox();
+        StateValue("box", defaults.ProbeState(), true, 17, 0.125);
+        End();
+
+        Begin("member-box-field-write-through");
+        @CLASS@MemberBox fields = new @CLASS@MemberBox();
+        @STATE@ fieldsPrior = fields.ProbeState();
+        fields.MutateFields();
+        StateValue("member", fields.ProbeState(), false, 22, 0.375);
+        StateValue("prior", fieldsPrior, false, 22, 0.375);
+        BoolValue("identity_equal", "same-member", fields.ProbeState() == fieldsPrior, true);
+        End();
+
+        Begin("member-box-whole-record-replacement");
+        @CLASS@MemberBox replacement = new @CLASS@MemberBox();
+        @STATE@ replacementPrior = replacement.ProbeState();
+        replacement.ReplaceState();
+        StateValue("member", replacement.ProbeState(), false, 41, 0.5);
+        StateValue("prior", replacementPrior, true, 17, 0.125);
+        BoolValue("identity_equal", "same-member", replacement.ProbeState() == replacementPrior, false);
+        End();
+
+        Begin("member-box-reset-after-replacement");
+        @CLASS@MemberBox reset = new @CLASS@MemberBox();
+        reset.MutateFields();
+        reset.ReplaceState();
+        @STATE@ resetPrior = reset.ProbeState();
+        reset.ResetState();
+        StateValue("member", reset.ProbeState(), true, 17, 0.125);
+        StateValue("prior", resetPrior, false, 41, 0.5);
+        BoolValue("identity_equal", "same-member", reset.ProbeState() == resetPrior, false);
+        End();
+
+        Begin("manual-handler-repeated-frame");
+        @CLASS@MemberBox repeated = new @CLASS@MemberBox();
+        @STATE@ repeatedPrior = repeated.ProbeState();
+        repeated.ManualFrame(0.125);
+        repeated.ManualFrame(0.125);
+        repeated.ManualFrame(0.125);
+        StateValue("member", repeated.ProbeState(), true, 20, 0.5);
+        BoolValue("identity_equal", "same-member", repeated.ProbeState() == repeatedPrior, true);
+        End();
+
+        Begin("manual-handler-frame-replace-frame");
+        @CLASS@MemberBox mixed = new @CLASS@MemberBox();
+        @STATE@ mixedPrior = mixed.ProbeState();
+        mixed.ManualFrame(0.125);
+        mixed.ReplaceState();
+        mixed.ManualFrame(0.125);
+        StateValue("member", mixed.ProbeState(), false, 42, 0.625);
+        StateValue("prior", mixedPrior, true, 18, 0.25);
+        BoolValue("identity_equal", "same-member", mixed.ProbeState() == mixedPrior, false);
+        End();
+
+        Begin("independent-member-boxes");
+        @CLASS@MemberBox first = new @CLASS@MemberBox();
+        @CLASS@MemberBox second = new @CLASS@MemberBox();
+        first.MutateFields();
+        StateValue("first", first.ProbeState(), false, 22, 0.375);
+        StateValue("second", second.ProbeState(), true, 17, 0.125);
+        BoolValue("identity_equal", "same-instances", first.ProbeState() == second.ProbeState(), false);
+        End();
+
+        Begin("direct-handler-init");
+        @CLASS@MemberBox init = new @CLASS@MemberBox();
+        @STATE@ initPrior = init.ProbeState();
+        init.InitHandlerOnly();
+        StateValue("member", init.ProbeState(), true, 18, 0.125);
+        BoolValue("identity_equal", "same-member", init.ProbeState() == initPrior, true);
+        End();
+
+        Begin("direct-handler-delete");
+        @CLASS@MemberBox deletion = new @CLASS@MemberBox();
+        @STATE@ deletePrior = deletion.ProbeState();
+        deletion.ManualFrame(0.125);
+        deletion.DeleteHandlerOnly();
+        StateValue("member", deletion.ProbeState(), false, -7, 0.25);
+        BoolValue("identity_equal", "same-member", deletion.ProbeState() == deletePrior, true);
+        End();
+
+        Begin("manual-member-box-nested-field-call");
+        @CLASS@MemberBox nested = new @CLASS@MemberBox();
+        @STATE@ nestedPrior = nested.ProbeState();
+        nested.ManualNestedFieldCall();
+        StateValue("member", nested.ProbeState(), true, 21, 0.25);
+        BoolValue("identity_equal", "same-member", nested.ProbeState() == nestedPrior, true);
+        End();
+    }
+}

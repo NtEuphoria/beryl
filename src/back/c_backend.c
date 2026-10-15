@@ -512,7 +512,12 @@ static Str gen_list_method(G *g, Expr *e) {
     Str    id   = type_id(g, lt);
     Str    address = gen_expr(g, recv);
     Str    pointer = tmp_name(g);
-    line(g, "%.*s *%.*s = &(%.*s);", S(ctype(g, lt)), S(pointer), S(address));
+    /* `len` and `get` only read. A `let` receiver is `const`, and the pointer
+     * must keep that qualifier or clang rejects the generated C. */
+    bool read_only = (Intrinsic)e->intrinsic == INTR_LIST_LEN ||
+                     (Intrinsic)e->intrinsic == INTR_LIST_GET;
+    line(g, "%s%.*s *%.*s = &(%.*s);", read_only ? "const " : "", S(ctype(g, lt)), S(pointer),
+         S(address));
     SB receiver; sb_init(&receiver, g->a); sb_fmt(&receiver, "(*%.*s)", S(pointer));
     Str    r    = sb_finish(&receiver);
     Str    f    = file_of(g, e->span);
@@ -664,11 +669,29 @@ static Str gen_call_intrinsic(G *g, Expr *e) {
     }
 }
 
+/* Aggregates are not copied into a `let` parameter. `str` is already a
+ * pointer plus a length, and `sink` must pass the value itself. A non-place
+ * is copied into a temporary first; the pointer never aims at an rvalue. */
+static bool let_by_pointer(Conv conv, const Type *t) {
+    if (conv != CONV_LET || !t || t->kind == TY_STR) return false;
+    return !ty_is_copy(t);
+}
+
+static bool local_place(Expr *e) {
+    while (e && (e->kind == EX_FIELD || e->kind == EX_INDEX))
+        e = e->kind == EX_FIELD ? e->field.base : e->index.base;
+    return e && (e->kind == EX_PATH || e->kind == EX_SELF) && e->res_kind == RES_LOCAL;
+}
+
 static Str call_arg(G *g, Expr *x, Conv conv) {
     Str v = gen_expr(g, x);
-    if (conv != CONV_INOUT && conv != CONV_SET) return temp_of(g, x->type, v);
+    bool pointer = conv == CONV_INOUT || conv == CONV_SET || let_by_pointer(conv, x ? x->type : NULL);
+    if (!pointer) return temp_of(g, x->type, v);
+    Str src = v;
+    if (let_by_pointer(conv, x->type) && !local_place(x)) src = temp_of(g, x->type, v);
     Str addr = tmp_name(g);
-    line(g, "%.*s *%.*s = &(%.*s);", S(ctype(g, x->type)), S(addr), S(v));
+    const char *qual = let_by_pointer(conv, x->type) ? "const " : "";
+    line(g, "%s%.*s *%.*s = &(%.*s);", qual, S(ctype(g, x->type)), S(addr), S(src));
     return addr;
 }
 
@@ -789,7 +812,8 @@ static Str gen_expr_gen(G *g, Expr *e) {
             if (e->res_kind == RES_LOCAL) {
                 Local *l = (Local *)e->res;
                 Str    n = local_name(g, l->name, l->span);
-                if (l->is_param && (l->conv == CONV_INOUT || l->conv == CONV_SET))
+                if (l->is_param && (l->conv == CONV_INOUT || l->conv == CONV_SET ||
+                                    let_by_pointer(l->conv, l->type)))
                     sb_fmt(&sb, "(*%.*s)", S(n));
                 else sb_fmt(&sb, "%.*s", S(n));
             } else if (e->res_kind == RES_CONST) {
@@ -1087,6 +1111,20 @@ static const char *assign_op(TokKind k) {
     }
 }
 
+/* An immutable local place can be indexed in place. Copying the array would
+ * snapshot a value the loop is not allowed to change. A mutable binding, an
+ * `inout`/`set` parameter, or a non-place keeps the copy. */
+static bool immutable_array_place(Expr *e) {
+    while (e && (e->kind == EX_FIELD || e->kind == EX_INDEX))
+        e = e->kind == EX_FIELD ? e->field.base : e->index.base;
+    if (!e || (e->kind != EX_PATH && e->kind != EX_SELF)) return false;
+    if (e->res_kind != RES_LOCAL) return false;
+    Local *l = (Local *)e->res;
+    if (l->is_mut) return false;
+    if (l->is_param && (l->conv == CONV_INOUT || l->conv == CONV_SET)) return false;
+    return true;
+}
+
 static void gen_stmt(G *g, Stmt *s) {
     /* See ef_stmt: a shared node such as a parameter default is rendered at
      * more than one site, and a memo that outlived the statement let the
@@ -1210,13 +1248,21 @@ static void gen_stmt(G *g, Stmt *s) {
                 line(g, "}");
             } else if (it && it->type && it->type->kind == TY_ARRAY) {
                 Str av = gen_expr(g, it);
-                Str an = temp_of(g, it->type, av);
                 Str ct = ctype(g, it->type->elem);
                 Str ix = tmp_name(g);
+                Str an;
+                bool in_place = immutable_array_place(it);
+                if (in_place) {
+                    an = tmp_name(g);
+                    line(g, "const %.*s *%.*s = &(%.*s);", S(ctype(g, it->type)), S(an), S(av));
+                } else {
+                    an = temp_of(g, it->type, av);
+                }
                 line(g, "for (int64_t %.*s = 0; %.*s < %llu; %.*s++) {", S(ix), S(ix),
                      (unsigned long long)it->type->array_len, S(ix));
                 g->indent++;
-                line(g, "%.*s %.*s = %.*s.v[%.*s];", S(ct), S(nm), S(an), S(ix));
+                line(g, "%.*s %.*s = %.*s%sv[%.*s];", S(ct), S(nm), S(an),
+                     in_place ? "->" : ".", S(ix));
                 gen_block(g, s->for_st.body);
                 g->indent--;
                 line(g, "}");
@@ -1302,7 +1348,9 @@ static Str fn_signature(G *g, Item *it) {
         Str ct = ctype(g, pm->rtype);
         Str pn = local_name(g, pm->name, pm->span);
         if (pm->conv == CONV_INOUT || pm->conv == CONV_SET)
-            sb_fmt(&sb, "%.*s *%.*s", S(ct), S(pn));
+            sb_fmt(&sb, "%.*s *%s%.*s", S(ct), it->restrict_admitted ? "restrict " : "", S(pn));
+        else if (let_by_pointer(pm->conv, pm->rtype))
+            sb_fmt(&sb, "const %.*s *%s%.*s", S(ct), it->restrict_admitted ? "restrict " : "", S(pn));
         else sb_fmt(&sb, "%.*s %.*s", S(ct), S(pn));
     }
     sb_char(&sb, ')');
@@ -1441,7 +1489,17 @@ Str cgen_program_watched(Arena *a, SourceMap *sm, DiagBag *d, Program *p, CgenMo
         }
     }
 
-    /* Prototypes. */
+    /* Prototypes. `restrict` names the admitted non-aliasing contract. */
+    bool any_restrict = false;
+    for (uint32_t m = 0; m < p->modules.len && !any_restrict; m++) {
+        Module *mod = p->modules.data[m];
+        for (uint32_t i = 0; i < mod->items.len; i++) {
+            Item *it = mod->items.data[i];
+            if (it->kind == IT_FN && it->restrict_admitted) any_restrict = true;
+        }
+    }
+    if (any_restrict)
+        line(&g, "/* restrict: every exclusive argument is a proven local path, and native admission rejects a second owner of a list buffer. */");
     for (uint32_t m = 0; m < p->modules.len; m++) {
         Module *mod = p->modules.data[m];
         for (uint32_t i = 0; i < mod->items.len; i++) {
@@ -1546,6 +1604,10 @@ Str cgen_program_watched(Arena *a, SourceMap *sm, DiagBag *d, Program *p, CgenMo
     sb_str(&final, sb_finish(&g.protos));
     sb_char(&final, '\n');
     sb_str(&final, sb_finish(&g.out));
+    /* One translation unit with the runtime so clang can inline traps, prints,
+     * and list growth without LTO. The job still writes beryl_rt.c beside this
+     * file; IR emission compiles that file on its own. */
+    sb_cstr(&final, "\n#include \"beryl_rt.c\"\n");
     return sb_finish(&final);
 }
 Str cgen_program(Arena *a, SourceMap *sm, DiagBag *d, Program *p, CgenMode mode) {

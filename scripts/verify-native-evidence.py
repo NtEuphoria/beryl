@@ -181,7 +181,7 @@ def main():
         # fs_join deliberately retains the absolute job prefix and appends '/'.
         generated = lambda name: str(job) + "/" + name
         compile_argv = read_json(job / "compile.argv.json")
-        assert compile_argv == expected_flags + ["-o", generated("program.exe"), generated("out.c"), generated("beryl_rt.c")]
+        assert compile_argv == expected_flags + ["-o", generated("program.exe"), generated("out.c")]
         assert read_json(job / "driver-jobs.argv.json") == compile_argv + ["-###"]
         assert [item["name"] for item in details["passes"]] == ["llvm-ir", "assembly", "driver-jobs"]
         for index, (name, suffix) in enumerate((("llvm-ir", "ll"), ("assembly", "s"))):

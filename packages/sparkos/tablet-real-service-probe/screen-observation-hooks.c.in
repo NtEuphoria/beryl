@@ -1,0 +1,24 @@
+	// Trusted source-only observation seam; base hooks have no service effects.
+	// A future observer supplies invocation-local IDs; zero here is not runtime evidence.
+	protected void BerylObserveScreenCreated()
+	{
+	}
+
+	protected int BerylObserveScreenEnableEnter()
+	{
+		return 0;
+	}
+
+	protected void BerylObserveScreenEnableExit(int invocationId, bool returned)
+	{
+	}
+
+	protected int BerylObserveScreenDisableEnter()
+	{
+		return 0;
+	}
+
+	protected void BerylObserveScreenDisableExit(int invocationId)
+	{
+	}
+

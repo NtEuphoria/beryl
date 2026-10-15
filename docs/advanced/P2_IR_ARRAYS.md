@@ -197,10 +197,13 @@ runtime behavior. Those remain separate gates.
 
 1. Close the source-level alias/admission contract for remaining access modes
    and array cases before widening this subset.
-2. Implement and independently test uninitialized/set/sink state transitions
-   with explicit initialized-destination rules.
-3. Add the unoptimized IR C emitter and verify admitted programs against AST
-   reference, IR evaluation and actual O0/O2 generated execution.
+2. The October 14 [access-mode extension](P2_IR_ACCESS_MODES.md) implements bounded
+   uninitialized/set/sink state transitions under schema 5. Its separate receipts
+   and admission limits govern that category; this historical array checkpoint
+   does not verify the extension. Continue the remaining production and
+   owned-storage gates rather than treating this as complete R1 support.
+3. The [differential test route](P2_IR_DIFFERENTIAL.md) adds bounded instrumented
+   IR C emission. A production backend and its release evidence remain separate.
 4. Add emitted EnforceScript parity with its engine-specific value/storage rules.
 5. Release an explicit IR selection only after its published subset passes those
    gates; keep automatic selection unchanged until a separate release decision.

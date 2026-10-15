@@ -2,6 +2,14 @@
 
 ## Objective and scope
 
+This packet records the version-1 implementation checkpoint. The later
+[P4-A component admission](P4_COMPONENT_ADMISSION.md) adds strict version-2
+structural planning through the same CLI/MCP interface. That plan still leaves
+symbols unchecked. The subsequent [P4-B renderer](P4_COMPONENT_GENERATION.md)
+adds a conditional source-build action for flat scalar state; planning still
+does not execute it, establish engine availability, or enable promotion.
+The historical scope and receipts below remain tied to their original bytes.
+
 `beryl mod plan` describes the current class-export workflow for an exact
 version-1 companion and its declared source bytes. Claude, ChatGPT and a human
 receive the same machine-readable plan, identities, dependencies, unavailable

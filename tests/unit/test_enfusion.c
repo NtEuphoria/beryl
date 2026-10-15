@@ -115,6 +115,86 @@ static void test_struct_and_method(void) {
             (unsigned char)out.ptr[1] == 0xBB && (unsigned char)out.ptr[2] == 0xBF));
 }
 
+static void test_receiver_mode_admission(void) {
+    uint32_t errors = 0;
+    CASE("enfusion: unused sink self declarations fail before rendering");
+    Str out = enf("module t\nstruct R{x:i32}\n"
+        "fn R.take(sink self)->i32{return self.x}\n", &errors);
+    CHECK(errors > 0);
+    CHECK_CONTAINS(out, "BE0701");
+    CHECK_CONTAINS(out, "sink self");
+    CHECK_MISSING(out, "class SPK_");
+
+    CASE("enfusion: set self cannot initialize an implicit class receiver");
+    out = enf("module t\nstruct R{x:i32}\n"
+        "fn R.fill(set self){self=R{x:7}}\n"
+        "fn f()->i32{var r:R\nr.fill()\nreturn r.x}\n", &errors);
+    CHECK(errors > 0);
+    CHECK_CONTAINS(out, "BE0701");
+    CHECK_CONTAINS(out, "set self");
+    CHECK_CONTAINS(out, "ordinary function");
+    CHECK_MISSING(out, "class SPK_");
+
+    CASE("enfusion: inout self cannot replace the whole implicit instance");
+    out = enf("module t\nstruct R{x:i32}\n"
+        "fn R.reset(inout self){self=R{x:7}}\n", &errors);
+    CHECK_EQ_I(errors, 1);
+    CHECK_CONTAINS(out, "BE0701");
+    CHECK_CONTAINS(out, "whole `self` replacement");
+    CHECK_MISSING(out, "class SPK_");
+
+    CASE("enfusion: nested whole-self replacement is also rejected");
+    out = enf("module t\nstruct R{x:i32}\n"
+        "fn R.reset(inout self,flag:bool){if flag{self=R{x:7}}}\n", &errors);
+    CHECK_EQ_I(errors, 1);
+    CHECK_CONTAINS(out, "BE0701");
+    CHECK_CONTAINS(out, "whole `self` replacement");
+
+    CASE("enfusion: an explicit set helper cannot replace implicit whole self");
+    out = enf("module t\nstruct R{x:i32}\n"
+        "fn fill(set r:R){r=R{x:7}}\n"
+        "fn R.reset(inout self){fill(set self)}\n", &errors);
+    CHECK_EQ_I(errors, 1);
+    CHECK_CONTAINS(out, "BE0701");
+    CHECK_CONTAINS(out, "whole `self` cannot be passed `set`");
+    CHECK_MISSING(out, "class SPK_");
+
+    CASE("enfusion: an explicit inout helper cannot replace implicit whole self");
+    out = enf("module t\nstruct R{x:i32}\n"
+        "fn fill(inout r:R){r=R{x:7}}\n"
+        "fn R.reset(inout self){fill(inout self)}\n", &errors);
+    CHECK_EQ_I(errors, 1);
+    CHECK_CONTAINS(out, "BE0701");
+    CHECK_CONTAINS(out, "whole `self` cannot be passed `inout`");
+
+    CASE("enfusion: explicit mutable helpers retain projected-field admission");
+    out = enf("module t\nstruct R{x:i32}\n"
+        "fn fill(set x:i32){x=7}\nfn bump(inout x:i32){x+=1}\n"
+        "fn R.reset(inout self){fill(set self.x)\nbump(inout self.x)}\n", &errors);
+    CHECK_EQ_I(errors, 0);
+    CHECK_CONTAINS(out, "be_m_fill(this.be_f_x)");
+    CHECK_CONTAINS(out, "be_m_bump(this.be_f_x)");
+
+    CASE("enfusion: read-only and inout field methods retain their admission");
+    out = enf("module t\nstruct R{x:i32}\n"
+        "fn R.read(let self)->i32{return self.x}\n"
+        "fn R.reset(inout self){self.x=7}\n", &errors);
+    CHECK_EQ_I(errors, 0);
+    CHECK_CONTAINS(out, "this.be_f_x = 7;");
+    CHECK_CONTAINS(out, "return this.be_f_x;");
+    CHECK_MISSING(out, "this =");
+
+    CASE("enfusion: ordinary explicit set and sink functions retain admission");
+    out = enf("module t\nstruct R{x:i32}\n"
+        "fn fill(set r:R){r=R{x:7}}\n"
+        "fn take(sink r:R)->i32{return r.x}\n"
+        "fn f()->i32{var r:R\nfill(set r)\nreturn take(sink r)}\n", &errors);
+    CHECK_EQ_I(errors, 0);
+    CHECK_CONTAINS(out, "be_m_fill(out SPK_be_i_t_2eR be_l_r)");
+    CHECK_CONTAINS(out, "be_m_take(SPK_be_i_t_2eR be_l_r)");
+    CHECK_MISSING(out, "this =");
+}
+
 static void test_type_mapping(void) {
     CASE("enfusion: legacy map of logical records requires recursive copy support");
     uint32_t errs = 0;
@@ -548,6 +628,7 @@ void run_enfusion_tests(void) {
     }
     CHECK_EQ_I(diag_errors(fd),0); arena_free(fa);
     test_struct_and_method();
+    test_receiver_mode_admission();
     test_type_mapping();
     test_reference_array_copy_admission();
     test_range_bound_capture();

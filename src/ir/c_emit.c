@@ -40,7 +40,7 @@ static void event(Emit *e,const char *kind,Span s,Str flag){if(e->opts.trace_tes
 /* Static field projections are formed at the instruction, because their parent
  * may be an indexed place whose definition has not run at function entry. */
 static Str pointer(Emit *e,uint32_t id){const IrPlace *p=&e->p->places.data[id];if(p->parent==IR_NONE||p->definition!=IR_NONE)return fmt(e,"p_%u",id);Str parent=pointer(e,p->parent);return fmt(e,"&((%.*s)->f_%u)",S(parent),p->field);}
-static void signature(Emit *e,uint32_t fn){const IrFunction *f=&e->p->functions.data[fn];put(e,"static %.*s be_ir_fn_%u(",S(type(e,f->result)),fn);if(!f->parameters)put(e,"void");for(uint32_t a=0;a<f->parameters;a++){const IrPlace *p=&e->p->places.data[f->places_start+a];bool ptr=p->mode==IR_INOUT||p->type>=IR_FIRST_AGGREGATE;put(e,"%s%s%.*s%s arg_%u",a?", ":"",ptr&&p->mode==IR_LET?"const ":"",S(type(e,p->type)),ptr?" *":"",a);}put(e,")");}
+static void signature(Emit *e,uint32_t fn){const IrFunction *f=&e->p->functions.data[fn];put(e,"static %.*s be_ir_fn_%u(",S(type(e,f->result)),fn);if(!f->parameters)put(e,"void");for(uint32_t a=0;a<f->parameters;a++){const IrPlace *p=&e->p->places.data[f->places_start+a];bool ptr=p->mode==IR_INOUT||p->mode==IR_SET||p->type>=IR_FIRST_AGGREGATE;put(e,"%s%s%.*s%s arg_%u",a?", ":"",ptr&&(p->mode==IR_LET||p->mode==IR_SINK)?"const ":"",S(type(e,p->type)),ptr?" *":"",a);}put(e,")");}
 static void numeric(Emit *e,const IrInstruction *i){
     IrType t=e->p->values.data[i->a].type;Str at=site(e,i->source.origin,e->opts.trace_tests);
     const char *ops[]={"-","!","~","+","-","*","/","%","&","|","^","==","!=","<","<=",">",">=","<<",">>"};
@@ -72,7 +72,7 @@ static void region(Emit *e,uint32_t id,uint32_t loop){
         put(e,"/* ir:%u source:%u:%u */\nbe_ir_tick(%.*s);\n",n,i->source.origin.file,i->source.origin.offset,S(site(e,i->source.origin,false)));
         switch(i->op){
             case IR_CONST:if(e->p->values.data[i->result].type==IR_F32)put(e,"v_%u = be_ir_float(UINT32_C(%u));\n",i->result,i->float_bits);else put(e,"v_%u = (int32_t)INT64_C(%lld);\n",i->result,(long long)i->immediate);break;
-            case IR_LOAD:put(e,"v_%u = *(%.*s);\n",i->result,S(pointer(e,i->place)));break;
+            case IR_LOAD:case IR_MOVE:put(e,"v_%u = *(%.*s);\n",i->result,S(pointer(e,i->place)));break;
             case IR_INIT:put(e,"root_%u = v_%u;\n",i->place,i->a);break;
             case IR_STORE:put(e,"*(%.*s) = v_%u;\n",S(pointer(e,i->place)),i->a);break;
             case IR_UNARY:case IR_BINARY:numeric(e,i);break;
@@ -102,7 +102,7 @@ static void region(Emit *e,uint32_t id,uint32_t loop){
                 else put(e,"(void)index_%u; /* zero logical length: check cannot return */\n",n);
                 break;
             }
-            case IR_CAPTURE:case IR_DESTINATION:case IR_INDEX_BASE:put(e,"/* Verified stable place interval; no value evaluation. */\n");break;
+            case IR_DECLARE:case IR_CAPTURE:case IR_DESTINATION:case IR_INDEX_BASE:put(e,"/* Verified stable place interval; no value evaluation. */\n");break;
             case IR_IF:put(e,"if(v_%u) {\n",i->a);region(e,i->child[0],loop);put(e,"} else {\n");region(e,i->child[1],loop);put(e,"}\n");break;
             case IR_LOOP:put(e,"while(true) {\n");region(e,i->child[0],n);region(e,i->child[1],n);put(e,"continue_%u:;\n",n);region(e,i->child[2],n);put(e,"}\nbreak_%u:;\n",n);break;
             case IR_YIELD:put(e,"if(!v_%u) goto break_%u;\n",i->a,loop);break;
@@ -137,7 +137,7 @@ IrCResult ir_emit_c(Arena *a,const IrProgram *p,IrCOpts opts){
     }
     Emit e={.a=a,.p=p,.opts=opts,.at=SPAN_NONE};sb_init(&e.out,a);
     prepare_lines(&e);
-    put(&e,"/* Experimental schema4 IR test harness. No production ABI. */\n#include \"beryl_rt.h\"\n#include <math.h>\n#include <string.h>\n#include <float.h>\n#include <stdio.h>\n"
+    put(&e,"/* Experimental schema5 IR test harness. No production ABI. */\n#include \"beryl_rt.h\"\n#include <math.h>\n#include <string.h>\n#include <float.h>\n#include <stdio.h>\n"
         "_Static_assert(sizeof(float)==4 && FLT_RADIX==2 && FLT_MANT_DIG==24 && FLT_MAX_EXP==128 && FLT_EVAL_METHOD==0, \"binary32 evaluation required\");\n"
         "#if defined(__FAST_MATH__) || (defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__)\n#error IR C requires finite checks and strict arithmetic\n#endif\n#pragma STDC FP_CONTRACT OFF\n"
         "static uint64_t be_ir_steps; static uint32_t be_ir_depth;\n"
@@ -162,9 +162,9 @@ IrCResult ir_emit_c(Arena *a,const IrProgram *p,IrCOpts opts){
         for(uint32_t q=0;q<f->places_count;q++){
             uint32_t id=f->places_start+q;const IrPlace *p1=&p->places.data[id];
             if(p1->parent!=IR_NONE){if(p1->definition!=IR_NONE)put(&e,"%s%.*s *p_%u = NULL;\n",p1->mutable?"":"const ",S(type(&e,p1->type)),id);continue;}
-            bool borrowed=q<f->parameters&&(p1->mode==IR_INOUT||p1->type>=IR_FIRST_AGGREGATE);
-            if(!borrowed){put(&e,"%.*s root_%u",S(type(&e,p1->type)),id);if(q<f->parameters)put(&e," = arg_%u",q);put(&e,";\n");}
-            put(&e,"%s%.*s *p_%u = ",p1->mutable?"":"const ",S(type(&e,p1->type)),id);if(borrowed)put(&e,"arg_%u;\n",q);else put(&e,"&root_%u;\n",id);
+            bool borrowed=q<f->parameters&&(p1->mode==IR_INOUT||p1->mode==IR_SET||(p1->mode==IR_LET&&p1->type>=IR_FIRST_AGGREGATE));
+            if(!borrowed){put(&e,"%.*s root_%u",S(type(&e,p1->type)),id);if(q<f->parameters)put(&e," = %sarg_%u",p1->type>=IR_FIRST_AGGREGATE?"*":"",q);put(&e,";\n");}
+            put(&e,"%s%.*s *p_%u = ",p1->parameter&&p1->mode==IR_LET?"const ":"",S(type(&e,p1->type)),id);if(borrowed)put(&e,"arg_%u;\n",q);else put(&e,"&root_%u;\n",id);
         }
         for(uint32_t q=0;q<f->values_count;q++){uint32_t id=f->values_start+q;put(&e,"%.*s v_%u;\n",S(type(&e,p->values.data[id].type)),id);}
         region(&e,f->body,IR_NONE);put(&e,"}\n");

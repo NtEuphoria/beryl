@@ -1,0 +1,136 @@
+// Trusted observation fixture. Engine callback overrides invoke the unchanged
+// production superclass. No callback, Focus, SetHeld or deletion is delivered
+// manually by this source. State encoding/transport is not implemented here.
+class SPK_BerylTabletNativeObservation
+{
+	int token;
+	string stage;
+	int ordinal;
+	bool ownerMatches;
+	bool ownerWorldPresent;
+	bool gameWorldPresent;
+	bool gameWorldMatches;
+	bool statePresent;
+	bool sameState;
+	bool independenceObserved;
+	bool independentState;
+	int mode;
+	float accumulator;
+	float timeSlice;
+	int mask;
+	bool uiAbsent;
+	bool screenAbsent;
+}
+
+class SPK_BerylTabletNativeRegistry
+{
+	static const int MAX_ROWS = 1024;
+	static const int MAX_FRAMES_PER_OWNER = 200;
+	static int s_PendingToken;
+	static string s_Failure;
+	static ref array<IEntity> s_Owners = {};
+	static ref array<ref @STATE@> s_States = {};
+	static ref array<ref SPK_BerylTabletNativeObservation> s_Rows = {};
+
+	// Future installed harness must select 1 then 2 immediately before native
+	// spawning. This does not manufacture an owner or invoke a callback.
+	static int Claim(IEntity owner, @STATE@ state)
+	{
+		int token = s_PendingToken;
+		s_PendingToken = 0;
+		if (!owner || !state || token < 1 || token > 2 || token != s_Owners.Count() + 1)
+		{
+			s_Failure = "Unregistered native tablet owner/token/state";
+			return 0;
+		}
+		s_Owners.Insert(owner);
+		s_States.Insert(state);
+		return token;
+	}
+
+	static SPK_BerylTabletNativeObservation BeginRow(int token, string stage, int ordinal, float timeSlice)
+	{
+		if (token < 1 || token > s_Owners.Count() || s_Rows.Count() >= MAX_ROWS)
+		{
+			s_Failure = "Native tablet observation token or row bound";
+			return null;
+		}
+		if (!(timeSlice >= 0 && timeSlice <= 10))
+		{
+			s_Failure = "Native tablet timestep outside admitted finite domain";
+			return null;
+		}
+		ref SPK_BerylTabletNativeObservation row = new SPK_BerylTabletNativeObservation();
+		row.token = token;
+		row.stage = stage;
+		row.ordinal = ordinal;
+		row.timeSlice = timeSlice;
+		s_Rows.Insert(row);
+		return row;
+	}
+}
+
+[ComponentEditorProps(category: "BerylExperimental", description: "Actual tablet init and stowed frame observer")]
+class SPK_BerylTabletNativeObserverClass : SPK_TabletComponentClass
+{
+}
+
+class SPK_BerylTabletNativeObserver : SPK_TabletComponent
+{
+	protected int m_ObservationToken;
+	protected int m_FrameOrdinal;
+
+	protected void Observe(string stage, int ordinal, IEntity owner, float timeSlice)
+	{
+		SPK_BerylTabletNativeObservation row = SPK_BerylTabletNativeRegistry.BeginRow(m_ObservationToken, stage, ordinal, timeSlice);
+		if (!row)
+			return;
+		row.ownerMatches = owner == GetOwner();
+		BaseWorld ownerWorld;
+		BaseWorld gameWorld;
+		if (owner)
+			ownerWorld = owner.GetWorld();
+		if (GetGame())
+			gameWorld = GetGame().GetWorld();
+		row.ownerWorldPresent = ownerWorld != null;
+		row.gameWorldPresent = gameWorld != null;
+		row.gameWorldMatches = row.ownerWorldPresent && row.gameWorldPresent && ownerWorld == gameWorld;
+		row.statePresent = m_BerylState != null;
+		row.sameState = m_BerylState == SPK_BerylTabletNativeRegistry.s_States[m_ObservationToken - 1];
+		row.independenceObserved = SPK_BerylTabletNativeRegistry.s_States.Count() == 2;
+		row.independentState = false;
+		if (row.independenceObserved)
+			row.independentState = SPK_BerylTabletNativeRegistry.s_States[0] != SPK_BerylTabletNativeRegistry.s_States[1];
+		if (m_BerylState)
+		{
+			row.mode = m_BerylState.@MODE@;
+			row.accumulator = m_BerylState.@ACCUMULATOR@;
+		}
+		row.mask = GetEventMask();
+		row.uiAbsent = GetUI() == null;
+		row.screenAbsent = GetScreen() == null;
+	}
+
+	override void OnPostInit(IEntity owner)
+	{
+		m_ObservationToken = SPK_BerylTabletNativeRegistry.Claim(owner, m_BerylState);
+		Observe("init.before", 1, owner, 0);
+		super.OnPostInit(owner);
+		Observe("init.after", 1, owner, 0);
+	}
+
+	override void EOnFrame(IEntity owner, float timeSlice)
+	{
+		bool capture = m_FrameOrdinal < SPK_BerylTabletNativeRegistry.MAX_FRAMES_PER_OWNER;
+		if (capture)
+		{
+			m_FrameOrdinal++;
+			Observe("frame.before", m_FrameOrdinal, owner, timeSlice);
+		}
+		else
+			SPK_BerylTabletNativeRegistry.s_Failure = "Native tablet frame observation budget exhausted";
+		super.EOnFrame(owner, timeSlice);
+		if (capture)
+			Observe("frame.after", m_FrameOrdinal, owner, timeSlice);
+	}
+}

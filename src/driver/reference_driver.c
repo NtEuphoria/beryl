@@ -153,13 +153,13 @@ int driver_reference_tests(Arena *a,SourceMap *sm,DiagBag *d,Program *p,
     sb_cstr(&report,",\"selected_lowering\":"); json_string(&report,str_from(use_ir?"ir":"ast"));
     sb_fmt(&report,",\"reference_attempted\":%s,\"ir_test_profile\":",reference_attempted?"true":"false");
     if (use_ir) {
-        sb_cstr(&report,"{\"status\":\"experimental\",\"schema_version\":4,\"admitted\":");
+        sb_fmt(&report,"{\"status\":\"experimental\",\"schema_version\":%u,\"admitted\":",IR_SCHEMA_VERSION);
         sb_cstr(&report,ir_admitted?"true":"false");
         sb_cstr(&report,",\"source_manifest_sha256\":");
         if (ir_source_hash.len) json_string(&report,ir_source_hash); else sb_cstr(&report,"null");
         sb_cstr(&report,",\"generated_c_sha256\":");
         if (ir_c_hash.len) json_string(&report,ir_c_hash); else sb_cstr(&report,"null");
-        sb_cstr(&report,",\"execution_domain\":\"finite binary32, bool, i32, plain records and fixed arrays; let/inout only\","
+        sb_cstr(&report,",\"execution_domain\":\"finite binary32, bool, i32, plain records and fixed arrays; let/inout/set and whole-root sink; bounded initialization and loop-state admission\","
             "\"native_budgets\":{\"steps\":1000000,\"call_depth\":128,\"declared_storage_estimate_per_function\":65536},"
             "\"observation_coverage\":\"ordered test/assert/print/f32-bit events, stdout and certified first source trap; no root snapshots\","
             "\"resource_equivalence\":\"not_claimed; interpreter byte and step accounting differs from generated test code\","

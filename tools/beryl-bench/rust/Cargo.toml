@@ -1,0 +1,42 @@
+[package]
+name = "beryl-bench-baselines"
+version = "0.2.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "checked_lcg"
+path = "src/bin/checked_lcg.rs"
+[[bin]]
+name = "array_sum_2d"
+path = "src/bin/array_sum_2d.rs"
+[[bin]]
+name = "struct_pass"
+path = "src/bin/struct_pass.rs"
+[[bin]]
+name = "inout_axpy"
+path = "src/bin/inout_axpy.rs"
+[[bin]]
+name = "list_grow_reuse"
+path = "src/bin/list_grow_reuse.rs"
+[[bin]]
+name = "vec3_particles"
+path = "src/bin/vec3_particles.rs"
+
+# Idiomatic: Cargo release defaults.
+[profile.idiomatic]
+inherits = "release"
+
+# Matched to Beryl's checked-arithmetic aborting contract.
+[profile.matched]
+inherits = "release"
+overflow-checks = true
+panic = "abort"
+
+# Tuned: same checks, whole-program optimize, native CPU via RUSTFLAGS.
+[profile.tuned]
+inherits = "release"
+overflow-checks = true
+panic = "abort"
+lto = "fat"
+codegen-units = 1

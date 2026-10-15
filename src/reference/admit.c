@@ -62,6 +62,8 @@ static void expr(Admission *a,Expr *e) {
                 unavailable(a,e->span,"string operators");
             expr(a,e->binary.lhs); expr(a,e->binary.rhs); break;
         case EX_CALL:
+            if (access_call_arguments(e,&a->work).status!=ACCESS_SAFE)
+                unavailable(a,e->span,"a captured call argument whose selection or later arguments may mutate an overlapping place; use separate statements or an independent value snapshot");
             if (e->res_kind==RES_FN) {
                 Item *fn=e->res;
                 if (!fn || !fn->fn.body || fn->fn.generics.len)

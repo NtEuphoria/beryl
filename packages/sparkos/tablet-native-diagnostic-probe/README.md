@@ -1,0 +1,3 @@
+# Bounded native-tablet failure diagnostic
+
+Experimental diagnostic only. The unchanged observer still fails at its 201st callback. This fixed RPC prints at most one scalar summary, scanning no more than 1,024 retained rows without following engine owners or State references. Failure remains failure; no cases or successful trace are published. Timesteps and their binary32 sums are rounded text. System FPS/frame-time values average the last ten application frames and do not measure native callback pacing. This fixture does not establish complete trace parity, performance, services, destruction, or gameplay acceptance. All original sources and receipts remain preserved.

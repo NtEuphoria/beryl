@@ -105,7 +105,7 @@ def main():
             require(result["compared"] is True and result["native_status"]=="exited",result)
             if lowering=="ir":
                 profile=result["ir_test_profile"]
-                require(profile["admitted"] is True and profile["production_backend"] is False,profile)
+                require(profile["admitted"] is True and profile["production_backend"] is False and profile["schema_version"] == 5,profile)
                 generated=Path(result["native_job"])/"out.c"
                 require(sha(generated)==profile["generated_c_sha256"],profile)
         return result,job,p
@@ -142,6 +142,34 @@ test "ordered values" {
             require([x["name"] for x in evidence["passes"]]==["llvm-ir","assembly","driver-jobs"],evidence)
             require(all(x["process"]["status"]=="exited" and x["process"]["exit_code"]==0 for x in evidence["passes"]),evidence)
         passed("ordered plain-value IR execution and native evidence at O0/O2")
+
+
+        access_source=ROOT/"tests/reference/access-modes/plain.be"
+        access=work/"plain-access-modes.be";access.write_bytes(access_source.read_bytes())
+        record["inputs"][str(access_source)]=sha(access_source)
+        for lowering in ("ast","ir"):
+            for release in (False,True):
+                result,_,p=execute([access],lowering=lowering,extra=["--release"] if release else [])
+                require(result["tests"]==6 and result["assertions"]==26,result)
+                require(p.stdout==b"7\n5\n90\nok  6 tests, 26 assertions\n",p.stdout)
+        passed("plain SET/SINK analytical corpus: AST-reference and AST/IR C at O0/O2")
+
+        # These certify only the ordered stdout/events and first source trap.
+        # They do not claim an arbitrary hidden caller-memory snapshot at failure.
+        for name,body,prefix in (
+            ("set-first-rhs", "println(10)\nlet z = 0\nn = 1 / z", b"10\n"),
+            ("set-after-write", "n = 8\nprintln(n)\nlet z = 0\nn = 1 / z", b"8\n"),
+        ):
+            source=fixture(name,'module settrap\nfn fail(set n: i32) { '+body+' }\n'
+                           'test "set prefix" { var n = 7\nfail(set n)\nprintln(99) }\n')
+            site=source.read_bytes().index(b"1 / z")
+            for lowering in ("ast","ir"):
+                for release in (False,True):
+                    result,_,p=execute([source],lowering=lowering,
+                        extra=(["--release"] if release else [])+["--expect-source-trap",f"division_by_zero@0:{site}"])
+                    require(result["native_source_trap_verified"] is True and result["program_outcome"]=="trap",result)
+                    require(p.stdout==prefix,p.stdout)
+        passed("SET failure-prefix corpus at AST/IR O0/O2 without hidden-memory claims")
 
         pid=[]
         for source in (ROOT/"packages/sparkos/pid/pid.be",ROOT/"packages/sparkos/pid/pid_test.be"):

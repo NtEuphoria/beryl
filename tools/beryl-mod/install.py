@@ -128,6 +128,35 @@ MCP_LOADER = LOADER.replace(
     b'    raise SystemExit("MCP unavailable in the selected historical tool bundle")\n'
     b'runpy.run_path(str(bundle / "mcp_server.py"), run_name="__main__")\n')
 
+# Preserve hardened 21-file loaders for exact rollback and guarded upgrades.
+# Component admission adds data/schema/module files; projects cannot select
+# another contract implementation or add arbitrary files to this bundle.
+HARDENED_ASSISTANT_LOADER = LOADER
+HARDENED_ASSISTANT_MCP_LOADER = MCP_LOADER
+LOADER = LOADER.replace(
+    b'if set(manifest) not in (expected, current, terrain, storage, measurement, assistant):\n',
+    b'component = assistant | {"component_contracts.py", "tablet-component-contracts.v1.json", "beryl.mod.v2.schema.json"}\n'
+    b'if set(manifest) not in (expected, current, terrain, storage, measurement, assistant, component):\n')
+MCP_LOADER = LOADER.replace(
+    b'runpy.run_path(str(bundle / "mod.py"), run_name="__main__")\n',
+    b'if "mcp_server.py" not in manifest:\n'
+    b'    raise SystemExit("MCP unavailable in the selected historical tool bundle")\n'
+    b'runpy.run_path(str(bundle / "mcp_server.py"), run_name="__main__")\n')
+
+
+# Preserve the exact 24-file admission loaders before extending the fixed set.
+COMPONENT_ADMISSION_LOADER = LOADER
+COMPONENT_ADMISSION_MCP_LOADER = MCP_LOADER
+LOADER = LOADER.replace(
+    b'if set(manifest) not in (expected, current, terrain, storage, measurement, assistant, component):\n',
+    b'generation = component | {"component_generation.py"}\n'
+    b'if set(manifest) not in (expected, current, terrain, storage, measurement, assistant, component, generation):\n')
+MCP_LOADER = LOADER.replace(
+    b'runpy.run_path(str(bundle / "mod.py"), run_name="__main__")\n',
+    b'if "mcp_server.py" not in manifest:\n'
+    b'    raise SystemExit("MCP unavailable in the selected historical tool bundle")\n'
+    b'runpy.run_path(str(bundle / "mcp_server.py"), run_name="__main__")\n')
+
 
 def read_regular(path):
     path = Path(path)
@@ -185,10 +214,10 @@ def install(compiler):
         # the active pointer. An unknown MCP loader cannot partially upgrade mod.
         loader, mcp_loader, active = (root / name for name in ("mod.py", "mcp.py", "active.json"))
         prior_loader, prior_mcp, prior_active = (existing_bytes(path) for path in (loader, mcp_loader, active))
-        known_mod = (LOADER, ASSISTANT_LOADER, MEASUREMENT_LOADER, STORAGE_LOADER, TERRAIN_LOADER, MAP_LOADER, LEGACY_LOADER)
+        known_mod = (LOADER, COMPONENT_ADMISSION_LOADER, HARDENED_ASSISTANT_LOADER, ASSISTANT_LOADER, MEASUREMENT_LOADER, STORAGE_LOADER, TERRAIN_LOADER, MAP_LOADER, LEGACY_LOADER)
         if prior_loader is not None and prior_loader not in known_mod:
             raise RuntimeError("Refusing to replace an unrecognized installed loader")
-        if prior_mcp is not None and prior_mcp not in (MCP_LOADER, ASSISTANT_MCP_LOADER):
+        if prior_mcp is not None and prior_mcp not in (MCP_LOADER, COMPONENT_ADMISSION_MCP_LOADER, HARDENED_ASSISTANT_MCP_LOADER, ASSISTANT_MCP_LOADER):
             raise RuntimeError("Refusing to replace an unrecognized MCP loader")
         previous = mod.parse(prior_active) if prior_active is not None else None
         if previous is not None and (type(previous) is not dict or set(previous) != {"bundle"} or type(previous["bundle"]) is not str or len(previous["bundle"]) != 64 or any(c not in "0123456789abcdef" for c in previous["bundle"])):
@@ -221,7 +250,7 @@ def install(compiler):
             os.rename(temporary, destination)
 
         if prior_loader is not None and prior_loader != LOADER:
-            generation = "v6" if prior_loader == ASSISTANT_LOADER else "v1" if prior_loader == LEGACY_LOADER else "v2" if prior_loader == MAP_LOADER else "v3" if prior_loader == TERRAIN_LOADER else "v4" if prior_loader == STORAGE_LOADER else "v5"
+            generation = "v8" if prior_loader == COMPONENT_ADMISSION_LOADER else "v7" if prior_loader == HARDENED_ASSISTANT_LOADER else "v6" if prior_loader == ASSISTANT_LOADER else "v1" if prior_loader == LEGACY_LOADER else "v2" if prior_loader == MAP_LOADER else "v3" if prior_loader == TERRAIN_LOADER else "v4" if prior_loader == STORAGE_LOADER else "v5"
             preserve_backup(root / ("loader-" + generation + "-" + mod.digest(prior_loader) + ".py"), prior_loader)
         if prior_mcp is not None and prior_mcp != MCP_LOADER:
             preserve_backup(root / ("mcp-loader-v1-" + mod.digest(prior_mcp) + ".py"), prior_mcp)

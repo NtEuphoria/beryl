@@ -45,7 +45,14 @@ int main(int argc,char **argv){
             fprintf(summary,"{\"name\":\"%s\",\"skipped\":\"outside AST-C admitted execution domain\"}",name);continue;
         }
         const char *exepath=fs_join(a,argv[1],exe),*cpath=fs_join(a,argv[1],emitter?"ir.c":"ast.c");
-        const char *compile[]={argv[2],"-std=c11",opt?"-O2":"-O0","-ffp-contract=off","-fno-fast-math","-fsanitize=undefined","-fno-sanitize-recover=all","-I",argv[3],cpath,fs_join(a,argv[3],"beryl_rt.c"),"-o",exepath,NULL};
+        /* AST C includes beryl_rt.c. IR C does not, so only that emitter links the runtime file. */
+        const char *compile[16]; unsigned cn=0;
+        compile[cn++]=argv[2]; compile[cn++]="-std=c11"; compile[cn++]=opt?"-O2":"-O0";
+        compile[cn++]="-ffp-contract=off"; compile[cn++]="-fno-fast-math";
+        compile[cn++]="-fsanitize=undefined"; compile[cn++]="-fno-sanitize-recover=all";
+        compile[cn++]="-I"; compile[cn++]=argv[3]; compile[cn++]=cpath;
+        if (emitter) compile[cn++]=fs_join(a,argv[3],"beryl_rt.c");
+        compile[cn++]="-o"; compile[cn++]=exepath; compile[cn]=NULL;
         char logname[90];snprintf(logname,sizeof logname,"%s-compile",name);ProcessResult built=process_run(a,(ProcessOpts){.argv=compile,.log_dir=argv[1],.log_name=logname,.timeout_ms=120000});
         fprintf(summary,"{\"name\":\"%s\",\"compile_status\":%u,\"compile_exit\":%u",name,built.status,built.exit_code);
         if(built.status==PROCESS_EXITED&&built.exit_code==0){const char *run[]={exepath,NULL};ProcessResult executed=process_run(a,(ProcessOpts){.argv=run,.log_dir=argv[1],.log_name=name,.timeout_ms=20000});fprintf(summary,",\"run_status\":%u,\"run_exit\":%u",executed.status,executed.exit_code);}

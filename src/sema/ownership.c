@@ -244,47 +244,135 @@ static void do_move(O *o, Expr *e) {
 }
 
 /* No two accesses in one call may overlap when either is exclusive. The
- * receiver of a method taking `inout self` counts as one of them. */
-static void check_call_exclusivity(O *o, Expr *call) {
-    uint32_t capacity = call->call.args.len + 1;
-    Access  *acc = ARENA_ARRAY(o->a, Access, capacity);
-    bool    *excl = ARENA_ARRAY(o->a, bool, capacity);
-    uint32_t n = 0;
+ * receiver of a method taking `inout self` counts as one of them, and so does
+ * the receiver of a list mutator. `len` and `get` count as shared reads. */
+typedef struct {
+    Access ac;
+    bool   excl;
+} CallAccess;
+typedef VEC(CallAccess) CallAccessVec;
 
+static bool list_mutator(const Expr *e) {
+    return e && e->kind == EX_CALL && e->res_kind == RES_INTRINSIC &&
+           (e->intrinsic == INTR_LIST_PUSH || e->intrinsic == INTR_LIST_SET ||
+            e->intrinsic == INTR_LIST_CLEAR);
+}
+
+static bool list_reader(const Expr *e) {
+    return e && e->kind == EX_CALL && e->res_kind == RES_INTRINSIC &&
+           (e->intrinsic == INTR_LIST_LEN || e->intrinsic == INTR_LIST_GET);
+}
+
+static void note_access(O *o, CallAccessVec *out, Access ac, bool excl) {
+    CallAccess slot;
+    slot.ac = ac;
+    slot.excl = excl;
+    vec_push(o->a, *out, slot);
+}
+
+static void deny_restrict(Item *target, Span at) {
+    if (!target || target->kind != IT_FN || !target->restrict_admitted) return;
+    target->restrict_admitted = false;
+    target->restrict_blocker = at;
+}
+
+/* List receivers inside an argument are live for the whole call, same as a
+ * direct argument. `xs.set(i, xs.get(0))` is therefore one exclusive read of
+ * `xs` overlapping a shared one. */
+static void collect_list_receivers(O *o, const Expr *e, CallAccessVec *out) {
+    if (!e) return;
+    if (list_mutator(e) || list_reader(e)) {
+        const Expr *base = e->call.callee && e->call.callee->kind == EX_FIELD
+                               ? e->call.callee->field.base : NULL;
+        Access ac = path_of(base);
+        if (base) ac.span = base->span;
+        note_access(o, out, ac, list_mutator(e));
+        for (uint32_t i = 0; i < e->call.args.len; i++)
+            collect_list_receivers(o, e->call.args.data[i].value, out);
+        return;
+    }
+    switch (e->kind) {
+        case EX_FIELD: collect_list_receivers(o, e->field.base, out); break;
+        case EX_INDEX:
+            collect_list_receivers(o, e->index.base, out);
+            collect_list_receivers(o, e->index.index, out);
+            break;
+        case EX_UNARY: collect_list_receivers(o, e->unary.operand, out); break;
+        case EX_BINARY:
+            collect_list_receivers(o, e->binary.lhs, out);
+            collect_list_receivers(o, e->binary.rhs, out);
+            break;
+        case EX_CALL:
+            if (e->call.callee) collect_list_receivers(o, e->call.callee, out);
+            for (uint32_t i = 0; i < e->call.args.len; i++)
+                collect_list_receivers(o, e->call.args.data[i].value, out);
+            break;
+        case EX_CAST: collect_list_receivers(o, e->cast.value, out); break;
+        case EX_IF:
+            collect_list_receivers(o, e->if_expr.cond, out);
+            collect_list_receivers(o, e->if_expr.then_blk, out);
+            collect_list_receivers(o, e->if_expr.else_blk, out);
+            break;
+        case EX_BLOCK:
+            for (uint32_t i = 0; i < e->block.stmts.len; i++) {
+                const Stmt *s = e->block.stmts.data[i];
+                if (!s) continue;
+                if (s->kind == ST_LET) collect_list_receivers(o, s->let.init, out);
+                else if (s->kind == ST_EXPR || s->kind == ST_RETURN || s->kind == ST_DEFER)
+                    collect_list_receivers(o, s->expr, out);
+                else if (s->kind == ST_ASSIGN) {
+                    collect_list_receivers(o, s->assign.target, out);
+                    collect_list_receivers(o, s->assign.value, out);
+                }
+            }
+            break;
+        default: break;
+    }
+}
+
+static void check_call_exclusivity(O *o, Expr *call) {
+    CallAccessVec acc = {0};
     Expr *callee = call->call.callee;
     Item *target = (call->res_kind == RES_FN) ? (Item *)call->res : NULL;
     bool  has_self = target && target->kind == IT_FN && target->fn.params.len > 0 &&
                     target->fn.params.data[0].is_self;
 
-    if (has_self && callee && callee->kind == EX_FIELD) {
-        acc[n]  = path_of(callee->field.base);
-        excl[n] = target->fn.params.data[0].conv == CONV_INOUT ||
-                  target->fn.params.data[0].conv == CONV_SET;
-        n++;
+    if ((list_mutator(call) || list_reader(call)) && callee && callee->kind == EX_FIELD) {
+        Access ac = path_of(callee->field.base);
+        ac.span = callee->field.base ? callee->field.base->span : call->span;
+        note_access(o, &acc, ac, list_mutator(call));
+    } else if (has_self && callee && callee->kind == EX_FIELD) {
+        Access ac = path_of(callee->field.base);
+        bool excl = target->fn.params.data[0].conv == CONV_INOUT ||
+                    target->fn.params.data[0].conv == CONV_SET;
+        note_access(o, &acc, ac, excl);
     }
 
     for (uint32_t i = 0; i < call->call.args.len; i++) {
-        acc[n] = path_of(call->call.args.data[i].value);
+        Access ac = path_of(call->call.args.data[i].value);
         /* Label the whole argument, `inout a`, not just the operand. */
-        acc[n].span = call->call.args.data[i].span;
-        excl[n]     = (call->call.args.data[i].conv == CONV_INOUT ||
-                   call->call.args.data[i].conv == CONV_SET);
-        n++;
+        ac.span = call->call.args.data[i].span;
+        bool excl = call->call.args.data[i].conv == CONV_INOUT ||
+                    call->call.args.data[i].conv == CONV_SET;
+        note_access(o, &acc, ac, excl);
+        collect_list_receivers(o, call->call.args.data[i].value, &acc);
     }
 
-    for (uint32_t i = 0; i < n; i++) {
-        for (uint32_t j = i + 1; j < n; j++) {
-            if (!excl[i] && !excl[j]) continue;
-            if (!overlaps(&acc[i], &acc[j])) continue;
+    for (uint32_t i = 0; i < acc.len; i++) {
+        if (acc.data[i].excl && !acc.data[i].ac.valid)
+            deny_restrict(target, acc.data[i].ac.span);
+        for (uint32_t j = i + 1; j < acc.len; j++) {
+            if (!acc.data[i].excl && !acc.data[j].excl) continue;
+            if (!overlaps(&acc.data[i].ac, &acc.data[j].ac)) continue;
 
-            Str   name = path_text(o, &acc[i]);
-            Diag *dg = err(o, 401, acc[j].span, "overlapping exclusive borrows of `%.*s`",
+            Str   name = path_text(o, &acc.data[i].ac);
+            Diag *dg = err(o, 401, acc.data[j].ac.span, "overlapping exclusive borrows of `%.*s`",
                            (int)name.len, name.ptr);
             if (dg) {
-                diag_label(dg, acc[i].span,
-                           excl[i] ? "first exclusive borrow here" : "borrowed here");
-                diag_label(dg, acc[j].span,
-                           excl[j] ? "second exclusive borrow here" : "borrowed again here");
+                diag_label(dg, acc.data[i].ac.span,
+                           acc.data[i].excl ? "first exclusive borrow here" : "borrowed here");
+                diag_label(dg, acc.data[j].ac.span,
+                           acc.data[j].excl ? "second exclusive borrow here" : "borrowed again here");
                 diag_note(dg, "overlapping local access paths cannot be borrowed "
                               "exclusively in the same call");
                 diag_help(dg, "copy one side into a local first");
@@ -355,6 +443,32 @@ static void check_inout_arg(O *o, Access ac, Span at, Conv conv) {
     }
 }
 
+/* Implicit receivers and written arguments have the same source-order access
+ * contract. A place selection is walked once; set's initialization is delayed
+ * until the call, after every later explicit or expanded default argument. */
+static void walk_call_argument(O *o, Expr *value, Conv conv, Span at) {
+    if (conv == CONV_SINK) {
+        do_move(o, value);
+    } else if (conv == CONV_INOUT || conv == CONV_SET) {
+        Access ac = path_of(value);
+        if (ac.valid) {
+            walk_place(o, value);
+            check_inout_arg(o, ac, at, conv);
+            if (ac.nfields || ac.has_index) check_read(o, value);
+        } else {
+            walk_expr(o, value);
+        }
+    } else {
+        walk_expr(o, value);
+    }
+}
+
+static void finish_call_argument(Expr *value, Conv conv) {
+    Access ac = path_of(value);
+    if (conv == CONV_SET && ac.valid && !ac.nfields && !ac.has_index)
+        ac.root->state = OS_INIT;
+}
+
 static void walk_expr(O *o, Expr *e) {
     if (!e) return;
 
@@ -395,37 +509,21 @@ static void walk_expr(O *o, Expr *e) {
                 bool mutator = e->res_kind == RES_INTRINSIC &&
                     (e->intrinsic == INTR_LIST_PUSH || e->intrinsic == INTR_LIST_SET ||
                      e->intrinsic == INTR_LIST_CLEAR);
-                if (mutator || has_self) walk_place(o, callee->field.base);
-                if (mutator || (has_self && target->fn.params.data[0].conv == CONV_INOUT))
-                    check_inout_arg(o, path_of(callee->field.base), callee->field.base->span,
-                                    CONV_INOUT);
-                else walk_expr(o, callee->field.base);
+                Conv conv = has_self ? target->fn.params.data[0].conv :
+                            mutator ? CONV_INOUT : CONV_LET;
+                walk_call_argument(o, callee->field.base, conv, callee->field.base->span);
             }
 
             for (uint32_t i = 0; i < e->call.args.len; i++) {
                 Arg ar = e->call.args.data[i];
-                if (ar.conv == CONV_SINK) {
-                    do_move(o, ar.value);
-                } else if (ar.conv == CONV_INOUT || ar.conv == CONV_SET) {
-                    Access ac = path_of(ar.value);
-                    if (ac.valid) {
-                        walk_place(o, ar.value);
-                        check_inout_arg(o, ac, ar.span, ar.conv);
-                        if (ac.nfields || ac.has_index)
-                            check_read(o, ar.value);
-                    } else {
-                        walk_expr(o, ar.value);
-                    }
-                } else {
-                    walk_expr(o, ar.value);
-                }
+                walk_call_argument(o, ar.value, ar.conv, ar.span);
             }
             check_call_exclusivity(o, e);
+            if (has_self && callee && callee->kind == EX_FIELD)
+                finish_call_argument(callee->field.base, target->fn.params.data[0].conv);
             for (uint32_t i = 0; i < e->call.args.len; i++) {
                 Arg ar = e->call.args.data[i];
-                Access ac = path_of(ar.value);
-                if (ar.conv == CONV_SET && ac.valid && !ac.nfields && !ac.has_index)
-                    ac.root->state = OS_INIT;
+                finish_call_argument(ar.value, ar.conv);
             }
             break;
         }
@@ -709,6 +807,14 @@ bool ownership_check(DiagBag *d, Program *p) {
     o.a = p->a;
     o.d = d;
     o.p = p;
+
+    for (uint32_t m = 0; m < p->modules.len; m++) {
+        Module *mod = p->modules.data[m];
+        for (uint32_t i = 0; i < mod->items.len; i++) {
+            Item *it = mod->items.data[i];
+            if (it->kind == IT_FN) it->restrict_admitted = true;
+        }
+    }
 
     for (uint32_t m = 0; m < p->modules.len; m++) {
         Module *mod = p->modules.data[m];

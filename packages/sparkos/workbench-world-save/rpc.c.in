@@ -1,0 +1,95 @@
+// Trusted read-only eligibility observation. No save, opener, creation, play,
+// deletion, component callback or deferred operation is requested here.
+class BerylWorldSaveEligibilityRequest : JsonApiStruct
+{
+    string token, action;
+    void BerylWorldSaveEligibilityRequest() { RegV("token"); RegV("action"); }
+}
+
+class BerylWorldSaveEligibilityResponse : JsonApiStruct
+{
+    string token, action, status, failure, output_path, wb_world_path, game_world_path;
+    bool game_present, in_play_mode, module_present;
+    bool wb_api_present, wb_world_present, wb_edit_mode, wb_game_mode;
+    bool game_editor_present, game_api_present, game_world_present, api_same, world_same;
+    void BerylWorldSaveEligibilityResponse()
+    {
+        RegV("token"); RegV("action"); RegV("status"); RegV("failure"); RegV("output_path");
+        RegV("wb_world_path"); RegV("game_world_path");
+        RegV("game_present"); RegV("in_play_mode"); RegV("module_present");
+        RegV("wb_api_present"); RegV("wb_world_present"); RegV("wb_edit_mode"); RegV("wb_game_mode");
+        RegV("game_editor_present"); RegV("game_api_present"); RegV("game_world_present");
+        RegV("api_same"); RegV("world_same");
+    }
+}
+
+class BerylWorldSaveEligibility : NetApiHandler
+{
+    override JsonApiStruct GetRequest() { return new BerylWorldSaveEligibilityRequest(); }
+    override JsonApiStruct GetResponse(JsonApiStruct request)
+    {
+        BerylWorldSaveEligibilityResponse resp = new BerylWorldSaveEligibilityResponse();
+        resp.token = "@TOKEN@";
+        resp.output_path = "@OUTPUT_ABSOLUTE@";
+        resp.status = "failure";
+        BerylWorldSaveEligibilityRequest req = BerylWorldSaveEligibilityRequest.Cast(request);
+        if (!req || req.token != resp.token)
+        { resp.failure = "Compiled eligibility token mismatch"; return resp; }
+        resp.action = req.action;
+        if (req.action != "observe")
+        { resp.failure = "Unknown read-only eligibility action"; return resp; }
+
+        resp.status = "unavailable";
+        Game gameContext = GetGame();
+        resp.game_present = gameContext != null;
+        if (gameContext) resp.in_play_mode = gameContext.InPlayMode();
+
+        WorldEditor wbEditorRef = Workbench.GetModule(WorldEditor);
+        resp.module_present = wbEditorRef != null;
+        WorldEditorAPI wbApiRef;
+        BaseWorld wbWorldRef;
+        if (wbEditorRef) wbApiRef = wbEditorRef.GetApi();
+        resp.wb_api_present = wbApiRef != null;
+        if (wbApiRef)
+        {
+            wbWorldRef = wbApiRef.GetWorld();
+            wbApiRef.GetWorldPath(resp.wb_world_path);
+            resp.wb_edit_mode = wbApiRef.IsEditMode();
+            resp.wb_game_mode = wbApiRef.IsGameMode();
+        }
+        resp.wb_world_present = wbWorldRef != null;
+
+        GameWorldEditor gameEditorRef;
+        WorldEditorAPI gameApiRef;
+        BaseWorld gameWorldRef;
+        // The installed Game contract permits GetWorldEditor only outside play.
+        if (gameContext && !resp.in_play_mode) gameEditorRef = gameContext.GetWorldEditor();
+        resp.game_editor_present = gameEditorRef != null;
+        if (gameEditorRef) gameApiRef = gameEditorRef.GetEditorAPI();
+        resp.game_api_present = gameApiRef != null;
+        if (gameApiRef)
+        {
+            gameWorldRef = gameApiRef.GetWorld();
+            gameApiRef.GetWorldPath(resp.game_world_path);
+        }
+        resp.game_world_present = gameWorldRef != null;
+        if (wbApiRef && gameApiRef) resp.api_same = wbApiRef == gameApiRef;
+        if (wbWorldRef && gameWorldRef) resp.world_same = wbWorldRef == gameWorldRef;
+
+        if (!resp.game_present)
+        { resp.failure = "Game context unavailable"; return resp; }
+        if (resp.in_play_mode || resp.wb_game_mode)
+        { resp.failure = "Play or game mode is active"; return resp; }
+        if (!resp.module_present || !resp.wb_api_present || !resp.wb_world_present || !resp.wb_edit_mode)
+        { resp.failure = "Workbench empty edit-world context unavailable"; return resp; }
+        if (!resp.game_editor_present || !resp.game_api_present || !resp.game_world_present)
+        { resp.failure = "Game editor API or world unavailable"; return resp; }
+        if (!resp.api_same || !resp.world_same)
+        { resp.failure = "Game and Workbench editor identity differs"; return resp; }
+        if (resp.wb_world_path != "" || resp.game_world_path != "")
+        { resp.failure = "Editor world is already named"; return resp; }
+
+        resp.status = "eligible";
+        return resp;
+    }
+}

@@ -163,7 +163,7 @@ def main():
             binary = work / (name + (".exe" if os.name == "nt" else ""))
             cfile.write_text(code, encoding="utf-8", newline="\n")
             run([clang, "-std=c11", "-O2", "-ffp-contract=off", "-fno-fast-math", "-I", ROOT / "runtime",
-                 cfile, ROOT / "runtime/beryl_rt.c", "-o", binary])
+                 cfile, "-o", binary])
             rejected = run([binary], expected=None)
             assert rejected.returncode != 0, f"{name} mutant was not detected"
         passed("compiled arithmetic, ordering and missing-state-update mutants are detected")

@@ -39,6 +39,18 @@ static void run_case(const char *name,const char *source,RefOpts opts,RefStatus 
     run_case_impl(true,name,source,opts,expected,assertions,diagnostic);
 }
 void run_reference_tests(void) {
+    run_case_impl(false,"reference API without ownership: rejects captured child across parent replacement",
+        "module t\nstruct R { x: i32 }\nstruct P { child: R }\n"
+        "fn replace(inout p: P) -> i32 { p = P{child: R{x: 9}}\nreturn 0 }\n"
+        "fn observe(let r: R, n: i32) -> i32 { return r.x }\n"
+        "test \"capture\" { var p = P{child: R{x: 1}}\nassert(observe(p.child, replace(inout p)) == 1) }\n",
+        (RefOpts){0},REF_UNAVAILABLE,0,"captured call argument");
+    run_case_impl(false,"reference API without ownership: rejects captured inout across parent replacement",
+        "module t\nstruct R { x: i32 }\n"
+        "fn replace(inout r: R) -> i32 { r = R{x: 9}\nreturn 0 }\n"
+        "fn change(inout n: i32, tag: i32) { n += 1 }\n"
+        "test \"capture\" { var r = R{x: 1}\nchange(inout r.x, replace(inout r)) }\n",
+        (RefOpts){0},REF_UNAVAILABLE,0,"captured call argument");
     run_case("reference: range bounds capture in source order and once",
         "module t\nfn upper(inout start:i32)->i32{start=100\nreturn 3}\n"
         "test \"bounds\"{var start=0\nvar count=0\nfor i in start..upper(inout start){count+=1}\n"

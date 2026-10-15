@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "operation": "diagnostic.tablet.native_failure",
+  "base_rpc_sha256": "ff6021f598da79a8e9160825b885a064c85b64e4b207fdb824f5ddcf0f3ef132",
+  "source_contract_sha256": "e31da81b7b8b18beaf4d8760b8ead4b1358a273b0936e42958cfc6e2e5bbc792",
+  "max_rows": 1024,
+  "frame_cap_per_owner": 200,
+  "diagnostic_only": true,
+  "wire_outcome": "failure with failures1/executed0 and no cases/rows/checksum",
+  "marker_fields": [
+    "marker",
+    "token",
+    "source_sha256",
+    "row_count",
+    "null_rows",
+    "frames1",
+    "last_ordinal1",
+    "timestep_sum1",
+    "timestep_min1",
+    "timestep_max1",
+    "frames2",
+    "last_ordinal2",
+    "timestep_sum2",
+    "timestep_min2",
+    "timestep_max2",
+    "application_fps_average10",
+    "application_frame_time_s_average10"
+  ]
+}

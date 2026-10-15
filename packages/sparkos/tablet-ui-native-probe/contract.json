@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "profile": "sparkos.tablet.ui-native.n1b-n3.source.v1",
+  "state": "source_only_unreleased",
+  "source_basis": {
+    "adapter": "21479adf12a76a48ad7be9419e6e5047d663cce0ebee1341e5d8bfaf8d20d3c7",
+    "ui": "4efeab8cce793939d748506f34691aae9b0b47aa8b32ed568ece05accf28a05d",
+    "screen": "6328c5e86787b75c8cf949fcbd914c4fb137e17534a6158150bdba13818e942b",
+    "beryl_logic": "34c2b848e94a7a68132804d08a58fcf31d644f2d0e9eb2b4973e84a39249f792"
+  },
+  "admission": {
+    "owners": 2,
+    "selected_owner": 1,
+    "native_initialization": "real factory and OnPostInit, exact live Game world, component-only prefab",
+    "input": "FindComponent absence is mandatory before any action; no input/gadget/controller/keybinding component or fake provider",
+    "ui_result": "actual Open return; true may be degraded HasMap false; harness failure is never false Open",
+    "numeric": "actual rounded finite dt/accumulator text; explicit tolerance required; no exact binary32/signed-zero claim",
+    "teardown": "actual world SwitchToEditMode must deliver two OnDelete callbacks; no manual callbacks or deletion API",
+    "retention": "observer must not add strong UI, widget, screen or component retention; no physical allocator/lifetime proof"
+  },
+  "action_cases": [
+    "n1b.held", "n1b.focus", "n1b.focus.repeated", "n1b.unfocus",
+    "n1b.reopen", "n1b.stow", "n3.focused.before-teardown"
+  ],
+  "actions": ["SetHeld(true)", "Focus()", "Focus()", "Unfocus()", "Focus()", "SetHeld(false)", "SetHeld(true); Focus()"],
+  "native_progress_windows": [
+    {"after_action": 1, "minimum_wall_ms": 600, "require_native_frames": true},
+    {"after_action": 4, "minimum_wall_ms": 600, "require_native_frames": true}
+  ],
+  "branches": {
+    "open_true": "FOCUSED, native frames, duplicate refusal, close/reopen, queued method observations, focused teardown",
+    "open_false": "HELD retained and real false observed; focused/UI suite unavailable, never invent success"
+  },
+  "operation_hooks": [2, 3, 4, 8, 10, 11, 12, 13, 16, 17, 18, 19],
+  "row_columns": ["sequence", "kind", "owner_token", "invocation_id", "code", "phase", "mode", "accumulator", "ui_present", "ui_identity", "ui_open", "has_map", "root_present", "root_generation", "screen_present", "screen_enabled", "screen_widget_present", "has_returned", "returned", "dt", "frame_index", "action_index", "deleting"],
+  "queue_columns": ["sequence", "kind", "event", "ui_identity", "root_present", "root_generation", "ui_open", "has_map", "frame_index", "action_index"],
+  "after_super_columns": ["sequence", "kind", "owner_token", "callback_count"],
+  "progress": "first and reopen waits require two selected-owner focused native frames and both actual deferred-method exits at action_count2 or5; no per-enqueue/FIFO/rendering claim",
+  "queue_scope": "unchanged CallLater enqueue and actual method entry/exit observations only; no verified per-enqueue origin, FIFO, cancellation, frame pacing, receiver retirement or physical release claim",
+  "limits": {"rows": 12288, "row_bytes": 1024, "aggregate_bytes": 8388608, "native_frames": 2048, "service_invocations": 8192, "queue_observations": 64, "actions": 7, "deletion_callbacks": 2, "after_super_callbacks": 2, "max_dt_seconds": 1.0},
+  "checksum": "31 multiplier modulo1000003 over retained printable ASCII row plus LF; columns strict by row kind",
+  "required_evidence": ["immutable sources/artifact", "exact native owners/world", "real service bools", "native frame delivery", "all seven action branches observed", "ordered scalar trace", "two actual deletion entries and pre-super boundaries", "raw replies/logs", "owned cleanup"],
+  "excluded": ["player equipment", "native input/mouse", "gadget superclass", "map availability guarantee", "render-target pixels", "exact f32 codec", "general queue lifetime", "physical allocation release", "dedicated multiplayer", "visual acceptance", "promotion"]
+}

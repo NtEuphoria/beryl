@@ -11,8 +11,11 @@ void run_ir_c_tests(void) {
     Interner *in=intern_new(ast); Program *p=prog_new(ast);
     uint32_t file=srcmap_add(sm,STR_LIT("ir-c.be"),STR_LIT(
         "module testemit\nstruct R { a: i32 }\n"
-        "test \"copy\" { var xs = [R { a: 3 }, R { a: 4 }]\n"
-        "var ys = xs\nys[1].a += 5\nassert(xs[1].a == 4)\nassert(ys[1].a == 9) }\n"));
+        "fn initialize(set xs: [R; 2]) { xs = [R{a:3},R{a:4}] }\n"
+        "fn consume(sink xs: [R; 2]) -> i32 { xs[0].a = 12\nreturn xs[0].a }\n"
+        "test \"copy\" { let xs: [R; 2]\ninitialize(set xs)\n"
+        "var ys = xs\nys[1].a += 5\nassert(xs[1].a == 4)\nassert(ys[1].a == 9)\n"
+        "assert(consume(sink ys) == 12)\ninitialize(set ys)\nassert(ys[0].a == 3) }\n"));
     prog_add_module(p,parse_file(ast,d,in,lex_file(ast,sm,d,in,file),file));
     CASE("IR C: emission owns its source after AST release and is deterministic");
     bool valid=!diag_errors(d) && resolve_program(d,p) && check_program(d,p) && ownership_check(d,p);

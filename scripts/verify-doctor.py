@@ -109,6 +109,107 @@ def main():
         assert run("--tool-dir", tool_root)["inventory"]["installed_mod_tool"]["status"] != "content_match"
         passed("bundle content fingerprints reject changed or malformed identity data without executing tools")
 
+
+        # Match the installer's fixed historical/component/generation sets, not
+        # an arbitrary map with the right number of members. Payload bytes are
+        # deliberately inert and are never imported or executed by these cases.
+        profile_files = (
+            "mod.py", "process_job.py", "engine-compile.ps1", "beryl.mod.v1.schema.json",
+            "scenarios.py", "map-cursor.c.in", "scenario-engine-run.ps1", "source_maps.py",
+            "terrain_scenarios.py", "terrain-reference.c.txt", "terrain-reference.json",
+            "terrain-adapter.c.in", "terrain-handler.c.in", "storage_scenarios.py",
+            "array-storage.c.in", "canvas-retention.c.in", "terrain_measurements.py",
+            "terrain-measurement.c.in", "terrain-adapter-v1.c.txt", "mcp_server.py",
+            "beryl.analysis.v1.schema.json", "component_contracts.py",
+            "tablet-component-contracts.v1.json", "beryl.mod.v2.schema.json",
+            "component_generation.py",
+        )
+        profile_counts = (8, 13, 16, 19, 21, 24, 25)
+        fault_names = ("missing-payload", "tampered-payload", "missing-member", "extra-member",
+                       "unknown-member", "bad-member-hash", "duplicate-member",
+                       "bad-active-identity", "wrong-bundle-identity")
+        expected_cases = tuple(f"profile{count}.valid" for count in profile_counts) + tuple(
+            f"profile{count}.{fault}" for count in (24, 25) for fault in fault_names)
+        bundle_cases = []
+        evidence["bundle_profile_cases"] = bundle_cases
+
+        def profile_case(count, fault=None):
+            label = f"profile{count}." + (fault or "valid")
+            folder = work / ("inert bundle " + label)
+            folder.mkdir()
+            (folder / "mod.py").write_bytes(b"raise RuntimeError('doctor inventory must not execute this loader')\n")
+            payloads = {name: ("inert doctor inventory " + name + "\n").encode("ascii")
+                        for name in profile_files[:count]}
+            manifest = {name: hashlib.sha256(data).hexdigest() for name, data in payloads.items()}
+            identity = hashlib.sha256(canonical(manifest)).hexdigest()
+            declared = "0" * 64 if fault == "wrong-bundle-identity" else identity
+            staged = folder / declared
+            staged.mkdir()
+            for name, data in payloads.items():
+                (staged / name).write_bytes(data)
+            manifest_bytes = canonical(manifest)
+            selected = "component_contracts.py" if count == 24 else "component_generation.py"
+            expected_status = "content_match"
+            if fault == "missing-payload":
+                (staged / selected).unlink()
+                expected_status = "stale_input"
+            elif fault == "tampered-payload":
+                (staged / selected).write_bytes(b"changed inert payload\n")
+                expected_status = "stale_input"
+            elif fault == "missing-member":
+                # Removing an arbitrary required member from 25 must not be
+                # mistaken for the legitimate complete 24-member profile.
+                del manifest["component_contracts.py"]
+                manifest_bytes = canonical(manifest)
+                expected_status = "unavailable" if count == 24 else "failure"
+            elif fault == "extra-member":
+                manifest["unexpected.py"] = "1" * 64
+                manifest_bytes = canonical(manifest)
+                expected_status = "failure" if count == 24 else "unavailable"
+            elif fault == "unknown-member":
+                manifest["unexpected.py"] = manifest.pop(selected)
+                manifest_bytes = canonical(manifest)
+                expected_status = "failure"
+            elif fault == "bad-member-hash":
+                manifest[selected] = "z" * 64
+                manifest_bytes = canonical(manifest)
+                expected_status = "failure"
+            elif fault == "duplicate-member":
+                manifest_bytes = manifest_bytes[:-1] + b',' + canonical(selected) + b':' + canonical(manifest[selected]) + b'}'
+                expected_status = "failure"
+            elif fault == "bad-active-identity":
+                expected_status = "failure"
+            elif fault == "wrong-bundle-identity":
+                expected_status = "stale_input"
+            elif fault is not None:
+                raise AssertionError("Unknown bundle fixture fault")
+            (staged / "bundle.json").write_bytes(manifest_bytes)
+            active_value = {"bundle": "g" * 64 if fault == "bad-active-identity" else declared}
+            (folder / "active.json").write_bytes(canonical(active_value))
+            before_files = {str(p.relative_to(folder)): sha(p) for p in folder.rglob("*") if p.is_file()}
+            observed = run("--tool-dir", folder)["inventory"]["installed_mod_tool"]
+            assert observed["status"] == expected_status, (label, observed)
+            assert observed["dispatch_execution"] == "not_run" and observed["loader_recognition"] == "not_checked"
+            if fault is None:
+                assert observed["declared_bundle_sha256"] == observed["observed_bundle_sha256"] == identity
+                assert {row["name"] for row in observed["files"]} == set(profile_files[:count])
+                assert len(observed["files"]) == count
+                assert all(row["expected_sha256"] == row["actual_sha256"] == manifest[row["name"]]
+                           for row in observed["files"])
+            assert before_files == {str(p.relative_to(folder)): sha(p) for p in folder.rglob("*") if p.is_file()}, label
+            bundle_cases.append({"case_id": label, "expected_status": expected_status,
+                                 "observed_status": observed["status"], "passed": True})
+
+        for count in profile_counts:
+            profile_case(count)
+        for count in (24, 25):
+            for fault in fault_names:
+                profile_case(count, fault)
+        assert tuple(case["case_id"] for case in bundle_cases) == expected_cases
+        assert len(set(expected_cases)) == len(expected_cases) == 25
+        assert not list(inventory.iterdir())
+        passed("exact historical and 24/25-file bundle profiles reject missing, extra, tampered and malformed identities without execution")
+
         engine = work / "fake-engine.exe"
         engine.write_bytes(b"not the registered engine\n")
         mismatch = run("--engine-executable", engine)

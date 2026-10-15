@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "profile": "world-state-v1",
+  "scope": "read-only live-spawn world identity, frame counters, owner flags and component event masks",
+  "claims": "Extracted API signatures only; world equality, progression and callback scheduling require runtime observation. No pointers are serialized.",
+  "documents": [
+    {"file": "interfaceBaseWorld.html", "sha256": "cbcb36ba62bd8a0731ea46701bdbf06cf764b00644487a981ba2cfcbe0429282", "line": 199, "signature": "proto external int GetFrameNumber()"},
+    {"file": "interfaceGame.html", "sha256": "dfcab6b926646b8b56cdcbf38bb3e5f9809e96c9e3efaabc11cf806d6ec4b22e", "line": 120, "signature": "World GetWorld()"},
+    {"file": "interfaceWorldEditorAPI.html", "sha256": "202fbc3822d1c8d9cd465ad4968a9541e90353b51cf4329046187ef8cba1d7b2", "line": 210, "signature": "proto external BaseWorld GetWorld()"},
+    {"file": "interfaceIEntity.html", "sha256": "ec2e7f4c76ab91af50a9448ccd13db7aa7590ba3584fbfdacbd6773d899ec585", "line": 177, "signature": "proto external BaseWorld GetWorld(); proto external EntityFlags GetFlags()"},
+    {"file": "interfaceGenericComponent.html", "sha256": "6fcaebb8b2aa5f262ac4df01fb9aeca93e1d85bf629a5714a25ef061e98db10d", "line": 136, "signature": "proto external int GetEventMask()"}
+  ],
+  "admission": "Only registry phase 2 or 3, exactly two live owners, no requested deletion, running game/editor API. Symbolic EntityFlags.ACTIVE and EntityEvent.FRAME tests; no guessed constants, times or IsActive contract.",
+  "instrumentation": "At most two additional read-only RPCs within the existing stage and overall deadlines. This may reduce available polling time and is not performance measurement."
+}

@@ -138,7 +138,13 @@ static void declaration(Context *c, SB *b, Item *it) {
         }
         sb_char(b, ']');
     } else if (it->kind == IT_STRUCT) {
-        sb_cstr(b, ",\"fields\":[");
+        sb_cstr(b, ",\"generic_parameters\":[");
+        for (uint32_t i = 0; i < it->strukt.generics.len; i++) {
+            GenericParam g = it->strukt.generics.data[i]; if (i) sb_char(b, ',');
+            sb_cstr(b, "{\"name\":"); json_string(b, g.name);
+            sb_cstr(b, ",\"bound\":"); nullable(b, g.bound); sb_char(b, '}');
+        }
+        sb_cstr(b, "],\"fields\":[");
         for (uint32_t i = 0; i < it->strukt.fields.len; i++) {
             Field f = it->strukt.fields.data[i]; if (i) sb_char(b, ',');
             sb_cstr(b, "{\"name\":"); json_string(b, f.name);

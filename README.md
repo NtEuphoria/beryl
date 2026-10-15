@@ -4,12 +4,36 @@
 [implementation state](docs/BERYL_DELIVERY_STATE.md). New working-tree changes
 are not covered automatically by the installed checkpoint's receipts.
 
-**September 7 delivery update:** the compiler/tool checkpoint is installed and
-verified: 496 cases / 10,285 checks, 18 native regressions at O0/O2, 867 engine
+**October 14 focus:** core compiler and 4GL authoring work has resumed; further
+Reforger testing is parked at the user's request. Source changes add experimental
+IR initialization/access modes, a scalar-component project starter and repaired
+tool-bundle inventory. The starter and inventory have scoped passing evidence;
+Windows Code Integrity blocks completion of the full IR execution matrix.
+See the [current implementation packet](docs/advanced/CORE_AUTHORING_2026_10_14.md).
+
+**October 8 development update:** shared call-capture and receiver access repairs,
+benchmark-process fixes and typed component admission now have scoped private-candidate
+verification: 567 unit cases / 10,512 checks, 102 component-validator cases and
+60 Enfusion source-admission cases. CLI/MCP compatibility also passed.
+The next private candidate adds experimental scalar component wrappers, exact
+compiler linkage and companion source origins. Its isolated tablet protocol
+passed 92 cases / 3,432 assertions in reference and native execution, with ten
+deliberate faults detected. The same protocol now passes all 92 cases in the
+actual Enfusion VM with scripted service replies. A confirmed generated component
+constructor defect was repaired and its corrected addon compiles in Workbench.
+Plain-script retained state passes a separate 11-case engine probe; real component
+callback delivery and tablet services remain open. This is not a production tablet migration.
+An isolated Beryl-driven tablet service candidate also compiles with the preserved
+MESH Game scripts; its runtime and deployment acceptance remain open.
+Earlier Windows application control blocks some generated native executables; the current
+release gate and active compiler provenance remain incomplete. Read
+[the current evidence and next gates](docs/BERYL_DELIVERY_STATE.md).
+
+**Historical September 7 checkpoint:** 496 cases / 10,285 checks, 18 native regressions at O0/O2, 867 engine
 integer/order checks and 65,850 PID comparisons. It adds safety containment,
 capability context, `doctor`, exact-snapshot analysis and an optional local MCP
 bridge. Read [the current state and open gates](docs/BERYL_DELIVERY_STATE.md).
-Public IR lowering, full ownership, the tablet migration and whole-mod authoring
+Production IR lowering, full ownership, the tablet migration and whole-mod authoring
 remain unfinished. No game frame-rate or native Rust advantage is claimed.
 
 A systems language named for beryllium: stiffer than steel per unit weight, very
@@ -36,6 +60,18 @@ beryl test                    # test blocks, run natively
 beryl run                     # build and run
 beryl build -t enfusion --prefix SPK --out-dir ../MyMod/scripts/Game/MyMod
 ```
+
+The new optional authoring tool can create a component project with shared logic,
+importing tests and a strict companion description:
+
+```text
+beryl mod init --template scalar-component --project ./MyComponent --name "My component" --addon-id MyComponent --addon-guid <your-16-uppercase-hex-GUID>
+```
+
+Use a fresh destination and a compiler/tool bundle that advertises this feature.
+See [the starter's exact domain and commands](docs/advanced/P6_MOD_INIT.md).
+It generates source for the existing scalar component profile; engine execution,
+deployment and complete prefab/layout authoring remain separate gates.
 
 ## The five ideas
 
@@ -99,9 +135,15 @@ filterable diagnostics table) and
 
 ## Where it stands
 
-v0.1 is real but not finished. It compiles and runs real programs on both
-targets, and the EnforceScript it emits **compiles cleanly in the actual Arma
-Reforger Workbench** (`scripts/reforger-proof.ps1` proves it on demand).
+v0.1 is functional but unfinished. Native programs and selected generated
+EnforceScript workloads have executed in recorded checks. Target coverage is
+bounded; an earlier Workbench result does not verify every current program or
+the current working tree. See [delivery state](docs/BERYL_DELIVERY_STATE.md) for
+the actual checkpoints and remaining gates.
+
+The following figures are historical early-v0.1 notes, not measurements of the
+current compiler. Their original configuration is not fully recorded here;
+do not use them as current size, speed or test-coverage claims.
 
 | | |
 |---|---|

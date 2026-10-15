@@ -97,7 +97,7 @@ TOOLS = [
          obj({"request": {"type": "object"}, "contents": {"type": "object", "additionalProperties": {"type": "string"}}}, ("request", "contents")), True),
     tool("beryl_test", "Explicitly execute selected Beryl tests using the chosen backend. May compile/run native project code. Source paths must be project-relative .be files.",
          obj({"sources": {**SOURCES, "minItems": 1}, "backend": {"enum": ["reference", "native", "differential"]}}, ("sources", "backend")), False),
-    tool("beryl_mod", "Call installed typed mod operations. plan describes a structurally validated v1 workflow without compiler or engine execution; it does not verify source semantics. verify executes compilation or an explicitly selected installed scenario against an artifact. No promotion is exposed by this adapter.",
+    tool("beryl_mod", "Call installed typed mod operations. plan describes strict v1 exports or bounded v2 components without compiler or engine execution; it does not verify source semantics. v2 check validates signatures; v2 build can generate scalar-state component wrappers and source maps. V2 engine verification/runtime/promotion remain unavailable. v1 verify executes compilation or a separately selected installed scenario. No promotion is exposed.",
          obj({"operation": {"enum": ["plan", "check", "build", "verify", "scenarios"]}, "artifact": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
               "stage": {"enum": ["compile"]}, "scenario": TEXT}, ("operation",)), False),
     tool("beryl_evidence", "Read a bounded project-relative JSON receipt or source-map file and its content hash. Reading a receipt does not validate its claims or applicability.",

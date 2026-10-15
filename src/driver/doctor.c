@@ -106,7 +106,10 @@ static const char *tool_files[] = {
     "terrain_scenarios.py", "terrain-reference.c.txt", "terrain-reference.json", "terrain-adapter.c.in", "terrain-handler.c.in",
     "storage_scenarios.py", "array-storage.c.in", "canvas-retention.c.in",
     "terrain_measurements.py", "terrain-measurement.c.in", "terrain-adapter-v1.c.txt",
-    "mcp_server.py", "beryl.analysis.v1.schema.json"
+    "mcp_server.py", "beryl.analysis.v1.schema.json",
+    /* Exact newer installed profiles extend the historical prefix sets. */
+    "component_contracts.py", "tablet-component-contracts.v1.json", "beryl.mod.v2.schema.json",
+    "component_generation.py"
 };
 static int pair_order(const void *a,const void *b) {
     const Pair *x=a,*y=b; size_t n=x->key.len<y->key.len?x->key.len:y->key.len;
@@ -128,7 +131,7 @@ static ToolInventory inspect_tools(Arena *a,const char *root) {
     if (!t.manifest.sha.len) return t;
     Str bytes=small_file(a,manifest,65536);
     if (!string_map(bytes,&m)) { t.status="failure"; t.reason="The bundle manifest is malformed or exceeds the bounded string-map format."; return t; }
-    if (m.count!=4 && m.count!=8 && m.count!=13 && m.count!=16 && m.count!=19 && m.count!=21) {
+    if (m.count!=4 && m.count!=8 && m.count!=13 && m.count!=16 && m.count!=19 && m.count!=21 && m.count!=24 && m.count!=25) {
         t.reason="The installed bundle file-set version is outside this inventory reader."; return t;
     }
     for (size_t i=0;i<m.count;i++) {

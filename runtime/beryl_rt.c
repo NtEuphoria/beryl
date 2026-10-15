@@ -10,26 +10,26 @@
 
 static void source_trap_trace(const char *kind);
 
-_Noreturn void beryl_trap_overflow(const char *file, int line, const char *op) {
+BE_COLD _Noreturn void beryl_trap_overflow(const char *file, int line, const char *op) {
     source_trap_trace("overflow");
     fprintf(stderr, "beryl: arithmetic overflow on `%s` at %s:%d\n", op, file, line);
     abort();
 }
 
-_Noreturn void beryl_trap_bounds(const char *file, int line, int64_t idx, int64_t len) {
+BE_COLD _Noreturn void beryl_trap_bounds(const char *file, int line, int64_t idx, int64_t len) {
     source_trap_trace("bounds");
     fprintf(stderr, "beryl: index %lld out of bounds for length %lld at %s:%d\n",
             (long long)idx, (long long)len, file, line);
     abort();
 }
 
-_Noreturn void beryl_trap_div_zero(const char *file, int line) {
+BE_COLD _Noreturn void beryl_trap_div_zero(const char *file, int line) {
     source_trap_trace("division_by_zero");
     fprintf(stderr, "beryl: division by zero at %s:%d\n", file, line);
     abort();
 }
 
-_Noreturn void beryl_panic(const char *msg, const char *file, int line) {
+BE_COLD _Noreturn void beryl_panic(const char *msg, const char *file, int line) {
     fprintf(stderr, "beryl: panic: %s at %s:%d\n", msg, file, line);
     abort();
 }
@@ -43,7 +43,7 @@ void *beryl_grow(void *p, size_t bytes) {
     return n;
 }
 
-_Noreturn void beryl_allocation_size_failure(void) {
+BE_COLD _Noreturn void beryl_allocation_size_failure(void) {
     fputs("beryl: list allocation size or capacity limit exceeded\n", stderr);
     abort();
 }

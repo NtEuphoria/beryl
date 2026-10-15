@@ -78,6 +78,23 @@ pub fn optional_local() { var held: i32? }
         assert mapping['column_unit'] == 'byte'
         assert mapping['sources'][0]['sha256'] == hashlib.sha256(source.read_bytes()).hexdigest()
         assert mapping['sources'][1]['sha256'] == hashlib.sha256(other.read_bytes()).hexdigest()
+        assert mapping['linkage_schema_version'] == 1
+        linkage = {entry['declaration']: entry for entry in mapping['linkage']}
+        assert len(linkage) == len(mapping['linkage'])
+        state = linkage['mapped.Value']
+        assert state['kind'] == 'struct' and b'class ' + state['class'].encode() in generated
+        assert state['class'] != 'MappedValue', 'constructor facade must not become the value storage class'
+        assert b'int ' + state['fields'][0]['name'].encode() + b';' in generated
+        assert state['fields'][0]['source'] == 'n'
+        evaluate, nested = linkage['mapped.evaluate'], linkage['mapped.nested']
+        assert evaluate['holder'] == nested['holder'], 'split files of one module must use the same emitted holder'
+        assert evaluate['method'] != nested['method']
+        for entry in (evaluate, nested):
+            assert b'class ' + entry['holder'].encode() in generated
+            assert b'int ' + entry['method'].encode() + b'(' in generated
+            span = entry['source']
+            assert span['path'] in source_bytes and span['file_id'] in (0, 1)
+        result['checks'].append('exact record/field/free-function linkage reflects constructor facade and split-module emission')
         assert mapping['mapping_precision'].startswith('generated line associated')
         result['checks'].append('opt-in sidecar leaves generated code byte-identical and binds exact source/output')
 

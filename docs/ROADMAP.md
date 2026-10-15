@@ -1,6 +1,57 @@
 # Beryl — Roadmap
 
-**Current delivery order (2026-09-07):**
+Current priority (October 14): resume the delivery plan's compiler and 4GL
+authoring work. Further Reforger testing is parked at the user's request after
+the ordinary tablet open/close checkpoint. IR initialization/access modes,
+component project creation and tooling inventory now have a bounded
+[implementation checkpoint](advanced/CORE_AUTHORING_2026_10_14.md). The next
+execution gate is the full native IR matrix, currently blocked by Windows Code
+Integrity; production IR and owning storage remain separate subsequent gates.
+See [delivery state](BERYL_DELIVERY_STATE.md); later engine gates remain open.
+
+October 14 ordinary-close checkpoint: the owned Enfusion candidate passes readiness, compilation and all 27 RPC checks. It genuinely activates and then closes the same tablet through normal gadget requests. The false callback completes; the next FRAME confirms inactive/STOWED state and a closed UI with no root while the gadget remains physically IN_HAND. Both separate acceptance flags are true. See [the actual close result](advanced/P5_TABLET_CLOSE_2026_10_14.md#actual-ordinary-close-passes). Source/artifact and operator-profile preservation checks pass. Physical stow and focused destruction are the next separate cases; input, visual, multiplayer and promotion gates remain open.
+
+October 14 repaired activation checkpoint: the owned Enfusion candidate passes host readiness, compilation and all 25 RPC checks. The exact held tablet now reports active after a genuine callback; the next FRAME confirms FOCUSED with an open UI root. Installed source established the root cause: the tablet adapter never maintained the inherited activation flag. Its one-line candidate repair is verified with unchanged acceptance; the fixture's absent map remains a degraded state. The expected input-free diagnostic is retained and narrowly classified. See [the actual repaired result](advanced/P5_TABLET_ACTIVATION_2026_10_14.md#actual-repaired-activation-passes). Protected source/artifact and complete operator-profile hash checks pass. Toggle-off is next; physical input, stow, destruction, visual, multiplayer and promotion gates remain open.
+
+Earlier October 14 activation checkpoint: the corrected isolated candidate compiles and runs. One genuine true gadget callback completes; the next FRAME observes the tablet FOCUSED with an open UI and root widget. The engine's toggle flag remains false, so combined activation acceptance remains false. The outer run is unavailable because its error scanner rejects the input-free fixture's expected diagnostic. These are separate issues under investigation; the failed receipt is preserved. See [actual activation evidence](advanced/P5_TABLET_ACTIVATION_2026_10_14.md#actual-activation-ui-opens-combined-acceptance-remains-false). Protected source/artifact and operator-profile audits pass. Normal toggle-off, physical stow, destruction, input, visual and multiplayer gates remain open.
+
+Earlier October 14 held checkpoint: after disk recovery, the owned held-gadget probe passes host readiness, compilation, runtime and all 25 RPC checks. The manager's held entity and component both match the candidate tablet; membership, ownership and IN_HAND are confirmed. It is toggled off, while the tablet component is STOWED with no UI. These are distinct engine and tablet lifecycle states, not evidence of a defect. See [the actual held observation](advanced/P5_PLAYER_INVENTORY_2026_10_14.md#actual-held-observation-passes-inactive-tablet-no-ui-yet). No activation, UI interaction, input initialization or destruction is claimed.
+
+At that earlier checkpoint, the next isolated packet would recheck the actual held identities and inactive state, invoke the ordinary gadget-manager activation once, and separately observe genuine callback delivery and subsequent UI state. Installed artifacts and protected profiles remain unchanged. Player lifecycle, visual acceptance, multiplayer and promotion remain open. The earlier [held source checks and retained failed patch](advanced/P5_PLAYER_INVENTORY_2026_10_14.md#held-observation-prepared-engine-execution-not-yet-admitted) remain historical evidence; their disk hold was cleared for the completed run.
+
+Earlier October 14 insertion checkpoint: the isolated explicit player-position Spawn candidate passes actual tablet insertion on FRAME 1. Same-item membership changes from false to true, and the genuine callback inspection passes after two failed and one completed callback within the single Insert request. All four placement samples complete; the native pre-insertion translation comparison is equal. This is a successful bounded fixture repair, not proof of a universal distance rule: session loadout and player position differ from the failed baseline. See [the executed insertion evidence](advanced/P5_PLAYER_INVENTORY_2026_10_14.md#explicit-player-position-candidate-actual-insertion-passes). Equip, real-player UI/interaction/destruction, multiplayer, visual acceptance and production promotion remain open.
+
+Earlier equipment admission checkpoint: a read-only FRAME observation is prepared after successful insertion and callback inspection. Its first packet was rejected before host/engine execution because its freeze-status label did not match the unchanged strict runner. A fresh version 2 corrects that metadata, preserves all 74 prior source members, and passes the new 9/9 post-freeze guard. At that checkpoint the owned runtime was underway and its result was pending; the later actual result is recorded above. See [the admission correction and evidence scope](advanced/P5_PLAYER_INVENTORY_2026_10_14.md#equipment-prerequisite-admission-repaired-runtime-result-pending). No Equip or UI action is part of this observation.
+
+Earlier October 14 baseline placement checkpoint: four completed FRAME-1 world-transform observations show the null-spawn tablet at display `0 0 0` and the player at `127.134 1 126.5`; a native comparison confirms different sampled positions. This establishes placement separation, not a proximity rule or insertion root cause. The corrected observer compiled and ran after a preserved version-1 compile failure. Insertion still timed out with three failed callbacks. At that checkpoint, an explicit player-position spawn candidate was being prepared and its result was pending; the later executed result appears above. See [the placement evidence and remaining gates](advanced/P5_PLAYER_INVENTORY_2026_10_14.md). Equip, real-player UI/destruction and promotion remain open.
+
+Earlier October 14 purpose checkpoint: both the installed stock map and original tablet fail insertion through the same generic harness in separate owned sessions. A later typed probe confirms that DEPOSIT and ANY select the same empty hand storage; weapon/equipment queries return null. All 38 per-storage eligibility calls return, but eligibility is not proof of insertion success. The installed callback source does not reveal a native failure reason or clear the observed return code. Fixture placement is the next source investigation; the rejection cause remains unestablished. See [the exact evidence and remaining gates](advanced/P5_PLAYER_INVENTORY_2026_10_14.md). Production files remain unpromoted; equip, real-player UI/destruction, multiplayer and visual acceptance remain open.
+
+Earlier October 14 checkpoint: the owned player diagnostic completes all 59 RPC checks and returns three native snapshots without the earlier GPU crash. Actual insertion still reaches its time limit after 3,261 false membership observations and three genuine failed callbacks. A stale hardcoded resource GUID has been identified; its corrected candidate passes 11 focused checks, with engine confirmation pending. C: later falls to about 282 MiB free, so further engine launches are held for disk recovery. See [the diagnostic evidence, resource observations and remaining gates](advanced/P5_PLAYER_INVENTORY_2026_10_14.md). Real-player UI/destruction acceptance and promotion remain open. The October 12 entries below are retained history.
+
+October 12 physical-player checkpoint: MPTest player/services and isolated tablet construction pass. The clone's replication-parent setting is verified false and the observer now forwards every superclass callback. Its actual retry records three failed insertion callbacks and 3,436 membership reads remaining false, then reaches the declared twenty-second fixture bound. The remaining rejection cause is under investigation; insertion is not verified. See [the actual results, diagnosis and remaining gates](advanced/P5_PLAYER_FRAME_2026_10_12.md). Equip, real-player UI/destruction, input persistence, multiplayer and visual acceptance remain open.
+
+The owned edit-mode probe now captures and verifies the exact installed inventory-manager source. Its staged insertion path explains why one request can deliver three failed callbacks, but the failing native storage predicate is still unknown. The diagnostic harness passes 74-case Python/PowerShell parity after a confirmed dictionary-conversion repair; actual item/storage/replication captures are next.
+
+The latest diagnostic run compiles but Enfusion crashes while the base-game HUD allocates a staging texture; the spawn RPC then times out before captures return. The renderer allocation failure is confirmed, but physical VRAM exhaustion is not established. Owned cleanup and profile preservation pass; renderer-session investigation is now the next gate.
+
+The earlier retry’s minidump identifies an illegal-write instruction inside DiscordHook64.dll. With explicit user authorization, all six verified Discord processes were subsequently stopped. A fresh unchanged Workbench candidate still hits a Direct3D allocation failure, now during editor-world loading before Play. This run has no minidump or verified module capture, so hook absence is not established. Post-exit system commit is 44.30 GB of a 47.03 GB limit; the remaining 2.54 GiB is a resource-pressure lead, not a confirmed crash cause. Startup-resolution and live memory/module observations are the next controlled probes. Actual insertion diagnostics and downstream lifecycle acceptance remain incomplete.
+
+A later read-only inventory finds C: has only 236,957,696 bytes free (about 226 MiB), Brave holds 16,584,753,152 private bytes across 62 processes, and six Discord processes have reappeared. Further engine launches are held pending resource recovery. No browser sessions or user files are closed or deleted; source and bounded harness work continue.
+
+
+**October 12 continuation:** the repaired edit receiver and MPTest resource identity probes complete. A later neutral-player observation records 64 stable absent samples over 7,458 native frames, with actual mode start/end and camera-player creation disabled. See [the exact frame checkpoint](advanced/P5_PLAYER_FRAME_2026_10_12.md). The owned MPTest scenario subsequently produces an actual local controller and controlled character on a later genuine frame. The subsequent local inventory/gadget service readiness passes; physical tablet interaction remains open.
+
+**Earlier continuation:** seven N1a service cases and complete isolated UI/frame/
+destruction verification pass. Read the [post-restart execution](advanced/P5_TABLET_POST_RESTART_EXECUTION.md).
+The isolated button-construction repair and owned Workbench profile witness pass.
+Next are actual profile-isolated player/gadget tests, followed by dedicated-client
+and visual acceptance. Host readiness works
+after Windows restart; the historical stall cause remains unknown. No installation,
+performance release, or complete-tablet acceptance is implied.
+[Executed N1a evidence](advanced/P5_TABLET_NATIVE_SERVICE_EXECUTION.md).
+
+**Current delivery order (continued 2026-10-12):**
 [BERYL_DELIVERY_PLAN.md](BERYL_DELIVERY_PLAN.md) consolidates the approved safety,
 IR, tablet, AI tooling, deployment and measured-performance program.
 [Delivery state](BERYL_DELIVERY_STATE.md) records active work and exact new gates.
@@ -12,11 +63,60 @@ extends the SPARKOS sequence with gated performance work. Its
 [execution state](BERYL_ADVANCED_IMPLEMENTATION_STATE.md) distinguishes implemented
 capabilities from pending experiments and release gates.
 
-**Latest installed delivery checkpoint:** safety containment, expression-order
+**October 10 callback checkpoint:** a wrong-world spawn argument in the test
+harness is repaired. The isolated scalar candidate passes all seven actual
+native initialization/frame/deletion cases, with owned cleanup. The isolated
+tablet candidate now preserves the admitted resource selection and passes all
+five existing suite requests. See [the suite packet](advanced/P5_TABLET_EXISTING_SUITES.md)
+for exact scope and terminal-audit status. The later N0 candidate passed all five
+native tablet initialization/stowed cases, with two owners, 64 complete frame
+pairs each, 260 ordered rows and confirmed cleanup. Its independent terminal
+audit passes 40 named obligations; read [the native tablet packet](advanced/P5_TABLET_NATIVE_STOWED_EXECUTION.md).
+Next: [actual services](advanced/P5_TABLET_REAL_SERVICES_ADMISSION.md), then the
+player/gadget lifecycle. Profile writes, deletion/retention, multiplayer, visual
+acceptance and promotion require separate gates. No compiler, language,
+automatic optimization or performance release is implied.
+
+**Earlier N1a preparation checkpoint:** the distinct 98-file service observer candidate
+now compiles in Workbench with zero errors and 19 warnings. Its independent oracle,
+wire, reversible hooks and source gates passed. The later encoder/transport work
+and seven real public actions are recorded above. This earlier headless compilation
+alone did not close that runtime gate.
+
+**Historical October 8 recovery:** source repairs call-capture/receiver correctness and
+benchmark capture, with bounded component admission now checked through CLI/MCP.
+Experimental scalar wrapper generation and a reference/native tablet decision
+protocol now have separate scoped evidence. The generated component compiles
+after a constructor repair, and the tablet protocol passes its 92-case numeric
+replay in Enfusion with scripted services. An independent plain-script member
+probe passes 11 cases. Actual component callback delivery, tablet-service
+integration, properties, UI/prefab generation and full tablet acceptance remain
+next. The historical PowerShell adapter rejection remains failed evidence.
+The subsequent [tablet service candidate](advanced/P5_TABLET_SERVICE_CANDIDATE.md)
+implements and compiles the reviewed synchronous seam; actual service execution
+and deployment still require separate gates.
+The next investigation verifies native resource identity and explicitly opens
+WorldEditor, exposing its API. The activated world-opening request reaches native
+loading but times out before a readiness receipt. The
+[tablet runtime packet](advanced/P5_TABLET_RUNTIME_ACCEPTANCE.md) and bounded
+resource preparation are ready; actual callbacks/services and deployment remain
+the dependency gates. Harmless GameCommon deferred dispatch now passes six actual
+cases; native opening remains a separate diagnostic experiment.
+The deferred candidate is source-reviewed, but its new transport/engine gates
+are open because the configured PowerShell host stopped returning. Continue
+independent source/evidence work while preserving that unavailable capability.
+Final Python admission gates and private source generation pass; current
+transport and actual world/callback execution remain incomplete.
+Windows application
+control leaves native execution gates incomplete; the observed active compiler
+has unknown verification provenance. No new installation or performance release
+is claimed. See the delivery state before using an old receipt for current bytes.
+
+**Historical September 7 installed delivery checkpoint:** safety containment, expression-order
 repairs, generated capability/example context, environment diagnostics,
 exact-snapshot analysis and a hardened local MCP bridge. Both foundation builds
 passed 496 cases / 10,285 checks and 18 O0/O2 native regressions; the final engine
-integer/order and complete PID suites passed. Public IR, full owning storage,
+integer/order and complete PID suites passed. Production IR, full owning storage,
 tablet generation, dedicated-client release and automatic optimizations remain
 open. [Delivery state](BERYL_DELIVERY_STATE.md) is the authoritative receipt index.
 

@@ -15,6 +15,9 @@ This includes projected assignments whose destination evaluation or RHS may
 mutate overlapping storage. Separate the mutation from selection of the
 destination to make the intended order explicit; the interpreter does not choose
 between the previously disagreeing reference/native outcomes.
+Direct reference API admission also rejects a captured borrowed call argument
+whose selection or later arguments may change overlapping storage. Ordinary
+CLI frontend checks report `BE0401` for these patterns before execution.
 
 ### BE1002 — reference trap or failed assertion
 
@@ -272,8 +275,17 @@ f(inout p, inout p.x)     // BE0401: one contains the other
 p.bump(inout p)           // BE0401: the receiver counts too
 ```
 
-Both spans are labelled. Native signatures currently omit `restrict` because
-collection backing-storage identity is not yet proved by this local analysis.
+Both spans are labelled. This also rejects selection or later-argument effects
+that can change an earlier borrowed place, including replacement of its parent
+and a later `sink` transfer. The message identifies the captured argument and
+the conflicting effect. Move the mutation before the call, or first copy the
+intended plain value into an independent binding. Disjoint plain fields and
+literal indices remain admitted; dynamic indices and unknown effects fail
+conservatively. Scalar `let` arguments are captured by value.
+
+Native pointer parameters use per-function `restrict` admission only when
+every exclusive call path is proven. This local analysis does not establish
+general collection ownership or engine-reference non-aliasing.
 
 ### BE0402 — cannot assign to an immutable binding
 `let` binds once. Use `var`. Assigning to a `let` that was *declared without a
@@ -371,7 +383,14 @@ independent analysis.
 These run **before** emission, so Workbench never sees script that was doomed.
 See [ENFUSION.md](ENFUSION.md).
 
-### BE0701 — an unsupported Enfusion type or copy shape
+### BE0701 — an unsupported Enfusion type, copy or receiver shape
+
+The source target also rejects `set self`, `sink self`, direct whole-self
+replacement and explicit whole-self `inout`/`set` arguments. Its implicit class
+receiver does not yet have a verified caller-storage replacement/transfer
+lowering. Use an ordinary function with an admitted explicit parameter, or
+admitted field writes. Existing ownership, access and storage rules still apply.
+This containment is separate from native/reference receiver-mode support.
 `i64 u64 u32 u16 u8 i16 i8 f64`. The engine has one integer type (a signed
 32-bit `int`) and one float type (32-bit). The help names the substitute.
 This also rejects generated struct-copy fields containing arrays/lists of

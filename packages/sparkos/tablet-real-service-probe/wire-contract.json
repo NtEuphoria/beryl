@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "profile": "sparkos.tablet.real-services.n1a.wire.v1",
+  "typed_profile": "sparkos.tablet.real-services.n1a.source.v1",
+  "state": "planned_source_only",
+  "source_contract_sha256": "74aed85740e8d72b5c187eae9b537fffb921b90ec24ac0002500379897e8cd65",
+  "identity_fields": ["schema_version", "profile", "token", "source_sha256", "source_contract_sha256", "wire_contract_sha256"],
+  "completion_fields": ["schema_version", "profile", "token", "source_sha256", "source_contract_sha256", "wire_contract_sha256", "status", "failure", "executed", "failures", "caseIds", "row_count", "checksum", "rows"],
+  "snapshot_columns": ["outer_sequence", "case_id", "before_or_after", "owner_role", "owner", "state", "mode", "accumulator", "ui", "screen", "screen_enabled", "widget"],
+  "event_columns": ["outer_sequence", "case_id", "event", "sequence", "kind", "invocation_id", "owner", "state", "screen", "mode", "accumulator", "argument_owner", "returned", "enabled", "widget"],
+  "outcome_columns": ["outer_sequence", "case_id", "outcome", "action", "arguments", "kind", "value"],
+  "cases": [
+    "n1a.focus-refused.stowed", "n1a.held.first", "n1a.held.repeated", "n1a.unfocus-refused.held", "n1a.stow", "n1a.stow.repeated", "n1a.independent-state"
+  ],
+  "order": "for each fixed case: before owner1, before owner2, that case's service events, outcome, after owner1, after owner2; 44 rows total; consecutive outer_sequence1..44; never sort",
+  "service_event_counts": [0, 3, 2, 0, 2, 2, 0],
+  "encoding": {
+    "separator": "|", "characters": "ASCII printable32..126; no embedded LF/CR; exact column counts",
+    "boolean": "0 or1 become literal Boolean; true/false textual spellings and numeric JSON values rejected",
+    "nullable": "none; only fields explicitly declared nullable",
+    "void_outcome": "void for public SetHeld and read-only Observe getter group; no fabricated production Observe method",
+    "arguments": "none for Focus/Unfocus/Observe; exact0/1 for SetHeld",
+    "integer": "canonical unsigned decimal; field-specific limits; no signs/leadingzeros",
+    "float": "original bounded finite numeric zero text, may include -0; no rounded bit or signed-zero claim",
+    "tokens": "fixture-assigned owner.1/.2, state.1/.2, screen.1, widget.1; no addresses",
+    "checksum": "multiplier31 modulo1000003 over each exact raw ASCII row plus LF"
+  },
+  "limits": {"rows": 44, "row_bytes": 512, "raw_bytes_including_lf": 32768, "accumulator_text_bytes": 48},
+  "scope": "raw codec and typed original-source semantic trace only; no engine/host/compiler calls; no native provenance, wire transport, valid lifetime, render-target binding, pixels or complete tablet claim",
+  "decoder": "guard exact full envelope/ASCII/row order/field types/checksum first; preserve raw rows/checksum; reconstruct typed checksum only for frozen oracle input; propagate outside_admitted_domain only after structural guards; source/artifact/process/world origin remains separately verified"
+}

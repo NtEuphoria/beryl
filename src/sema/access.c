@@ -68,7 +68,7 @@ static bool mutation(Scan *s,const Expr *other) {
         }
         if (different) return !plain && stop(s,ACCESS_UNPROVEN,at,"disjoint fields or indices may share owning or reference storage");
     }
-    return stop(s,ACCESS_CONFLICT,at,"a write, move or mutable argument may overlap the selected destination");
+    return stop(s,ACCESS_CONFLICT,at,"a write, move or mutable argument may overlap the selected place");
 }
 static bool expression(Scan *s,const Expr *e,uint32_t depth);
 static bool statement(Scan *s,const Stmt *st,uint32_t depth) {
@@ -105,6 +105,10 @@ static bool expression(Scan *s,const Expr *e,uint32_t depth) {
         case EX_UNARY: return expression(s,e->unary.operand,depth);
         case EX_BINARY: return expression(s,e->binary.lhs,depth) || expression(s,e->binary.rhs,depth);
         case EX_CALL: {
+            if (!s->watched) {
+                AccessResult result=access_call_arguments(e,s->visits);
+                if (result.status!=ACCESS_SAFE) { s->issue=result; return true; }
+            }
             const Expr *receiver=NULL;
             if (e->res_kind==RES_FN && e->res) {
                 const Item *fn=e->res;
@@ -165,6 +169,55 @@ AccessResult access_projected_assignment(const Stmt *st,uint32_t *visits) {
     else if (!expression(&s,target,0)) expression(&s,st->assign.value,0);
     return s.issue;
 }
+static bool captured_place(Conv conv,const Expr *e) {
+    if (!e) return false;
+    if (conv==CONV_INOUT || conv==CONV_SET) return true;
+    /* A let aggregate expression with no local path is copied into independent
+     * temporary storage before the next argument. Engine/owning admission is
+     * separate; distinct owning roots are never assumed disjoint here. */
+    return conv==CONV_LET && e->type && e->type->kind!=TY_STR &&
+        !ty_is_copy(e->type) && path_of(e).known;
+}
+AccessResult access_call_arguments(const Expr *call,uint32_t *visits) {
+    AccessResult result={.status=ACCESS_SAFE,.destination=SPAN_NONE,.conflict=SPAN_NONE,
+        .reason="safe",.call_argument=true};
+    if (!call || call->kind!=EX_CALL || call->res_kind!=RES_FN || !call->res) return result;
+    const Item *fn=call->res;
+    bool self=fn->fn.params.len && fn->fn.params.data[0].is_self;
+    uint32_t local_visits=0;
+    for (uint32_t slot=0;slot<fn->fn.params.len;slot++) {
+        const Expr *selected=NULL;
+        uint32_t next=0;
+        if (self && slot==0) {
+            if (call->call.callee && call->call.callee->kind==EX_FIELD)
+                selected=call->call.callee->field.base;
+        } else {
+            uint32_t arg=slot-(self?1u:0u);
+            if (arg>=call->call.args.len) break; /* Defaults are expanded by typing. */
+            selected=call->call.args.data[arg].value;
+            next=arg+1;
+        }
+        if (!captured_place(fn->fn.params.data[slot].conv,selected)) continue;
+        Path watched=path_of(selected);
+        Scan s={.visits=visits?visits:&local_visits,.watched=&watched,.issue=result};
+        s.issue.destination=selected->span;
+        if (!watched.known)
+            stop(&s,ACCESS_UNPROVEN,selected->span,"a captured argument has no proven local storage path");
+        else {
+            /* Base/index selection also belongs to the access interval. The
+             * outer call's own writes happen after evaluation; existing
+             * whole-call exclusivity checks those separately. */
+            expression(&s,selected,0);
+            for (uint32_t arg=next;arg<call->call.args.len && s.issue.status==ACCESS_SAFE;arg++) {
+                const Arg *later=&call->call.args.data[arg];
+                if (later->conv==CONV_SINK && path_of(later->value).known && mutation(&s,later->value)) break;
+                expression(&s,later->value,0);
+            }
+        }
+        if (s.issue.status!=ACCESS_SAFE) return s.issue;
+    }
+    return result;
+}
 bool access_check_destinations(DiagBag *d,Program *p) {
     uint32_t visits=0; Scan s={.visits=&visits,.issue={.destination=SPAN_NONE,.conflict=SPAN_NONE,.reason="safe"}};
     for (uint32_t m=0;m<p->modules.len && s.issue.status==ACCESS_SAFE;m++)
@@ -178,8 +231,11 @@ bool access_check_destinations(DiagBag *d,Program *p) {
         }
     if (s.issue.status==ACCESS_SAFE) return true;
     Span at=s.issue.destination.file==UINT32_MAX?s.issue.conflict:s.issue.destination;
-    Diag *diagnostic=diag_error(d,401,at,"cannot preserve exclusive projected assignment: %s",s.issue.reason);
+    Diag *diagnostic=diag_error(d,401,at,"cannot preserve %s: %s",
+        s.issue.call_argument?"captured call argument":"exclusive projected assignment",s.issue.reason);
     diag_label(diagnostic,s.issue.conflict,"conflicting or unproven access occurs here");
-    diag_help(diagnostic,"perform the mutation in a separate statement before selecting the destination");
+    diag_help(diagnostic,s.issue.call_argument?
+        "perform the mutation before the call, or copy the intended argument into a separate binding before the mutation":
+        "perform the mutation in a separate statement before selecting the destination");
     return false;
 }

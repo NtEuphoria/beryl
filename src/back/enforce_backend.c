@@ -360,8 +360,18 @@ static void lint_expr(L *l, Expr *x) {
             break;
         case EX_CALL:
             lint_expr(l, x->call.callee);
-            for (uint32_t i = 0; i < x->call.args.len; i++)
-                lint_expr(l, x->call.args.data[i].value);
+            for (uint32_t i = 0; i < x->call.args.len; i++) {
+                Arg *arg = &x->call.args.data[i];
+                if (arg->value && arg->value->kind == EX_SELF &&
+                    (arg->conv == CONV_INOUT || arg->conv == CONV_SET)) {
+                    Diag *dg = diag_error(l->d, 701, arg->span,
+                        "whole `self` cannot be passed `%s` on the enfusion target",
+                        conv_name(arg->conv));
+                    diag_note(dg, "the generated out argument would be `this`, which has no explicit caller-storage replacement boundary");
+                    diag_help(dg, "pass admitted fields individually, or move whole-value replacement into an ordinary function with an explicit parameter");
+                }
+                lint_expr(l, arg->value);
+            }
             break;
         case EX_FIELD: lint_expr(l, x->field.base); break;
         case EX_INDEX:
@@ -396,6 +406,12 @@ static void lint_expr(L *l, Expr *x) {
                     case ST_RETURN:
                     case ST_DEFER: lint_expr(l, s->expr); break;
                     case ST_ASSIGN:
+                        if (s->assign.target && s->assign.target->kind == EX_SELF) {
+                            Diag *dg = diag_error(l->d, 701, s->assign.target->span,
+                                "whole `self` replacement is not supported on the enfusion target");
+                            diag_note(dg, "an EnforceScript method has an implicit instance receiver; replacing `this` does not replace the caller's Beryl value");
+                            diag_help(dg, "assign admitted fields individually, or use an ordinary function with an explicit `inout` or `set` parameter");
+                        }
                         lint_expr(l, s->assign.target);
                         lint_expr(l, s->assign.value);
                         break;
@@ -475,9 +491,17 @@ bool enfusion_lint(DiagBag *d, Program *p, EnfusionOpts o) {
                     break;
                 case IT_FN:
                     if (it->fn.generics.len) break; /* checked after monomorphization */
-                    for (uint32_t q = 0; q < it->fn.params.len; q++)
-                        lint_type(&l, it->fn.params.data[q].rtype,
-                                  it->fn.params.data[q].span, "this parameter");
+                    for (uint32_t q = 0; q < it->fn.params.len; q++) {
+                        Param *pm = &it->fn.params.data[q];
+                        if (pm->is_self && (pm->conv == CONV_SET || pm->conv == CONV_SINK)) {
+                            Diag *dg = diag_error(d, 701, pm->span,
+                                "a `%s self` receiver is not supported on the enfusion target",
+                                conv_name(pm->conv));
+                            diag_note(dg, "the current EnforceScript method receiver cannot initialize caller storage or transfer its logical value");
+                            diag_help(dg, "use an ordinary function with an explicit `%s` parameter; existing value-copy and storage admission rules still apply", conv_name(pm->conv));
+                        }
+                        lint_type(&l, pm->rtype, pm->span, "this parameter");
+                    }
                     lint_type(&l, it->rtype, it->fn.ret ? it->fn.ret->span : it->span,
                               "this return type");
                     lint_expr(&l, it->fn.body);
@@ -760,6 +784,46 @@ static void mapped_span(E *e, SB *json, Span span) {
            span.file, span.offset, span.len, loc.line, loc.col);
 }
 
+/* The orchestrator consumes actual emitter identities rather than maintaining
+ * a second symbol encoder. Only concrete records and emitted free functions
+ * are linkable here; methods retain their existing export interface. */
+static void mapped_linkage(E *e, SB *json) {
+    sb_cstr(json, ",\"linkage_schema_version\":1,\"linkage\":[");
+    bool first = true;
+    for (uint32_t m = 0; m < e->p->modules.len; m++) {
+        Module *mod = e->p->modules.data[m];
+        for (uint32_t i = 0; i < mod->items.len; i++) {
+            Item *it = mod->items.data[i];
+            bool record = it->kind == IT_STRUCT && !it->strukt.generics.len && it->rtype;
+            bool function = it->kind == IT_FN && str_empty(it->fn.recv) &&
+                !it->fn.generics.len && it->fn.body && !str_eq_c(it->name, "main");
+            if (!record && !function) continue;
+            if (!first) sb_char(json, ',');
+            first = false;
+            sb_cstr(json, "{\"declaration\":"); json_string(json, it->qual_name);
+            sb_cstr(json, ",\"kind\":"); json_string(json, str_from(record ? "struct" : "function"));
+            sb_cstr(json, ",\"source\":"); mapped_span(e, json, it->span);
+            if (record) {
+                sb_cstr(json, ",\"class\":"); json_string(json, ef_type(e, it->rtype));
+                sb_cstr(json, ",\"fields\":[");
+                for (uint32_t f = 0; f < it->strukt.fields.len; f++) {
+                    Field *field = &it->strukt.fields.data[f];
+                    if (f) sb_char(json, ',');
+                    sb_cstr(json, "{\"source\":"); json_string(json, field->name);
+                    sb_cstr(json, ",\"name\":"); json_string(json, ef_field(e, field->name));
+                    sb_char(json, '}');
+                }
+                sb_char(json, ']');
+            } else {
+                sb_cstr(json, ",\"holder\":"); json_string(json, ef_module_holder(e, mod));
+                sb_cstr(json, ",\"method\":"); json_string(json, ef_fn_name(e, it));
+            }
+            sb_char(json, '}');
+        }
+    }
+    sb_char(json, ']');
+}
+
 static Str map_json(E *e, Str generated) {
     SB json; sb_init(&json, e->a);
     sb_cstr(&json, "{\"schema_version\":1,\"operation\":\"source_map\",\"target\":\"enfusion\",\"column_unit\":\"byte\"");
@@ -802,7 +866,9 @@ static Str map_json(E *e, Str generated) {
         sb_cstr(&json, "{\"source\":"); json_string(&json, ex->source);
         sb_cstr(&json, ",\"name\":"); json_string(&json, ex->name); sb_char(&json, '}');
     }
-    sb_cstr(&json, "]}\n"); return sb_finish(&json);
+    sb_char(&json, ']');
+    mapped_linkage(e, &json);
+    sb_cstr(&json, "}\n"); return sb_finish(&json);
 }
 
 static Str render_all_mapped(Arena *a, SourceMap *sm, DiagBag *d, Program *p, EnfusionOpts o, Str *mapping) {

@@ -1,10 +1,13 @@
 # P2 — Experimental native IR differential tests
 
-This checkpoint connects the independently evaluated schema-4 IR to the normal
+This checkpoint connects the independently evaluated IR to the normal
 C11 build, process and evidence infrastructure. It is an explicit, instrumented
 test capability. It does not release IR for production programs or select IR
 automatically. See the delivery state for the installed compiler and exact
 receipts; a source implementation alone is not an installed capability.
+The October 14 extension uses schema 5 and adds bounded plain-value
+initialization and access modes; see [its contract and evidence](P2_IR_ACCESS_MODES.md).
+Earlier schema-4 receipts remain historical evidence for their captured inputs.
 
 ## Supported workflow
 
@@ -33,16 +36,20 @@ No Beryl transformation family is released by this work.
 
 ## Admission and compatibility
 
-The admitted categories are bool, signed i32, finite f32, initialized plain
-records, fixed arrays, let/inout calls, supported scalar output, structured
+The admitted categories are bool, signed i32, finite f32, plain
+records, fixed arrays, let/inout/set and whole-root sink calls, supported scalar output, structured
 control flow, checked indexing and the existing numeric intrinsics. Assignment
 and array iteration preserve independent logical values. Arguments, record
 fields, array elements and destination projections follow explicit IR order.
-Immediate `defer` remains immediate.
+Immediate `defer` remains immediate. Source locals may be declared before their
+first initialization; reads require definite initialization. Whole-root moves
+invalidate subsequent reads until reinitialization. Loop back edges must
+preserve the admitted outer-root logical state; more general valid loops may
+remain outside this experimental IR domain.
 
 The existing limits in [P2_IR_ARRAYS.md](P2_IR_ARRAYS.md) still apply. Source
-strings as program values, owning storage, engine objects, set/sink,
-uninitialized locals, optional/error payloads, arbitrary numeric widths,
+strings as program values, owning storage, engine objects, partial moves,
+partial aggregate initialization, optional/error payloads, arbitrary numeric widths,
 aggregate printing and unsupported intrinsics remain outside this profile.
 
 These command combinations remain unavailable or invalid before execution:
@@ -145,7 +152,7 @@ process rows and six admission rejections for every case; missing or duplicated
 rows cannot silently pass.
 
 Production entry points, source-map artifacts, observed-root snapshots, native
-ABI release, Enfusion IR emission, set/sink and independently verified owned
+ABI release, Enfusion IR emission and independently verified owned
 storage remain open. Later work must preserve this reference/evidence path while
 adding each admitted category. No optimization or Rust advantage is established
 by this correctness checkpoint.

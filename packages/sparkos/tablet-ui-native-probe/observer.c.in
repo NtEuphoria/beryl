@@ -1,0 +1,377 @@
+// Trusted distinct N1b/N3 observer. Only actual native callbacks call these
+// overrides. No model, input, gadget, manual callback, or native deletion API.
+class SPK_BerylTabletUIReceipt
+{
+	string failure;
+	bool outside_domain;
+	int checksum, row_count, bytes, owner_count, action_count, frame_count;
+	int delete_count, presuper_count, queue_count, init_count;
+	int after_super_count;
+	bool first_progress_ready, reopen_progress_ready, final_focused;
+	ref array<string> rows = {};
+}
+
+class SPK_BerylTabletUINativeRegistry
+{
+	static const string PROFILE = "sparkos.tablet.ui-native.n1b-n3.source.v1";
+	static const int MAX_ROWS = 12288;
+	static const int MAX_BYTES = 8388608;
+	static const int MAX_FRAMES = 2048;
+	static const int MAX_INVOCATIONS = 8192;
+	static const int MAX_QUEUE = 64;
+	static int s_PendingToken, s_ActionCount, s_FrameCount, s_DeleteCount;
+	static int s_PreSuperCount, s_QueueCount, s_InitCount, s_Checksum, s_Bytes;
+	static int s_InvocationCount, s_RootGeneration;
+	static int s_FirstFocusedFrames, s_ReopenFocusedFrames, s_AfterSuperCount;
+	static string s_Failure;
+	static bool s_OutsideDomain, s_ActionRunning;
+	static bool s_FirstReport, s_FirstTerrain, s_ReopenReport, s_ReopenTerrain;
+	static bool s_FinalFocused, s_AfterSuper1, s_AfterSuper2;
+	static ref array<IEntity> s_Owners = {};
+	static ref array<SPK_BerylTabletUINativeObserver> s_Observers = {};
+	static ref array<string> s_Rows = {};
+	// No inner ref: these are observation equality handles, not new owners.
+	// Their validity after native deletion is never used by Capture().
+	static SPK_TabletUI s_UI;
+	static Widget s_LastRoot;
+
+	static string Boolean(bool value)
+	{
+		if (value) return "1";
+		return "0";
+	}
+
+	static void Fail(string detail)
+	{
+		if (s_Failure == "") s_Failure = detail;
+	}
+
+	static void OutsideDomain(string detail)
+	{
+		if (s_Failure == "") { s_Failure = detail; s_OutsideDomain = true; }
+	}
+
+	static bool Append(string payload, int columns)
+	{
+		if (s_Rows.Count() >= MAX_ROWS) { Fail("UI native row budget exceeded"); return false; }
+		int sequence = s_Rows.Count() + 1;
+		string row = sequence.ToString() + "|" + payload;
+		if (row.Length() < 1 || row.Length() > 1024 || s_Bytes + row.Length() + 1 > MAX_BYTES)
+		{
+			Fail("UI native row byte budget exceeded"); return false;
+		}
+		int count = 1;
+		for (int i = 0; i < row.Length(); i++)
+		{
+			int value = row.ToAscii(i);
+			if (value < 32 || value > 126) { Fail("UI native non-ASCII row"); return false; }
+			if (value == 124) count++;
+		}
+		if (count != columns) { Fail("UI native column mismatch"); return false; }
+		s_Rows.Insert(row);
+		for (int j = 0; j < row.Length(); j++) s_Checksum = (s_Checksum * 31 + row.ToAscii(j)) % 1000003;
+		s_Checksum = (s_Checksum * 31 + 10) % 1000003;
+		s_Bytes = s_Bytes + row.Length() + 1;
+		return true;
+	}
+
+	static int Claim(IEntity owner, SPK_BerylTabletUINativeObserver observer)
+	{
+		int token = s_PendingToken;
+		s_PendingToken = 0;
+		if (!owner || !observer || token < 1 || token > 2 || token != s_Owners.Count() + 1 || s_Observers.Count() != s_Owners.Count() || s_ActionCount != 0)
+		{
+			Fail("UI native unregistered owner/component claim"); return 0;
+		}
+		if (token == 2 && (s_Owners[0] == owner || s_Observers[0] == observer || s_Observers[0].SharesState(observer)))
+		{
+			Fail("UI native owner/component/state identity not independent"); return 0;
+		}
+		s_Owners.Insert(owner);
+		s_Observers.Insert(observer);
+		return token;
+	}
+
+	static bool LiveReady()
+	{
+		if (s_Failure != "" || s_PendingToken != 0 || s_Owners.Count() != 2 || s_Observers.Count() != 2 || s_InitCount != 4 || s_DeleteCount != 0 || !GetGame() || !GetGame().InPlayMode() || !GetGame().GetWorld()) return false;
+		BaseWorld world = GetGame().GetWorld();
+		for (int i = 0; i < 2; i++)
+		{
+			if (!s_Owners[i] || !s_Observers[i] || !s_Observers[i].InitComplete() || s_Observers[i].GetOwner() != s_Owners[i] || s_Owners[i].GetWorld() != world || s_Owners[i].FindComponent(SPK_DroneInputComponent)) return false;
+		}
+		return true;
+	}
+
+	static bool RunAction(int index)
+	{
+		if (index < 0 || index > 6 || index != s_ActionCount || s_ActionRunning || !LiveReady())
+		{
+			Fail("UI native action index/reentry/readiness mismatch"); return false;
+		}
+		SPK_BerylTabletUINativeObserver selected = s_Observers[0];
+		if ((index == 2 && !FirstProgressReady()) || (index == 5 && !ReopenProgressReady()))
+		{
+			Fail("UI native action before required natural progress"); return false;
+		}
+		if (index >= 2 && selected.GetState() != ESPK_TabletState.FOCUSED && index != 4 && index != 6)
+		{
+			OutsideDomain("UI native focused branch unavailable after an actual refused Open");
+			return false;
+		}
+		s_ActionRunning = true;
+		selected.Record("action", 0, "before", 0, false, false, 0);
+		bool hasReturned = true;
+		bool returned;
+		if (index == 0) { selected.SetHeld(true); hasReturned = false; }
+		else if (index == 1 || index == 2 || index == 4) returned = selected.Focus();
+		else if (index == 3) returned = selected.Unfocus();
+		else if (index == 5) { selected.SetHeld(false); hasReturned = false; }
+		else { selected.SetHeld(true); returned = selected.Focus(); }
+		selected.Record("action", 0, "after", 0, hasReturned, returned, 0);
+		if (index == 6) s_FinalFocused = selected.GetState() == ESPK_TabletState.FOCUSED && selected.GetUI() && selected.GetUI().IsOpen();
+		s_ActionRunning = false;
+		s_ActionCount++;
+		if ((index == 1 || index == 4 || index == 6) && !returned)
+			OutsideDomain("UI native actual Focus/Open refusal; focused branch unavailable");
+		return s_Failure == "";
+	}
+
+	static bool FirstProgressReady() { return s_FirstFocusedFrames >= 2 && s_FirstReport && s_FirstTerrain; }
+	static bool ReopenProgressReady() { return s_ReopenFocusedFrames >= 2 && s_ReopenReport && s_ReopenTerrain; }
+	static bool FinalReady()
+	{
+		return LiveReady() && s_ActionCount == 7 && s_FinalFocused && s_Observers[0].GetState() == ESPK_TabletState.FOCUSED && s_Observers[0].GetUI() && s_Observers[0].GetUI().IsOpen() && s_Observers[1].GetState() == ESPK_TabletState.STOWED;
+	}
+
+	static int RootGeneration(SPK_TabletUI ui)
+	{
+		if (!ui) return 0;
+		if (!s_UI) s_UI = ui;
+		if (s_UI != ui) { Fail("UI native managed UI identity replaced"); return 0; }
+		Widget root = ui.GetRoot();
+		if (root && root != s_LastRoot)
+		{
+			if (s_RootGeneration >= 8) { Fail("UI native root generation budget exceeded"); return 0; }
+			s_RootGeneration++;
+			s_LastRoot = root;
+		}
+		return s_RootGeneration;
+	}
+
+	// Actual method entries are recorded without attributing them to an enqueue.
+	// No extra queue parameters, cancelling, ticking, retries, or FIFO assumptions.
+	static void Queue(string kind, SPK_TabletUI ui)
+	{
+		if (!ui || s_QueueCount >= MAX_QUEUE) { Fail("UI native queue observation budget/receiver mismatch"); return; }
+		int rootGeneration = RootGeneration(ui);
+		string row = "queue|" + kind;
+		row += "|ui.1|" + Boolean(ui.GetRoot() != null);
+		row += "|" + rootGeneration.ToString();
+		row += "|" + Boolean(ui.IsOpen());
+		row += "|" + Boolean(ui.HasMap());
+		row += "|" + s_FrameCount.ToString();
+		row += "|" + s_ActionCount.ToString();
+		if (Append(row, 10)) s_QueueCount++;
+		if (s_ActionCount == 2)
+		{
+			if (kind == "exit.ReportRootSize") s_FirstReport = true;
+			if (kind == "exit.RefreshTerrain") s_FirstTerrain = true;
+		}
+		if (s_ActionCount == 5)
+		{
+			if (kind == "exit.ReportRootSize") s_ReopenReport = true;
+			if (kind == "exit.RefreshTerrain") s_ReopenTerrain = true;
+		}
+	}
+
+	// Only a pre-captured integer is used after super.OnDelete returns. This is
+	// a callback-return milestone, not a native pointer or allocation proof.
+	static void AfterSuper(int token)
+	{
+		if (token < 1 || token > 2 || s_AfterSuperCount >= 2 || (token == 1 && s_AfterSuper1) || (token == 2 && s_AfterSuper2))
+		{
+			Fail("UI native duplicate/unregistered after-super scalar milestone"); return;
+		}
+		if (token == 1) s_AfterSuper1 = true;
+		else s_AfterSuper2 = true;
+		s_AfterSuperCount++;
+		string row = "after-super|" + token.ToString();
+		row += "|" + s_AfterSuperCount.ToString();
+		Append(row, 4);
+		Print("[BERYL_UI_NATIVE_DELETE] " + row);
+	}
+
+	// Scalar-only after-stop API: no registry native handles are dereferenced.
+	static SPK_BerylTabletUIReceipt Capture()
+	{
+		ref SPK_BerylTabletUIReceipt result = new SPK_BerylTabletUIReceipt();
+		result.failure = s_Failure;
+		result.outside_domain = s_OutsideDomain;
+		result.checksum = s_Checksum;
+		result.row_count = s_Rows.Count();
+		result.bytes = s_Bytes;
+		result.owner_count = s_Owners.Count();
+		result.action_count = s_ActionCount;
+		result.frame_count = s_FrameCount;
+		result.delete_count = s_DeleteCount;
+		result.presuper_count = s_PreSuperCount;
+		result.queue_count = s_QueueCount;
+		result.init_count = s_InitCount;
+		result.after_super_count = s_AfterSuperCount;
+		result.first_progress_ready = FirstProgressReady();
+		result.reopen_progress_ready = ReopenProgressReady();
+		result.final_focused = s_FinalFocused;
+		for (int i = 0; i < s_Rows.Count(); i++) result.rows.Insert(s_Rows[i]);
+		return result;
+	}
+}
+
+[ComponentEditorProps(category: "BerylExperimental", description: "Native UI and teardown observations")]
+class SPK_BerylTabletUINativeObserverClass : SPK_TabletComponentClass
+{
+}
+
+class SPK_BerylTabletUINativeObserver : SPK_TabletComponent
+{
+	protected int m_ObservationToken;
+	protected bool m_InitComplete;
+	protected bool m_Deleting;
+	protected bool m_PreSuperSeen;
+	protected bool m_InsideFrame;
+	protected float m_CurrentDt;
+
+	bool InitComplete() { return m_InitComplete; }
+	bool SharesState(SPK_BerylTabletUINativeObserver other) { return m_BerylState == other.ReadState(); }
+	@STATE@ ReadState() { return m_BerylState; }
+
+	// Snapshot service getters execute only while the actual callback/action is
+	// live. Retained wire rows contain strings and scalars, not native handles.
+	void Record(string kind, int code, string phase, int invocationId, bool hasReturned, bool returned, float dt)
+	{
+		if (m_ObservationToken < 1 || m_ObservationToken > 2 || !m_BerylState || dt != dt || dt < 0 || dt > 1)
+		{
+			SPK_BerylTabletUINativeRegistry.Fail("UI native invalid observation identity/dt"); return;
+		}
+		float accumulator = m_BerylState.@ACCUMULATOR@;
+		int mode = GetState();
+		if (mode < 0 || mode > 2 || accumulator != accumulator || accumulator < 0 || accumulator >= 0.25)
+		{
+			SPK_BerylTabletUINativeRegistry.Fail("UI native state/numeric observation outside admitted domain"); return;
+		}
+		SPK_TabletUI ui = GetUI();
+		SPK_ScreenRT screen = GetScreen();
+		bool uiOpen, hasMap, rootPresent, screenEnabled, screenWidget;
+		int rootGeneration;
+		string uiIdentity = "none";
+		if (ui)
+		{
+			if (m_ObservationToken != 1) { SPK_BerylTabletUINativeRegistry.Fail("UI native independent owner acquired a UI"); return; }
+			uiIdentity = "ui.1";
+			rootGeneration = SPK_BerylTabletUINativeRegistry.RootGeneration(ui);
+			uiOpen = ui.IsOpen();
+			hasMap = ui.HasMap();
+			rootPresent = ui.GetRoot() != null;
+		}
+		if (screen) { screenEnabled = screen.IsEnabled(); screenWidget = screen.GetWidget() != null; }
+		string row = kind + "|" + m_ObservationToken.ToString();
+		row += "|" + invocationId.ToString();
+		row += "|" + code.ToString();
+		row += "|" + phase;
+		row += "|" + mode.ToString();
+		row += "|" + accumulator.ToString();
+		row += "|" + SPK_BerylTabletUINativeRegistry.Boolean(ui != null);
+		row += "|" + uiIdentity;
+		row += "|" + SPK_BerylTabletUINativeRegistry.Boolean(uiOpen);
+		row += "|" + SPK_BerylTabletUINativeRegistry.Boolean(hasMap);
+		row += "|" + SPK_BerylTabletUINativeRegistry.Boolean(rootPresent);
+		row += "|" + rootGeneration.ToString();
+		row += "|" + SPK_BerylTabletUINativeRegistry.Boolean(screen != null);
+		row += "|" + SPK_BerylTabletUINativeRegistry.Boolean(screenEnabled);
+		row += "|" + SPK_BerylTabletUINativeRegistry.Boolean(screenWidget);
+		row += "|" + SPK_BerylTabletUINativeRegistry.Boolean(hasReturned);
+		row += "|" + SPK_BerylTabletUINativeRegistry.Boolean(returned);
+		row += "|" + dt.ToString();
+		row += "|" + SPK_BerylTabletUINativeRegistry.s_FrameCount.ToString();
+		row += "|" + SPK_BerylTabletUINativeRegistry.s_ActionCount.ToString();
+		row += "|" + SPK_BerylTabletUINativeRegistry.Boolean(m_Deleting);
+		SPK_BerylTabletUINativeRegistry.Append(row, 23);
+		if (kind == "delete" || phase == "pre-super") Print("[BERYL_UI_NATIVE_DELETE] " + row);
+	}
+
+	override void OnPostInit(IEntity owner)
+	{
+		if (m_ObservationToken != 0 || m_InitComplete) SPK_BerylTabletUINativeRegistry.Fail("UI native duplicate initialization");
+		m_ObservationToken = SPK_BerylTabletUINativeRegistry.Claim(owner, this);
+		if (!owner || owner != GetOwner() || !GetGame() || !GetGame().GetWorld() || owner.GetWorld() != GetGame().GetWorld() || owner.FindComponent(SPK_DroneInputComponent))
+			SPK_BerylTabletUINativeRegistry.Fail("UI native initialization owner/world/input mismatch");
+		Record("init", 0, "before", 0, false, false, 0);
+		SPK_BerylTabletUINativeRegistry.s_InitCount++;
+		super.OnPostInit(owner);
+		Record("init", GetEventMask(), "after", 0, false, false, 0);
+		SPK_BerylTabletUINativeRegistry.s_InitCount++;
+		if ((GetEventMask() & EntityEvent.FRAME) == 0) SPK_BerylTabletUINativeRegistry.Fail("UI native FRAME mask not observed");
+		m_InitComplete = SPK_BerylTabletUINativeRegistry.s_Failure == "";
+	}
+
+	override void EOnFrame(IEntity owner, float timeSlice)
+	{
+		if (m_Deleting || !m_InitComplete || m_InsideFrame || owner != GetOwner() || SPK_BerylTabletUINativeRegistry.s_FrameCount >= SPK_BerylTabletUINativeRegistry.MAX_FRAMES)
+		{
+			SPK_BerylTabletUINativeRegistry.Fail("UI native frame readiness/reentry/budget mismatch"); return;
+		}
+		m_InsideFrame = true;
+		m_CurrentDt = timeSlice;
+		SPK_BerylTabletUINativeRegistry.s_FrameCount++;
+		if (m_ObservationToken == 1 && GetState() == ESPK_TabletState.FOCUSED)
+		{
+			if (SPK_BerylTabletUINativeRegistry.s_ActionCount == 2) SPK_BerylTabletUINativeRegistry.s_FirstFocusedFrames++;
+			if (SPK_BerylTabletUINativeRegistry.s_ActionCount == 5) SPK_BerylTabletUINativeRegistry.s_ReopenFocusedFrames++;
+		}
+		Record("frame", 0, "before", 0, false, false, timeSlice);
+		super.EOnFrame(owner, timeSlice);
+		Record("frame", 0, "after", 0, false, false, timeSlice);
+		m_InsideFrame = false;
+		m_CurrentDt = 0;
+	}
+
+	override protected int BerylObserveUiServiceEnter(int code)
+	{
+		if (SPK_BerylTabletUINativeRegistry.s_InvocationCount >= SPK_BerylTabletUINativeRegistry.MAX_INVOCATIONS)
+		{
+			SPK_BerylTabletUINativeRegistry.Fail("UI native service invocation budget exceeded"); return 0;
+		}
+		int invocationId = SPK_BerylTabletUINativeRegistry.s_InvocationCount + 1;
+		SPK_BerylTabletUINativeRegistry.s_InvocationCount = invocationId;
+		Record("service", code, "enter", invocationId, false, false, m_CurrentDt);
+		return invocationId;
+	}
+
+	override protected void BerylObserveUiServiceExit(int code, int invocationId, bool hasReturned, bool returned)
+	{
+		Record("service", code, "exit", invocationId, hasReturned, returned, m_CurrentDt);
+		if (code == 4 && (!hasReturned || returned)) SPK_BerylTabletUINativeRegistry.Fail("UI native input absence changed during actual lookup");
+		if (code == 18 && (!GetScreen() || GetScreen().IsEnabled() || GetScreen().GetWidget())) SPK_BerylTabletUINativeRegistry.Fail("UI native Destroy did not clear script widget/flag");
+	}
+
+	override protected void BerylObserveUiDeletePreSuper()
+	{
+		if (!m_Deleting || m_PreSuperSeen) SPK_BerylTabletUINativeRegistry.Fail("UI native invalid duplicate/pre-delete superclass boundary");
+		m_PreSuperSeen = true;
+		Record("service", 19, "pre-super", 0, false, false, 0);
+		SPK_BerylTabletUINativeRegistry.s_PreSuperCount++;
+	}
+
+	override void OnDelete(IEntity owner)
+	{
+		if (m_Deleting || m_ObservationToken < 1 || m_ObservationToken > 2 || SPK_BerylTabletUINativeRegistry.s_DeleteCount >= 2 || owner != GetOwner())
+			SPK_BerylTabletUINativeRegistry.Fail("UI native deletion identity/cardinality mismatch");
+		m_Deleting = true;
+		Record("delete", 0, "entry", 0, false, false, 0);
+		SPK_BerylTabletUINativeRegistry.s_DeleteCount++;
+		int capturedToken = m_ObservationToken;
+		super.OnDelete(owner);
+		// Deliberately no component/state/owner/UI/screen access after superclass.
+		SPK_BerylTabletUINativeRegistry.AfterSuper(capturedToken);
+	}
+}

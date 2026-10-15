@@ -206,7 +206,7 @@ static Flow region(Run *r,Frame *f,uint32_t id) {
         int64_t result=0; bool aggregate_result=false;
         switch (i->op) {
             case IR_CONST: result=r->p->values.data[i->result].type==IR_F32?(int64_t)i->float_bits:i->immediate; break;
-            case IR_LOAD: {
+            case IR_LOAD: case IR_MOVE: {
                 int64_t *source_cells=place_cells(r,f,i->place,source);
                 if (source_cells) memcpy(value_cells(f,i->result),source_cells,ir_type_cells(r->p,r->p->places.data[i->place].type)*sizeof(int64_t));
                 aggregate_result=true; break;
@@ -239,7 +239,7 @@ static Flow region(Run *r,Frame *f,uint32_t id) {
                 }
                 if (running(r)) invoke(r,i->function,args,value_cells(f,i->result),source); aggregate_result=true; break;
             }
-            case IR_DESTINATION: case IR_CAPTURE: case IR_INDEX_BASE: break; /* capture stability verified independently */
+            case IR_DECLARE: case IR_DESTINATION: case IR_CAPTURE: case IR_INDEX_BASE: break; /* capture stability verified independently */
             case IR_RECORD:
                 for (uint32_t a=0;a<i->args_count;a++) {
                     const IrArgument *arg=&r->p->arguments.data[i->args_start+a]; const IrField *field=&r->p->fields.data[arg->field];

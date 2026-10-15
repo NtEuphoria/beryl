@@ -112,6 +112,50 @@ def main():
             (project / 'pid.be').write_bytes(old_source)
         assert engine['result']['Diagnostics'] == diagnostics
         evidence['checks'].append('source bytes are rechecked and raw engine diagnostics remain unchanged')
+
+        component_project = work / 'component-project'
+        shutil.copytree(ROOT / 'packages/sparkos/tablet-admission', component_project)
+        argv = [sys.executable, ROOT / 'tools/beryl-mod/mod.py', '--beryl', args.beryl.resolve(),
+                'build', '--project', component_project]
+        proc = subprocess.run(list(map(str, argv)), capture_output=True, text=True, encoding='utf-8', timeout=45)
+        evidence['component_build'] = {'argv': list(map(str, argv)), 'exit_code': proc.returncode,
+                                       'stdout': proc.stdout, 'stderr': proc.stderr}
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        built = json.loads(proc.stdout)
+        component_path = Path(built['artifact_path'])
+        component_artifact = mod.parse(mod.read(component_path / 'artifact.json'))
+        component_mapping = mod.parse(mod.read(component_path / 'source-map.json'))
+        component_relative = next(name for name in component_artifact['files'] if name.endswith('_Generated.c'))
+        selected = [next(m for m in component_mapping['mappings'] if m['kind'] == kind)
+                    for kind in ('component_descriptor', 'component_initializer', 'component_handler', 'component_event_mask', 'component_superclass')]
+        component_raw = [dict(File=component_relative, Line=m['generated']['line'], Column=999,
+                              Message='synthetic component diagnostic') for m in selected]
+        def component_associate(manifest=component_artifact):
+            return map_engine_diagnostics(mod, component_path, manifest, {'result': {'Diagnostics': component_raw}},
+                                          component_path / 'addon', source_root=component_project)
+        component_mapped = component_associate()
+        assert component_mapped[0]['mapping_status'] == 'mapped_companion' and component_mapped[0]['original'] is None
+        assert all(item['mapping_status'] == 'mapped_span' for item in component_mapped[1:])
+        assert all(item['raw'] == original for item, original in zip(component_mapped, component_raw))
+        assert all(item['companion']['json_pointer'].startswith('/components/0/') for item in component_mapped)
+        assert all(item['column_mapping'].startswith('unavailable') for item in component_mapped)
+        evidence['checks'].append('actual generated scalar component maps descriptor, initializer, handler, event-mask and superclass lines without column guesses')
+        component_original = (component_path / 'source-map.json').read_bytes()
+        for key, value in (('expected_value', 'WrongIdentity'), ('identity_kind', 'unknown'), ('json_pointer', '/components/0/state')):
+            bad = copy.deepcopy(component_mapping)
+            next(m for m in bad['mappings'] if m['kind'] == 'component_descriptor')['companion'][key] = value
+            data = mod.canonical(bad)
+            (component_path / 'source-map.json').write_bytes(data)
+            mutant = copy.deepcopy(component_artifact)
+            mutant['sidecars']['source-map.json'] = mod.digest(data)
+            try:
+                component_associate(mutant)
+            except mod.Failure:
+                pass
+            else:
+                raise AssertionError('invalid component identity origin accepted')
+        (component_path / 'source-map.json').write_bytes(component_original)
+        evidence['checks'].append('changed component identity, association kind and JSON pointer are rejected even with a recomputed sidecar hash')
         assert mod.digest(mod.read(ROOT / 'tools/beryl-mod/source_maps.py')) == evidence['mapper_sha256']
         evidence['status'] = 'success'
     except BaseException as exc:

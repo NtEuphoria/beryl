@@ -13,6 +13,20 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
+
+/* Every guard below is false on every step of a correct program, so the branch
+ * predictor and the block layout should both assume that. `cold` keeps the trap
+ * bodies and their argument setup out of the straight-line path; it does not
+ * change when a trap fires. Both are hints, not semantics: a compiler without
+ * them produces identical behavior. */
+#if defined(__GNUC__) || defined(__clang__)
+#define BE_COLD __attribute__((cold))
+#define BE_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+#define BE_COLD
+#define BE_UNLIKELY(x) (x)
+#endif
 
 /* ---- strings ----------------------------------------------------------- */
 
@@ -27,17 +41,17 @@ typedef struct {
  * outright. Comparison is by content, which is what the language promises. */
 static inline bool be_str_eq(BeStr a, BeStr b) {
     if (a.len != b.len) return false;
-    for (uint32_t i = 0; i < a.len; i++)
-        if (a.ptr[i] != b.ptr[i]) return false;
-    return true;
+    /* `memcmp` on a null pointer is undefined even for zero length, and an
+     * empty `str` carries a null base, so the length test comes first. */
+    return a.len == 0 || memcmp(a.ptr, b.ptr, a.len) == 0;
 }
 
 /* ---- traps ------------------------------------------------------------- */
 
-_Noreturn void beryl_trap_overflow(const char *file, int line, const char *op);
-_Noreturn void beryl_trap_bounds(const char *file, int line, int64_t idx, int64_t len);
-_Noreturn void beryl_trap_div_zero(const char *file, int line);
-_Noreturn void beryl_panic(const char *msg, const char *file, int line);
+BE_COLD _Noreturn void beryl_trap_overflow(const char *file, int line, const char *op);
+BE_COLD _Noreturn void beryl_trap_bounds(const char *file, int line, int64_t idx, int64_t len);
+BE_COLD _Noreturn void beryl_trap_div_zero(const char *file, int line);
+BE_COLD _Noreturn void beryl_panic(const char *msg, const char *file, int line);
 
 /* ---- debug output ------------------------------------------------------ */
 /* `print` is the one piece of ambient authority Beryl grants, matching
@@ -73,7 +87,7 @@ void beryl_test_root_i32(uint32_t file, uint32_t offset, const int32_t *data, ui
 
 void *beryl_grow(void *p, size_t bytes);
 void  beryl_release(void *p);
-_Noreturn void beryl_allocation_size_failure(void);
+BE_COLD _Noreturn void beryl_allocation_size_failure(void);
 
 /* Pure capacity planning, independently testable without a large allocation.
  * Output arguments are unchanged on invalid input or exhausted capacity.
@@ -99,7 +113,7 @@ static inline bool be_list_growth_plan(int32_t len, int32_t cap, size_t elem,
 /* ---- bounds ------------------------------------------------------------ */
 
 static inline int64_t be_idx(int64_t i, int64_t n, const char *f, int l) {
-    if (i < 0 || i >= n) beryl_trap_bounds(f, l, i, n);
+    if (BE_UNLIKELY(i < 0 || i >= n)) beryl_trap_bounds(f, l, i, n);
     return i;
 }
 
@@ -112,32 +126,34 @@ static inline int64_t be_idx(int64_t i, int64_t n, const char *f, int l) {
 #define BE_ARITH(T, S, MINV)                                                               \
     static inline T be_add_##S(T a, T b, const char *f, int l) {                           \
         T r;                                                                               \
-        if (__builtin_add_overflow(a, b, &r)) beryl_trap_overflow(f, l, "+");              \
+        if (BE_UNLIKELY(__builtin_add_overflow(a, b, &r))) beryl_trap_overflow(f, l, "+"); \
         return r;                                                                          \
     }                                                                                      \
     static inline T be_sub_##S(T a, T b, const char *f, int l) {                           \
         T r;                                                                               \
-        if (__builtin_sub_overflow(a, b, &r)) beryl_trap_overflow(f, l, "-");              \
+        if (BE_UNLIKELY(__builtin_sub_overflow(a, b, &r))) beryl_trap_overflow(f, l, "-"); \
         return r;                                                                          \
     }                                                                                      \
     static inline T be_mul_##S(T a, T b, const char *f, int l) {                           \
         T r;                                                                               \
-        if (__builtin_mul_overflow(a, b, &r)) beryl_trap_overflow(f, l, "*");              \
+        if (BE_UNLIKELY(__builtin_mul_overflow(a, b, &r))) beryl_trap_overflow(f, l, "*"); \
         return r;                                                                          \
     }                                                                                      \
     static inline T be_div_##S(T a, T b, const char *f, int l) {                           \
-        if (b == 0) beryl_trap_div_zero(f, l);                                             \
-        if (MINV != 0 && a == (T)MINV && b == (T)-1) beryl_trap_overflow(f, l, "/");       \
+        if (BE_UNLIKELY(b == 0)) beryl_trap_div_zero(f, l);                                \
+        if (BE_UNLIKELY(MINV != 0 && a == (T)MINV && b == (T)-1))                          \
+            beryl_trap_overflow(f, l, "/");                                                \
         return (T)(a / b);                                                                 \
     }                                                                                      \
     static inline T be_rem_##S(T a, T b, const char *f, int l) {                           \
-        if (b == 0) beryl_trap_div_zero(f, l);                                             \
-        if (MINV != 0 && a == (T)MINV && b == (T)-1) return 0;                             \
+        if (BE_UNLIKELY(b == 0)) beryl_trap_div_zero(f, l);                                \
+        if (BE_UNLIKELY(MINV != 0 && a == (T)MINV && b == (T)-1)) return 0;                \
         return (T)(a % b);                                                                 \
     }                                                                                      \
     static inline T be_neg_##S(T a, const char *f, int l) {                                \
         T r;                                                                               \
-        if (__builtin_sub_overflow((T)0, a, &r)) beryl_trap_overflow(f, l, "-");           \
+        if (BE_UNLIKELY(__builtin_sub_overflow((T)0, a, &r)))                              \
+            beryl_trap_overflow(f, l, "-");                                                \
         return r;                                                                          \
     }
 
@@ -216,11 +232,11 @@ BE_WRAP(uint64_t, uint64_t, u64, 0, UINT64_MAX)
 /* Shifts: a shift by >= the width is undefined in C, so it traps here. */
 #define BE_SHIFT(T, S, BITS)                                                               \
     static inline T be_shl_##S(T a, T b, const char *f, int l) {                           \
-        if ((uint64_t)b >= (BITS)) beryl_trap_overflow(f, l, "<<");                        \
+        if (BE_UNLIKELY((uint64_t)b >= (BITS))) beryl_trap_overflow(f, l, "<<");           \
         return (T)((uint64_t)a << (uint64_t)b);                                             \
     }                                                                                      \
     static inline T be_shr_##S(T a, T b, const char *f, int l) {                           \
-        if ((uint64_t)b >= (BITS)) beryl_trap_overflow(f, l, ">>");                        \
+        if (BE_UNLIKELY((uint64_t)b >= (BITS))) beryl_trap_overflow(f, l, ">>");           \
         return (T)(a >> b);                                                                \
     }
 
@@ -297,41 +313,117 @@ static inline BeVec4 be_vec4(float x, float y, float z, float w) {
 
 /* Component-wise arithmetic and scaling. Float arithmetic is unchecked
  * IEEE-754 here exactly as it is for scalars (SPEC §9), so a zero divisor
- * yields an infinity rather than trapping. */
+ * yields an infinity rather than trapping.
+ *
+ * Clang evaluates the lanes in a 4-wide vector temporary. The stored union
+ * (named components and `.v[]`) stays a plain float array so sizeof and
+ * alignment do not change. */
+#if defined(__clang__)
+typedef float BeF32x4 __attribute__((ext_vector_type(4)));
+static inline BeF32x4 be_f32x4_load(const float *p, int n) {
+    BeF32x4 v = (BeF32x4){0, 0, 0, 0};
+    if (n > 0) v[0] = p[0];
+    if (n > 1) v[1] = p[1];
+    if (n > 2) v[2] = p[2];
+    if (n > 3) v[3] = p[3];
+    return v;
+}
+static inline void be_f32x4_store(float *p, BeF32x4 v, int n) {
+    if (n > 0) p[0] = v[0];
+    if (n > 1) p[1] = v[1];
+    if (n > 2) p[2] = v[2];
+    if (n > 3) p[3] = v[3];
+}
+static inline void be_lane_add(float *r, const float *a, const float *b, int n) {
+    be_f32x4_store(r, be_f32x4_load(a, n) + be_f32x4_load(b, n), n);
+}
+static inline void be_lane_sub(float *r, const float *a, const float *b, int n) {
+    be_f32x4_store(r, be_f32x4_load(a, n) - be_f32x4_load(b, n), n);
+}
+static inline void be_lane_mul(float *r, const float *a, const float *b, int n) {
+    be_f32x4_store(r, be_f32x4_load(a, n) * be_f32x4_load(b, n), n);
+}
+static inline void be_lane_div(float *r, const float *a, const float *b, int n) {
+    be_f32x4_store(r, be_f32x4_load(a, n) / be_f32x4_load(b, n), n);
+}
+static inline void be_lane_scale(float *r, const float *a, float s, int n) {
+    be_f32x4_store(r, be_f32x4_load(a, n) * s, n);
+}
+static inline void be_lane_unscale(float *r, const float *a, float s, int n) {
+    be_f32x4_store(r, be_f32x4_load(a, n) / s, n);
+}
+static inline void be_lane_neg(float *r, const float *a, int n) {
+    be_f32x4_store(r, -be_f32x4_load(a, n), n);
+}
+static inline float be_lane_dot(const float *a, const float *b, int n) {
+    BeF32x4 p = be_f32x4_load(a, n) * be_f32x4_load(b, n);
+    float s = 0;
+    for (int i = 0; i < n; i++) s += p[i];
+    return s;
+}
+#else
+static inline void be_lane_add(float *r, const float *a, const float *b, int n) {
+    for (int i = 0; i < n; i++) r[i] = a[i] + b[i];
+}
+static inline void be_lane_sub(float *r, const float *a, const float *b, int n) {
+    for (int i = 0; i < n; i++) r[i] = a[i] - b[i];
+}
+static inline void be_lane_mul(float *r, const float *a, const float *b, int n) {
+    for (int i = 0; i < n; i++) r[i] = a[i] * b[i];
+}
+static inline void be_lane_div(float *r, const float *a, const float *b, int n) {
+    for (int i = 0; i < n; i++) r[i] = a[i] / b[i];
+}
+static inline void be_lane_scale(float *r, const float *a, float s, int n) {
+    for (int i = 0; i < n; i++) r[i] = a[i] * s;
+}
+static inline void be_lane_unscale(float *r, const float *a, float s, int n) {
+    for (int i = 0; i < n; i++) r[i] = a[i] / s;
+}
+static inline void be_lane_neg(float *r, const float *a, int n) {
+    for (int i = 0; i < n; i++) r[i] = -a[i];
+}
+static inline float be_lane_dot(const float *a, const float *b, int n) {
+    float s = 0;
+    for (int i = 0; i < n; i++) s += a[i] * b[i];
+    return s;
+}
+#endif
+
 #define BE_VEC_OPS(T, S, N)                                                                \
     static inline T be_##S##_add(T a, T b) {                                               \
         T r;                                                                               \
-        for (int i = 0; i < (N); i++) r.v[i] = a.v[i] + b.v[i];                            \
+        be_lane_add(r.v, a.v, b.v, (N));                                                   \
         return r;                                                                          \
     }                                                                                      \
     static inline T be_##S##_sub(T a, T b) {                                               \
         T r;                                                                               \
-        for (int i = 0; i < (N); i++) r.v[i] = a.v[i] - b.v[i];                            \
+        be_lane_sub(r.v, a.v, b.v, (N));                                                   \
         return r;                                                                          \
     }                                                                                      \
     static inline T be_##S##_mul(T a, T b) {                                               \
         T r;                                                                               \
-        for (int i = 0; i < (N); i++) r.v[i] = a.v[i] * b.v[i];                            \
+        be_lane_mul(r.v, a.v, b.v, (N));                                                   \
         return r;                                                                          \
     }                                                                                      \
     static inline T be_##S##_div(T a, T b) {                                               \
         T r;                                                                               \
-        for (int i = 0; i < (N); i++) r.v[i] = a.v[i] / b.v[i];                            \
+        be_lane_div(r.v, a.v, b.v, (N));                                                   \
         return r;                                                                          \
     }                                                                                      \
     static inline T be_##S##_scale(T a, float s) {                                         \
         T r;                                                                               \
-        for (int i = 0; i < (N); i++) r.v[i] = a.v[i] * s;                                 \
+        be_lane_scale(r.v, a.v, s, (N));                                                   \
         return r;                                                                          \
     }                                                                                      \
     static inline T be_##S##_unscale(T a, float s) {                                       \
         T r;                                                                               \
-        for (int i = 0; i < (N); i++) r.v[i] = a.v[i] / s;                                 \
+        be_lane_unscale(r.v, a.v, s, (N));                                                 \
         return r;                                                                          \
     }                                                                                      \
     static inline T be_##S##_neg(T a) {                                                    \
         T r;                                                                               \
-        for (int i = 0; i < (N); i++) r.v[i] = -a.v[i];                                    \
+        be_lane_neg(r.v, a.v, (N));                                                        \
         return r;                                                                          \
     }                                                                                      \
     static inline bool be_##S##_eq(T a, T b) {                                             \
@@ -340,9 +432,7 @@ static inline BeVec4 be_vec4(float x, float y, float z, float w) {
         return true;                                                                       \
     }                                                                                      \
     static inline float be_##S##_dot(T a, T b) {                                           \
-        float s = 0;                                                                       \
-        for (int i = 0; i < (N); i++) s += a.v[i] * b.v[i];                                \
-        return s;                                                                          \
+        return be_lane_dot(a.v, b.v, (N));                                                 \
     }                                                                                      \
     static inline float be_##S##_length_sq(T a) { return be_##S##_dot(a, a); }             \
     static inline float be_##S##_length(T a) {                                             \

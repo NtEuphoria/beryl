@@ -1,0 +1,487 @@
+// Trusted installed N1a transport. Native prefab creation owns OnPostInit.
+// Seven original public actions run once in the verified native world.
+// Only frozen scalar records are read after the edit-mode handoff.
+class BerylTabletRealServicesLoadState
+{
+    static string token = "@TOKEN@";
+    static string sourceHash = "@SOURCE_SHA256@";
+    static int requested, submitted, entered, resumed, returned;
+    static bool accepted;
+    static string failure;
+}
+
+void Beryl_OpenTabletRealServicesWorld()
+{
+    if (BerylTabletRealServicesLoadState.token != "@TOKEN@" || BerylTabletRealServicesLoadState.sourceHash != "@SOURCE_SHA256@" || BerylTabletRealServicesLoadState.requested != 1 || BerylTabletRealServicesLoadState.entered != 0)
+    { BerylTabletRealServicesLoadState.failure = "Unexpected deferred tablet world worker entry or identity reset"; return; }
+    BerylTabletRealServicesLoadState.entered = 1;
+    Print("BERYL_TABLET_REAL_SERVICES_LOAD|@TOKEN@|entered");
+    Sleep(200);
+    if (BerylTabletRealServicesLoadState.token != "@TOKEN@" || BerylTabletRealServicesLoadState.sourceHash != "@SOURCE_SHA256@" || BerylTabletRealServicesLoadState.submitted != 1 || BerylTabletRealServicesLoadState.entered != 1 || BerylTabletRealServicesLoadState.resumed != 0 || BerylTabletRealServicesLoadState.returned != 0)
+    { BerylTabletRealServicesLoadState.failure = "Unexpected deferred tablet world worker resumption or state reset"; return; }
+    BerylTabletRealServicesLoadState.resumed = 1;
+    Print("BERYL_TABLET_REAL_SERVICES_LOAD|@TOKEN@|resumed");
+    // All native references are acquired after the only yield.
+    string workerProject = Workbench.GetCurrentGameProjectFile();
+    workerProject.Replace("\\", "/");
+    // This native API reports the loaded base game project, not the addon gproj.
+    if (workerProject != "@CURRENT_GAME_PROJECT@")
+    { BerylTabletRealServicesLoadState.failure = "Deferred service opener base game project differs from the pinned observation"; return; }
+    WorldEditor editor = Workbench.GetModule(WorldEditor);
+    WorldEditorAPI api;
+    if (editor) api = editor.GetApi();
+    string absoluteWorld;
+    bool resolved = Workbench.GetAbsolutePath("$BerylTabletRealServicesN1aPrototype:worlds/BerylTabletRealServicesN1a.ent", absoluteWorld, true);
+    string normalizedWorld = absoluteWorld;
+    normalizedWorld.Replace("\\", "/");
+    if (!editor || !api || !resolved || normalizedWorld != "@WORLD_ABSOLUTE@" || (GetGame() && GetGame().InPlayMode()))
+    { BerylTabletRealServicesLoadState.failure = "Deferred tablet opener lost editor, owned world or edit precondition"; return; }
+    ResourceName registered = Workbench.GetResourceName(absoluteWorld);
+    string registeredAbsolute;
+    bool registeredResolved;
+    if (registered != "") registeredResolved = Workbench.GetAbsolutePath(registered.GetPath(), registeredAbsolute, true);
+    registeredAbsolute.Replace("\\", "/");
+    if (registered != "{BE71571A20261010}worlds/BerylTabletRealServicesN1a.ent" || !registeredResolved || registeredAbsolute != "@WORLD_ABSOLUTE@" || !api.IsEditMode() || api.IsGameMode())
+    { BerylTabletRealServicesLoadState.failure = "Deferred tablet opener registration or mode differs from pinned inputs"; return; }
+    string observedPath;
+    api.GetWorldPath(observedPath);
+    if (observedPath != "")
+    {
+        string observedAbsolute;
+        bool observedResolved = Workbench.GetAbsolutePath(observedPath, observedAbsolute, true);
+        observedAbsolute.Replace("\\", "/");
+        if (!observedResolved || observedAbsolute != "@WORLD_ABSOLUTE@")
+        { BerylTabletRealServicesLoadState.failure = "Another native world is active in the deferred tablet opener"; return; }
+    }
+    Print("BERYL_TABLET_REAL_SERVICES_LOAD|@TOKEN@|native-call");
+    bool accepted = editor.SetOpenedResource(absoluteWorld);
+    if (BerylTabletRealServicesLoadState.token != "@TOKEN@" || BerylTabletRealServicesLoadState.sourceHash != "@SOURCE_SHA256@" || BerylTabletRealServicesLoadState.requested != 1 || BerylTabletRealServicesLoadState.submitted != 1 || BerylTabletRealServicesLoadState.entered != 1 || BerylTabletRealServicesLoadState.resumed != 1 || BerylTabletRealServicesLoadState.returned != 0)
+    { BerylTabletRealServicesLoadState.failure = "Deferred tablet opener returned into reset state"; return; }
+    BerylTabletRealServicesLoadState.accepted = accepted;
+    BerylTabletRealServicesLoadState.returned = 1;
+    if (!accepted) BerylTabletRealServicesLoadState.failure = "Deferred owned tablet world load request refused";
+    Print("BERYL_TABLET_REAL_SERVICES_LOAD|@TOKEN@|returned");
+}
+
+class BerylTabletRealServicesNativeRequest : JsonApiStruct
+{
+    string token, action;
+    void BerylTabletRealServicesNativeRequest() { RegV("token"); RegV("action"); }
+}
+
+class BerylTabletRealServicesNativeResponse : JsonApiStruct
+{
+    string token, action, status, failure, profile, source_contract_sha256, source_sha256, wire_contract_sha256;
+    string world_path, current_project, addon_world_path, world_absolute_path;
+    string resource_name, resource_path, resource_absolute_path;
+    bool addon_world_resolved, world_path_resolved, resource_name_resolved;
+    bool module_present, api_present, module_open_requested, module_open_accepted;
+    bool load_accepted, world_matches, edit_mode, game_mode, in_play_mode;
+    bool world_present, game_world_present, actions_ready, stop_requested, outside_domain;
+    int schema_version, load_requested, load_submitted, load_entered, load_resumed, load_returned;
+    int phase, executed, failures, owner_count, row_count, checksum, init_count, init_checksum, raw_bytes;
+    ref array<string> caseIds = {};
+    ref array<string> rows = {};
+    ref array<string> init_rows = {};
+    void BerylTabletRealServicesNativeResponse()
+    {
+        RegV("token"); RegV("action"); RegV("status"); RegV("failure"); RegV("profile");
+        RegV("source_contract_sha256"); RegV("source_sha256"); RegV("wire_contract_sha256"); RegV("schema_version");
+        RegV("world_path"); RegV("current_project"); RegV("addon_world_path"); RegV("world_absolute_path");
+        RegV("resource_name"); RegV("resource_path"); RegV("resource_absolute_path");
+        RegV("addon_world_resolved"); RegV("world_path_resolved"); RegV("resource_name_resolved");
+        RegV("module_present"); RegV("api_present"); RegV("module_open_requested"); RegV("module_open_accepted");
+        RegV("load_requested"); RegV("load_submitted"); RegV("load_entered"); RegV("load_resumed"); RegV("load_returned"); RegV("load_accepted");
+        RegV("world_matches"); RegV("edit_mode"); RegV("game_mode"); RegV("in_play_mode");
+        RegV("world_present"); RegV("game_world_present"); RegV("actions_ready"); RegV("stop_requested"); RegV("outside_domain");
+        RegV("phase"); RegV("executed"); RegV("failures"); RegV("owner_count"); RegV("row_count"); RegV("checksum");
+        RegV("init_count"); RegV("init_checksum"); RegV("raw_bytes"); RegV("caseIds"); RegV("rows"); RegV("init_rows");
+    }
+}
+
+class BerylTabletRealServicesNative : NetApiHandler
+{
+    protected static bool s_ModuleRequested, s_ModuleAccepted, s_ResourceRequested, s_PlayRequested, s_StopRequested, s_RunRequested;
+    protected static bool s_OutsideDomain;
+    protected static string s_LoadFailure, s_TraceFailure;
+    protected static int s_Phase;
+    protected static ref SPK_BerylN1WireReceipt s_InitFrozen;
+    protected static ref SPK_BerylN1WireReceipt s_Frozen;
+
+    protected static bool FreshRegistry()
+    {
+        if (SPK_BerylTabletRealServiceRegistry.s_PendingToken != 0 || SPK_BerylTabletRealServiceRegistry.s_Failure != "" || SPK_BerylTabletRealServiceRegistry.s_OutsideDomain)
+            return false;
+        if (SPK_BerylTabletRealServiceRegistry.s_RunRequested || SPK_BerylTabletRealServiceRegistry.s_Running || SPK_BerylTabletRealServiceRegistry.s_Completed || SPK_BerylTabletRealServiceRegistry.s_Observing || SPK_BerylTabletRealServiceRegistry.s_InvocationCount != 0)
+            return false;
+        if (SPK_BerylTabletRealServiceRegistry.s_Owners.Count() != 0 || SPK_BerylTabletRealServiceRegistry.s_States.Count() != 0 || SPK_BerylTabletRealServiceRegistry.s_Observers.Count() != 0 || SPK_BerylTabletRealServiceRegistry.s_InitWitnesses.Count() != 0 || SPK_BerylTabletRealServiceRegistry.s_Events.Count() != 0 || SPK_BerylTabletRealServiceRegistry.s_Records.Count() != 0)
+            return false;
+        return true;
+    }
+
+    protected static bool ValidateInitWitnesses()
+    {
+        if (SPK_BerylTabletRealServiceRegistry.s_PendingToken != 0 || SPK_BerylTabletRealServiceRegistry.s_Failure != "" || SPK_BerylTabletRealServiceRegistry.s_Owners.Count() != 2 || SPK_BerylTabletRealServiceRegistry.s_States.Count() != 2 || SPK_BerylTabletRealServiceRegistry.s_Observers.Count() != 2 || SPK_BerylTabletRealServiceRegistry.s_InitWitnesses.Count() != 4)
+            return false;
+        for (int i = 0; i < 4; i++)
+        {
+            SPK_BerylN1InitWitness witness = SPK_BerylTabletRealServiceRegistry.s_InitWitnesses[i];
+            int expectedToken = 1;
+            if (i >= 2) expectedToken = 2;
+            string expectedStage = "init.before";
+            if (i == 1 || i == 3) expectedStage = "init.after";
+            if (!witness || witness.token != expectedToken || witness.stage != expectedStage || !witness.owner_matches || !witness.owner_world_present || !witness.game_world_present || !witness.owner_is_game_world || !witness.state_present || !witness.same_state || witness.mode != 0 || witness.accumulator != 0 || !witness.ui_absent || !witness.screen_absent)
+                return false;
+            if (witness.independence_observed != (expectedToken == 2) || (witness.independence_observed && !witness.independent_state))
+                return false;
+            if (expectedStage == "init.after" && (witness.mask & EntityEvent.FRAME) == 0)
+                return false;
+        }
+        return true;
+    }
+
+    // Called only before stop, under the current owned play/world observations.
+    protected static bool ValidateLiveOwners()
+    {
+        if (!GetGame() || !GetGame().InPlayMode() || !GetGame().GetWorld() || !ValidateInitWitnesses())
+            return false;
+        BaseWorld currentWorld = GetGame().GetWorld();
+        for (int i = 0; i < 2; i++)
+        {
+            IEntity owner = SPK_BerylTabletRealServiceRegistry.s_Owners[i];
+            SPK_BerylTabletRealServicesObserver observer = SPK_BerylTabletRealServiceRegistry.s_Observers[i];
+            if (!owner || !observer || !SPK_BerylTabletRealServiceRegistry.s_States[i] || owner.GetWorld() != currentWorld || owner.FindComponent(SPK_BerylTabletRealServicesObserver) != observer || !observer.InitComplete() || !observer.ClaimMatchesOwner())
+                return false;
+        }
+        return true;
+    }
+
+    protected static string NullableToken(SPK_BerylN1Token value)
+    {
+        if (!value) return "none";
+        return value.value;
+    }
+
+    protected static bool SameSnapshot(SPK_BerylN1Snapshot a, SPK_BerylN1Snapshot b)
+    {
+        if (!a || !b || a.owner != b.owner || a.state != b.state || a.mode != b.mode || a.accumulator != b.accumulator || NullableToken(a.ui) != NullableToken(b.ui) || NullableToken(a.screen) != NullableToken(b.screen) || NullableToken(a.widget) != NullableToken(b.widget))
+            return false;
+        if ((a.screen_enabled != null) != (b.screen_enabled != null)) return false;
+        if (a.screen_enabled && a.screen_enabled.value != b.screen_enabled.value) return false;
+        return true;
+    }
+
+    protected static bool ValidateFinalLiveState()
+    {
+        if (!ValidateLiveOwners() || !SPK_BerylTabletRealServiceRegistry.s_Completed || SPK_BerylTabletRealServiceRegistry.s_Running || SPK_BerylTabletRealServiceRegistry.s_Observing || SPK_BerylTabletRealServiceRegistry.s_Records.Count() != 7)
+            return false;
+        SPK_BerylN1ActionRecord last = SPK_BerylTabletRealServiceRegistry.s_Records[6];
+        if (!last || last.after.Count() != 2) return false;
+        for (int i = 0; i < 2; i++)
+        {
+            SPK_BerylN1Snapshot current = SPK_BerylTabletRealServiceRegistry.s_Observers[i].Snapshot();
+            if (!SameSnapshot(last.after[i], current)) return false;
+        }
+        return SPK_BerylTabletRealServiceRegistry.s_Failure == "";
+    }
+
+    protected static SPK_BerylN1WireReceipt CopyReceipt(SPK_BerylN1WireReceipt source)
+    {
+        if (!source) return null;
+        ref SPK_BerylN1WireReceipt result = new SPK_BerylN1WireReceipt();
+        result.complete = source.complete; result.outside_domain = source.outside_domain; result.failure = source.failure;
+        result.owner_count = source.owner_count; result.row_count = source.row_count; result.checksum = source.checksum; result.raw_bytes = source.raw_bytes;
+        result.init_count = source.init_count; result.init_checksum = source.init_checksum;
+        foreach (string row : source.rows) result.rows.Insert(row);
+        foreach (string caseId : source.caseIds) result.caseIds.Insert(caseId);
+        foreach (string initRow : source.init_rows) result.init_rows.Insert(initRow);
+        return result;
+    }
+
+    protected static bool SameInitialization(SPK_BerylN1WireReceipt a, SPK_BerylN1WireReceipt b)
+    {
+        if (!a || !b || a.failure != "" || b.failure != "" || a.outside_domain || b.outside_domain || a.owner_count != 2 || b.owner_count != 2 || a.init_count != 4 || b.init_count != 4 || a.init_checksum != b.init_checksum || a.init_rows.Count() != 4 || b.init_rows.Count() != 4)
+            return false;
+        for (int i = 0; i < 4; i++)
+            if (a.init_rows[i] != b.init_rows[i]) return false;
+        return true;
+    }
+
+    protected static bool SameReceipt(SPK_BerylN1WireReceipt a, SPK_BerylN1WireReceipt b)
+    {
+        if (!SameInitialization(a, b) || !a.complete || !b.complete || a.row_count != 44 || b.row_count != 44 || a.rows.Count() != 44 || b.rows.Count() != 44 || a.caseIds.Count() != 7 || b.caseIds.Count() != 7 || a.checksum != b.checksum || a.raw_bytes != b.raw_bytes)
+            return false;
+        for (int i = 0; i < 44; i++)
+            if (a.rows[i] != b.rows[i]) return false;
+        for (int j = 0; j < 7; j++)
+            if (a.caseIds[j] != b.caseIds[j]) return false;
+        return true;
+    }
+
+    protected static void RecordFailure(SPK_BerylN1WireReceipt capture, string fallback)
+    {
+        if (s_TraceFailure != "") return;
+        if (capture && capture.failure != "")
+        {
+            s_TraceFailure = capture.failure;
+            s_OutsideDomain = capture.outside_domain;
+        }
+        else s_TraceFailure = fallback;
+    }
+
+    protected static void FailureResponse(BerylTabletRealServicesNativeResponse resp)
+    {
+        resp.status = "failure";
+        if (s_OutsideDomain) resp.status = "unavailable";
+        resp.outside_domain = s_OutsideDomain;
+        resp.failure = s_TraceFailure; resp.failures = 1; resp.executed = 0;
+        resp.actions_ready = false; resp.row_count = 0; resp.checksum = 0; resp.raw_bytes = 0;
+        resp.init_count = 0; resp.init_checksum = 0;
+        resp.rows.Clear(); resp.caseIds.Clear(); resp.init_rows.Clear();
+    }
+
+    protected static void PublishInitialization(BerylTabletRealServicesNativeResponse resp)
+    {
+        if (!s_InitFrozen) return;
+        resp.owner_count = s_InitFrozen.owner_count;
+        resp.init_count = s_InitFrozen.init_count; resp.init_checksum = s_InitFrozen.init_checksum;
+        foreach (string row : s_InitFrozen.init_rows) resp.init_rows.Insert(row);
+    }
+
+    protected static void PublishFrozen(BerylTabletRealServicesNativeResponse resp)
+    {
+        resp.init_rows.Clear();
+        resp.owner_count = s_Frozen.owner_count; resp.actions_ready = true; resp.executed = 7;
+        resp.row_count = s_Frozen.row_count; resp.checksum = s_Frozen.checksum; resp.raw_bytes = s_Frozen.raw_bytes;
+        resp.init_count = s_Frozen.init_count; resp.init_checksum = s_Frozen.init_checksum;
+        foreach (string row : s_Frozen.rows) resp.rows.Insert(row);
+        foreach (string caseId : s_Frozen.caseIds) resp.caseIds.Insert(caseId);
+        foreach (string initRow : s_Frozen.init_rows) resp.init_rows.Insert(initRow);
+    }
+
+    // Scalar-only from phase3 onward. Capture reads plain record fields/counts;
+    // it never follows retained owner, component, State, screen or widget refs.
+    protected static void Progress(BerylTabletRealServicesNativeResponse resp)
+    {
+        resp.phase = s_Phase; resp.stop_requested = s_StopRequested;
+        resp.owner_count = SPK_BerylTabletRealServiceRegistry.s_Owners.Count();
+        if (s_TraceFailure == "" && SPK_BerylTabletRealServiceRegistry.s_Failure != "")
+        {
+            s_TraceFailure = SPK_BerylTabletRealServiceRegistry.s_Failure;
+            s_OutsideDomain = SPK_BerylTabletRealServiceRegistry.s_OutsideDomain;
+        }
+        if (s_Phase == 2 && !s_RunRequested && s_TraceFailure == "")
+        {
+            ref SPK_BerylN1WireReceipt initialization = new SPK_BerylN1WireReceipt();
+            if (!ValidateInitWitnesses() || !SPK_BerylN1WireEncoder.EncodeInitialization(initialization))
+                RecordFailure(initialization, "Native initialization scalar capture is incomplete");
+            else if (!s_InitFrozen)
+                s_InitFrozen = CopyReceipt(initialization);
+            else if (!SameInitialization(s_InitFrozen, initialization))
+                s_TraceFailure = "Native initialization scalar prefix changed before public actions";
+            if (s_TraceFailure == "") PublishInitialization(resp);
+        }
+        if (s_Frozen && s_TraceFailure == "")
+        {
+            SPK_BerylN1WireReceipt current = SPK_BerylN1WireEncoder.Capture();
+            if (!SameInitialization(s_InitFrozen, current) || !SameReceipt(s_Frozen, current))
+                RecordFailure(current, "Native service scalar trace or initialization prefix changed after freezing");
+            else if (s_Phase == 3 && resp.edit_mode && !resp.game_mode && !resp.in_play_mode && resp.world_matches && resp.world_present)
+                s_Phase = 4;
+            if (s_Phase == 4 && (!resp.edit_mode || resp.game_mode || resp.in_play_mode || !resp.world_matches || !resp.world_present))
+                s_TraceFailure = "Final native service trace requires the same owned edit world outside play";
+            if (s_TraceFailure == "")
+            {
+                PublishFrozen(resp);
+                if (s_Phase == 4) resp.status = "complete";
+            }
+        }
+        resp.phase = s_Phase;
+        if (s_TraceFailure != "") FailureResponse(resp);
+    }
+
+    override JsonApiStruct GetRequest() { return new BerylTabletRealServicesNativeRequest(); }
+    override JsonApiStruct GetResponse(JsonApiStruct request)
+    {
+        BerylTabletRealServicesNativeRequest req = BerylTabletRealServicesNativeRequest.Cast(request);
+        BerylTabletRealServicesNativeResponse resp = new BerylTabletRealServicesNativeResponse();
+        resp.token = "@TOKEN@"; resp.source_sha256 = "@SOURCE_SHA256@";
+        resp.source_contract_sha256 = "74aed85740e8d72b5c187eae9b537fffb921b90ec24ac0002500379897e8cd65";
+        resp.wire_contract_sha256 = "80abd295e0652346df82083ade1409731f3f0b3508a8cd75f09b6afe39920766";
+        resp.schema_version = 1; resp.profile = "sparkos.tablet.real-services.n1a.wire.v1";
+        resp.status = "failure";
+        if (!req || req.token != resp.token) { resp.failure = "Compiled native tablet fixture token mismatch"; return resp; }
+        resp.action = req.action;
+        if (req.action != "load" && req.action != "status" && req.action != "play" && req.action != "spawn" && req.action != "run" && req.action != "stop")
+        { resp.failure = "Unknown installed native tablet action"; return resp; }
+        if (BerylTabletRealServicesLoadState.token != resp.token || BerylTabletRealServicesLoadState.sourceHash != resp.source_sha256)
+        { resp.failure = "Deferred native tablet identity differs from compiled fixture"; return resp; }
+        resp.load_requested = BerylTabletRealServicesLoadState.requested;
+        resp.load_submitted = BerylTabletRealServicesLoadState.submitted;
+        resp.load_entered = BerylTabletRealServicesLoadState.entered;
+        resp.load_resumed = BerylTabletRealServicesLoadState.resumed;
+        resp.load_returned = BerylTabletRealServicesLoadState.returned;
+        resp.load_accepted = BerylTabletRealServicesLoadState.accepted;
+        if (BerylTabletRealServicesLoadState.failure != "")
+        { resp.status = "unavailable"; resp.failure = BerylTabletRealServicesLoadState.failure; return resp; }
+        WorldEditor observedEditor = Workbench.GetModule(WorldEditor);
+        resp.module_present = observedEditor != null;
+        if (observedEditor) resp.api_present = observedEditor.GetApi() != null;
+        resp.module_open_requested = s_ModuleRequested;
+        resp.module_open_accepted = s_ModuleAccepted;
+        resp.current_project = Workbench.GetCurrentGameProjectFile();
+        string projectPath = resp.current_project;
+        projectPath.Replace("\\", "/");
+        if (projectPath != "@CURRENT_GAME_PROJECT@")
+        { resp.status = "unavailable"; resp.failure = "Native service base game project differs from the pinned observation"; return resp; }
+        resp.addon_world_resolved = Workbench.GetAbsolutePath("$BerylTabletRealServicesN1aPrototype:worlds/BerylTabletRealServicesN1a.ent", resp.addon_world_path, true);
+        string ownedWorldPath = resp.addon_world_path;
+        ownedWorldPath.Replace("\\", "/");
+        if (!resp.addon_world_resolved || ownedWorldPath != "@WORLD_ABSOLUTE@")
+        { resp.status = "unavailable"; resp.failure = "Native addon world resolution does not identify the owned tablet fixture"; return resp; }
+        ResourceName registeredResource = Workbench.GetResourceName(resp.addon_world_path);
+        resp.resource_name = registeredResource;
+        if (registeredResource != "") resp.resource_path = registeredResource.GetPath();
+        if (resp.resource_path != "") resp.resource_name_resolved = Workbench.GetAbsolutePath(resp.resource_path, resp.resource_absolute_path, true);
+        string registeredWorldPath = resp.resource_absolute_path;
+        registeredWorldPath.Replace("\\", "/");
+        if (resp.resource_name != "{BE71571A20261010}worlds/BerylTabletRealServicesN1a.ent" || !resp.resource_name_resolved || registeredWorldPath != "@WORLD_ABSOLUTE@")
+        { resp.status = "unavailable"; resp.failure = "Native resource registration/roundtrip does not identify the owned tablet fixture"; return resp; }
+        if (s_LoadFailure != "") { resp.status = "unavailable"; resp.failure = s_LoadFailure; return resp; }
+        if (req.action == "load")
+        {
+            if (s_ModuleRequested) { resp.status = "unavailable"; resp.failure = "Duplicate installed native tablet load request"; return resp; }
+            if (GetGame() && GetGame().InPlayMode()) { resp.status = "unavailable"; resp.failure = "Another play mode is active before native tablet setup"; return resp; }
+            s_ModuleRequested = true;
+            resp.module_open_requested = true;
+            s_ModuleAccepted = Workbench.OpenModule(WorldEditor);
+            resp.module_open_accepted = s_ModuleAccepted;
+            if (!s_ModuleAccepted)
+            { s_LoadFailure = "WorldEditor module open request refused"; resp.status = "unavailable"; resp.failure = s_LoadFailure; return resp; }
+            WorldEditor openedEditor = Workbench.GetModule(WorldEditor);
+            resp.module_present = openedEditor != null;
+            resp.api_present = false;
+            if (openedEditor) resp.api_present = openedEditor.GetApi() != null;
+            resp.status = "pending"; return resp;
+        }
+        if (!s_ModuleRequested) { resp.status = "unavailable"; resp.failure = "Installed native tablet load was not requested"; return resp; }
+        WorldEditor editor = Workbench.GetModule(WorldEditor);
+        resp.module_present = editor != null;
+        if (!editor) { resp.status = "pending"; return resp; }
+        WorldEditorAPI api = editor.GetApi();
+        resp.api_present = api != null;
+        if (GetGame())
+        {
+            resp.in_play_mode = GetGame().InPlayMode();
+            resp.game_world_present = GetGame().GetWorld() != null;
+        }
+        if (api)
+        {
+            api.GetWorldPath(resp.world_path);
+            resp.edit_mode = api.IsEditMode(); resp.game_mode = api.IsGameMode(); resp.world_present = api.GetWorld() != null;
+            if (resp.world_path != "") resp.world_path_resolved = Workbench.GetAbsolutePath(resp.world_path, resp.world_absolute_path, true);
+            string observedWorldPath = resp.world_absolute_path;
+            observedWorldPath.Replace("\\", "/");
+            resp.world_matches = resp.world_path_resolved && observedWorldPath == "@WORLD_ABSOLUTE@";
+        }
+        if (!s_ResourceRequested)
+        {
+            if (req.action != "status" || resp.game_mode || resp.in_play_mode || (resp.world_path != "" && !resp.world_matches))
+            { resp.status = "unavailable"; resp.failure = "Another world/mode or premature action is active during native tablet setup"; return resp; }
+            if (!api) { resp.status = "pending"; return resp; }
+            s_ResourceRequested = true;
+            BerylTabletRealServicesLoadState.requested = 1;
+            thread Beryl_OpenTabletRealServicesWorld();
+            BerylTabletRealServicesLoadState.submitted = 1;
+            resp.load_requested = 1; resp.load_submitted = 1; resp.load_entered = BerylTabletRealServicesLoadState.entered;
+            resp.status = "pending"; return resp;
+        }
+        if (BerylTabletRealServicesLoadState.requested != 1 || BerylTabletRealServicesLoadState.submitted != 1)
+        { resp.status = "unavailable"; resp.failure = "Deferred native tablet submission state was lost; no resubmission permitted"; return resp; }
+        if (BerylTabletRealServicesLoadState.returned != 1) { resp.status = "pending"; return resp; }
+        if (!BerylTabletRealServicesLoadState.accepted)
+        { resp.status = "unavailable"; resp.failure = "Deferred native tablet world load was not accepted"; return resp; }
+        if (!api) { resp.status = "pending"; return resp; }
+        if (!resp.world_matches && !(req.action == "status" && resp.world_path == "" && !resp.game_mode && !resp.in_play_mode && s_Phase == 0))
+        { resp.status = "unavailable"; resp.failure = "Native observed world resolution differs from pinned tablet world"; return resp; }
+        resp.status = "pending";
+        if (req.action == "play")
+        {
+            if (s_PlayRequested || s_Phase != 0 || !resp.world_matches || !resp.edit_mode || resp.game_mode || resp.in_play_mode || !resp.world_present)
+            { resp.status = "unavailable"; resp.failure = "Play requires one request from the owned ready edit world"; return resp; }
+            s_PlayRequested = true;
+            editor.SwitchToGameMode(false, false);
+        }
+        if (req.action == "spawn")
+        {
+            if (!s_PlayRequested || !resp.game_mode || !resp.in_play_mode || !resp.world_present || !resp.game_world_present || s_Phase != 0 || !GetGame() || !GetGame().InPlayMode())
+            { resp.status = "unavailable"; resp.failure = "Spawn requires the owned running world and a fresh native service registry"; return resp; }
+            if (!FreshRegistry())
+            { resp.status = "unavailable"; resp.failure = "Native service registry was not fresh; no reset is permitted"; return resp; }
+            BaseWorld runtimeWorld = GetGame().GetWorld();
+            if (!runtimeWorld)
+            { resp.status = "unavailable"; resp.failure = "Live Game world is unavailable for native service spawning"; return resp; }
+            Resource prefab = Resource.Load("{BE71571B20261010}Prefabs/BerylTabletRealServicesN1a.et");
+            if (!prefab || !prefab.IsValid() || !prefab.GetResource() || !prefab.GetResource().ToEntitySource())
+            { resp.status = "unavailable"; resp.failure = "Owned native service prefab did not resolve as entity source"; return resp; }
+            s_Phase = 2;
+            for (int i = 1; i <= 2; i++)
+            {
+                SPK_BerylTabletRealServiceRegistry.s_PendingToken = i;
+                IEntity owner = GetGame().SpawnEntityPrefab(prefab, runtimeWorld, null);
+                if (!owner || owner.GetWorld() != runtimeWorld || !owner.FindComponent(SPK_BerylTabletRealServicesObserver) || SPK_BerylTabletRealServiceRegistry.s_PendingToken != 0 || SPK_BerylTabletRealServiceRegistry.s_Owners.Count() != i || SPK_BerylTabletRealServiceRegistry.s_States.Count() != i || SPK_BerylTabletRealServiceRegistry.s_Observers.Count() != i || SPK_BerylTabletRealServiceRegistry.s_InitWitnesses.Count() != i * 2)
+                { s_TraceFailure = "Native service observer was not claimed in the admitted Game world"; break; }
+                if (SPK_BerylTabletRealServiceRegistry.s_Owners[i - 1] != owner || !SPK_BerylTabletRealServiceRegistry.s_States[i - 1] || owner.FindComponent(SPK_BerylTabletRealServicesObserver) != SPK_BerylTabletRealServiceRegistry.s_Observers[i - 1])
+                { s_TraceFailure = "Native service registry claim differs from the returned owner, State or component"; break; }
+            }
+            if (s_TraceFailure == "" && (!ValidateInitWitnesses() || !ValidateLiveOwners()))
+                s_TraceFailure = "Native service initialization or live-owner witnesses are incomplete";
+        }
+        if (req.action == "run")
+        {
+            if (s_RunRequested || s_Phase != 2 || s_StopRequested || !s_InitFrozen || !resp.game_mode || !resp.in_play_mode || !resp.world_present || !resp.game_world_present)
+            { resp.status = "unavailable"; resp.failure = "Run requires one invocation in the owned current native service world"; return resp; }
+            // Mark before entering any public method: uncertainty cannot permit replay.
+            s_RunRequested = true;
+            if (s_TraceFailure != "" || !ValidateInitWitnesses() || !ValidateLiveOwners())
+            { if (s_TraceFailure == "") s_TraceFailure = "Run lost native initialization or owner/world identities"; FailureResponse(resp); return resp; }
+            bool returned = SPK_BerylTabletRealServiceRegistry.RunSevenActions();
+            SPK_BerylN1WireReceipt capture = SPK_BerylN1WireEncoder.Capture();
+            if (!returned || !capture || !capture.complete)
+            {
+                RecordFailure(capture, "Native service seven-action execution or scalar capture was incomplete");
+            }
+            else if (!SameInitialization(s_InitFrozen, capture))
+                s_TraceFailure = "Native initialization scalar prefix changed during public actions";
+            else if (!ValidateFinalLiveState())
+                s_TraceFailure = "Native service final live observations differ from the completed action boundary";
+            else
+                s_Frozen = CopyReceipt(capture);
+        }
+        if (req.action == "stop")
+        {
+            if (s_StopRequested || s_Phase != 2 || !s_RunRequested || !s_Frozen || !resp.game_mode || !resp.in_play_mode || !resp.world_present || !resp.game_world_present)
+            { resp.status = "unavailable"; resp.failure = "Stop requires one handoff after the owned complete native service run"; return resp; }
+            // These are the last live owner/service getters in this driver.
+            if (s_TraceFailure != "" || !ValidateLiveOwners() || !ValidateFinalLiveState())
+            { if (s_TraceFailure == "") s_TraceFailure = "Stop requires unchanged final live service observations"; FailureResponse(resp); return resp; }
+            SPK_BerylN1WireReceipt stopCapture = SPK_BerylN1WireEncoder.Capture();
+            if (!SameReceipt(s_Frozen, stopCapture))
+            { RecordFailure(stopCapture, "Native scalar service trace changed before the edit-mode handoff"); FailureResponse(resp); return resp; }
+            PublishFrozen(resp);
+            s_StopRequested = true; s_Phase = 3;
+            editor.SwitchToEditMode();
+            // Mode fields above precede the void request. Only a later status
+            // observes edit mode and completes scalar verification.
+            resp.stop_requested = true; resp.phase = 3;
+            return resp;
+        }
+        if (s_Phase == 0 && resp.world_matches && resp.world_present)
+        {
+            if (!s_PlayRequested && resp.edit_mode && !resp.game_mode && !resp.in_play_mode) resp.status = "ready";
+            if (s_PlayRequested && resp.game_mode && resp.in_play_mode && resp.game_world_present) resp.status = "ready";
+        }
+        Progress(resp);
+        return resp;
+    }
+}

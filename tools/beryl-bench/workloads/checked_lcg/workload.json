@@ -1,0 +1,14 @@
+{
+  "id": "checked_lcg",
+  "phase": 1,
+  "metric": "median_paired_total_paid_ns",
+  "resource_policy": "resource_adequate_exact",
+  "budgets": {
+    "peak_bytes": 268435456,
+    "retained_bytes": 268435456,
+    "allocations": 1000000000,
+    "text_growth_ppm": 200000,
+    "build_ratio_ppm": 2000000,
+    "edit_check_growth_ppm": 100000
+  }
+}

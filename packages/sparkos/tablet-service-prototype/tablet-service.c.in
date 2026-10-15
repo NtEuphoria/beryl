@@ -1,0 +1,196 @@
+// Trusted experimental service seam; generated lifecycle source is untouched.
+// Valid-owner synchronous domain only. No callback/service lifetime proof.
+enum ESPK_TabletState
+{
+	STOWED,
+	HELD,
+	FOCUSED
+}
+
+[ComponentEditorProps(category: "SparkOSMesh", description: "MESH operator tablet")]
+class SPK_TabletComponentClass : ScriptComponentClass
+{
+}
+
+class SPK_TabletComponent : ScriptComponent
+{
+	static const float TELEMETRY_INTERVAL_S = 0.25;
+	protected ref @STATE@ m_BerylState = new @STATE@();
+	protected ref SPK_TabletUI m_UI;
+	protected ref SPK_ScreenRT m_ScreenRT;
+
+	SPK_ScreenRT GetScreen()
+	{
+		return m_ScreenRT;
+	}
+
+	SPK_TabletUI GetUI()
+	{
+		return m_UI;
+	}
+
+	ESPK_TabletState GetState()
+	{
+		if (m_BerylState.@MODE@ == 0)
+			return ESPK_TabletState.STOWED;
+		if (m_BerylState.@MODE@ == 1)
+			return ESPK_TabletState.HELD;
+		// The pinned protocol admits only 0, 1, 2; no external state setter.
+		return ESPK_TabletState.FOCUSED;
+	}
+
+	bool Focus()
+	{
+		return RunOperation(1, false, 0);
+	}
+
+	bool Unfocus()
+	{
+		return RunOperation(2, false, 0);
+	}
+
+	void SetHeld(bool held)
+	{
+		RunOperation(3, held, 0);
+	}
+
+	// Each entry has its own PC, reply, input and keybind binding. State is shared.
+	protected bool RunOperation(int kind, bool held, float timeSlice)
+	{
+		ref @OPERATION@ operation = new @OPERATION@();
+		operation.@KIND@ = kind;
+		operation.@HELD@ = held;
+		operation.@TIME_SLICE@ = timeSlice;
+		SPK_DroneInputComponent input;
+		SPK_DroneKeybinds keybindings;
+		int reply = 0;
+		int code;
+		for (int step = 0; step < 32; step++)
+		{
+			code = @NEXT_HOLDER@.@NEXT_METHOD@(m_BerylState, operation, reply);
+			reply = 0;
+			if (code == 0)
+				return operation.@ANSWER@;
+			if (code == 1)
+			{
+				if (m_UI) reply = 1;
+			}
+			else if (code == 2)
+				m_UI = new SPK_TabletUI();
+			else if (code == 3)
+			{
+				if (m_UI.Open()) reply = 1;
+			}
+			else if (code == 4)
+			{
+				input = SPK_DroneInputComponent.Cast(GetOwner().FindComponent(SPK_DroneInputComponent));
+				if (input) reply = 1;
+			}
+			else if (code == 5)
+				m_UI.SetInput(input);
+			else if (code == 6)
+				keybindings = input.GetKeybinds();
+			else if (code == 7)
+				m_UI.SetKeybinds(keybindings);
+			else if (code == 8)
+				Print("[MESH] tablet has no SPK_DroneInputComponent - manual control unavailable", LogLevel.ERROR);
+			else if (code == 9)
+			{
+				if (m_ScreenRT) reply = 1;
+			}
+			else if (code == 10)
+				m_ScreenRT = new SPK_ScreenRT();
+			else if (code == 11)
+				m_ScreenRT.Enable(GetOwner());
+			else if (code == 12)
+				m_ScreenRT.Disable();
+			else if (code == 13)
+				m_UI.Close();
+			else if (code == 16)
+				m_UI.UpdateMarkers();
+			else if (code == 17)
+				m_UI.RefreshTelemetry();
+			else
+			{
+				Print("[Beryl tablet prototype] unexpected operation opcode", LogLevel.ERROR);
+				return false;
+			}
+		}
+		Print("[Beryl tablet prototype] operation step bound exceeded", LogLevel.ERROR);
+		return false;
+	}
+
+	override void OnPostInit(IEntity owner)
+	{
+		// Actual protected superclass call belongs to this override only.
+		super.OnPostInit(owner);
+		ref @OPERATION@ operation = new @OPERATION@();
+		operation.@KIND@ = 0;
+		// Opcode 14 acknowledges the already completed superclass call.
+		int code = @NEXT_HOLDER@.@NEXT_METHOD@(m_BerylState, operation, 0);
+		if (code != 14 || operation.@PC@ != 1)
+		{
+			Print("[Beryl tablet prototype] unexpected init superclass phase", LogLevel.ERROR);
+			return;
+		}
+		code = @NEXT_HOLDER@.@NEXT_METHOD@(m_BerylState, operation, 0);
+		if (code != 15 || operation.@PC@ != 2 || m_BerylState.@MODE@ != 0)
+		{
+			Print("[Beryl tablet prototype] unexpected init mask phase", LogLevel.ERROR);
+			return;
+		}
+		SetEventMask(owner, EntityEvent.FRAME);
+		code = @NEXT_HOLDER@.@NEXT_METHOD@(m_BerylState, operation, 0);
+		if (code != 0 || operation.@PC@ != 999)
+			Print("[Beryl tablet prototype] unexpected init completion", LogLevel.ERROR);
+	}
+
+	override void EOnFrame(IEntity owner, float timeSlice)
+	{
+		RunOperation(4, false, timeSlice);
+	}
+
+	override void OnDelete(IEntity owner)
+	{
+		ref @OPERATION@ operation = new @OPERATION@();
+		operation.@KIND@ = 5;
+		int reply = 0;
+		int code;
+		for (int step = 0; step < 16; step++)
+		{
+			code = @NEXT_HOLDER@.@NEXT_METHOD@(m_BerylState, operation, reply);
+			reply = 0;
+			if (code == 1)
+			{
+				if (m_UI) reply = 1;
+			}
+			else if (code == 13)
+				m_UI.Close();
+			else if (code == 9)
+			{
+				if (m_ScreenRT) reply = 1;
+			}
+			else if (code == 18)
+				m_ScreenRT.Destroy();
+			else if (code == 19 && operation.@PC@ == 5)
+			{
+				// Pinned pc5 finish changes only this invocation's private Operation.
+				// Finish before superclass teardown; never touch Beryl state afterward.
+				code = @NEXT_HOLDER@.@NEXT_METHOD@(m_BerylState, operation, 0);
+				if (code != 0 || operation.@PC@ != 999)
+				{
+					Print("[Beryl tablet prototype] unexpected delete completion", LogLevel.ERROR);
+					return;
+				}
+				super.OnDelete(owner);
+				return;
+			}
+			else
+			{
+				Print("[Beryl tablet prototype] unexpected delete opcode", LogLevel.ERROR);
+				return;
+			}
+		}
+		Print("[Beryl tablet prototype] delete step bound exceeded", LogLevel.ERROR);
+	}
+}

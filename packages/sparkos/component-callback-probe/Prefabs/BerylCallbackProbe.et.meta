@@ -1,0 +1,7 @@
+MetaFileClass {
+ Name "{BCCFA11B20261008}Prefabs/BerylCallbackProbe.et"
+ Configurations {
+  EntityTemplateResourceClass PC {
+  }
+ }
+}

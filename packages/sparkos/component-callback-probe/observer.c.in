@@ -1,0 +1,199 @@
+// Trusted instrumentation of real callbacks. No direct callback invocation.
+// Base class/state/field identities below come from actual compiler linkage.
+class SPK_BerylCallbackObserverClass : @COMPONENT@Class {}
+class SPK_BerylCallbackObserver : @COMPONENT@
+{
+    protected int m_CallbackToken;
+    protected int m_ObservedFrames;
+    protected float m_ObservedElapsed;
+    protected ref @STATE@ m_InitialState;
+
+    override void OnPostInit(IEntity owner)
+    {
+        m_CallbackToken = SPK_BerylCallbackRegistry.Assign(owner);
+        m_InitialState = m_BerylState;
+        Observe("init_before", owner, 0, 0, 0, true, 0);
+        super.OnPostInit(owner);
+        Observe("init_after", owner, 1, 0, 0, true, 0);
+        SPK_BerylCallbackRegistry.Initialized(m_CallbackToken);
+    }
+    override void EOnFrame(IEntity owner, float timeSlice)
+    {
+        if (m_CallbackToken < 1 || m_CallbackToken > 2)
+        {
+            SPK_BerylCallbackRegistry.Fail("Frame without registered initialization");
+            return;
+        }
+        if (!(timeSlice >= 0 && timeSlice <= 10))
+        {
+            SPK_BerylCallbackRegistry.Unavailable("Non-admitted callback timestep");
+            return;
+        }
+        Observe("frame_before", owner, 1, m_ObservedFrames, 0, true, m_ObservedElapsed);
+        m_ObservedFrames++;
+        m_ObservedElapsed += timeSlice;
+        super.EOnFrame(owner, timeSlice);
+        Observe("frame_after", owner, 1, m_ObservedFrames, 0, true, m_ObservedElapsed);
+        SPK_BerylCallbackRegistry.Framed(m_CallbackToken, m_ObservedFrames);
+    }
+    override void OnDelete(IEntity owner)
+    {
+        Observe("delete_before", owner, 1, m_ObservedFrames, 0, true, m_ObservedElapsed);
+        // Keep the plain state binding across the original superclass callback.
+        // This is not retention of a live engine object after its deletion.
+        super.OnDelete(owner);
+        Observe("delete_after", owner, 1, m_ObservedFrames, 1, false, m_ObservedElapsed);
+        SPK_BerylCallbackRegistry.Deleted(m_CallbackToken);
+    }
+    protected void Observe(string kind, IEntity owner, int inits, int frames, int deletes, bool ready, float elapsed)
+    {
+        @STATE@ state = m_BerylState;
+        int present, sameOwner, sameState, floatEqual, actualReady;
+        int actualInits, actualFrames, actualDeletes;
+        if (owner && owner == GetOwner()) sameOwner = 1;
+        if (state)
+        {
+            present = 1;
+            if (state == m_InitialState) sameState = 1;
+            if (state.@ELAPSED@ == elapsed) floatEqual = 1;
+            if (state.@READY@) actualReady = 1;
+            actualInits = state.@INIT_COUNT@;
+            actualFrames = state.@FRAME_COUNT@;
+            actualDeletes = state.@DELETE_COUNT@;
+        }
+        int expectedReady;
+        if (ready) expectedReady = 1;
+        SPK_BerylCallbackRegistry.Check(present == 1);
+        SPK_BerylCallbackRegistry.Check(sameOwner == 1);
+        SPK_BerylCallbackRegistry.Check(sameState == 1);
+        SPK_BerylCallbackRegistry.Check(floatEqual == 1);
+        SPK_BerylCallbackRegistry.Check(actualReady == expectedReady);
+        SPK_BerylCallbackRegistry.Check(actualInits == inits);
+        SPK_BerylCallbackRegistry.Check(actualFrames == frames);
+        SPK_BerylCallbackRegistry.Check(actualDeletes == deletes);
+        string data = kind;
+        data += "|"; data += m_CallbackToken.ToString();
+        data += "|"; data += actualInits.ToString();
+        data += "|"; data += actualFrames.ToString();
+        data += "|"; data += actualDeletes.ToString();
+        data += "|"; data += actualReady.ToString();
+        data += "|"; data += present.ToString();
+        data += "|"; data += sameOwner.ToString();
+        data += "|"; data += sameState.ToString();
+        data += "|"; data += floatEqual.ToString();
+        SPK_BerylCallbackRegistry.Event(data);
+        SPK_BerylCallbackRegistry.State(m_CallbackToken, state);
+    }
+}
+
+class SPK_BerylCallbackRegistry
+{
+    static int phase;
+    static int checks;
+    static int failures;
+    static int checksum;
+    static int pending;
+    static string failure;
+    static bool unavailable;
+    static bool deleteRequested;
+    static ref array<IEntity> owners = {};
+    static ref array<ref @STATE@> states = {};
+    static ref array<int> initCounts = {};
+    static ref array<int> frameCounts = {};
+    static ref array<int> deleteCounts = {};
+    static ref array<string> rows = {};
+
+    static void Reset()
+    {
+        phase = 1; checks = 0; failures = 0; checksum = 0; pending = 0;
+        failure = ""; unavailable = false; deleteRequested = false;
+        owners.Clear(); states.Clear(); initCounts.Clear(); frameCounts.Clear(); deleteCounts.Clear(); rows.Clear();
+        for (int i = 0; i < 2; i++)
+        {
+            owners.Insert(null); states.Insert(null);
+            initCounts.Insert(0); frameCounts.Insert(0); deleteCounts.Insert(0);
+        }
+    }
+    static void Check(bool condition) { checks++; if (!condition) Fail("Observed callback state differs"); }
+    static void Fail(string message) { failures++; if (failure == "") failure = message; }
+    static void Unavailable(string message) { unavailable = true; Fail(message); }
+    static void Row(string body)
+    {
+        if (rows.Count() >= 4096) { Fail("Callback event limit exceeded"); return; }
+        string row = body;
+        rows.Insert(row);
+        for (int i = 0; i < row.Length(); i++) checksum = (checksum * 31 + row.ToAscii(i)) % 1000003;
+        checksum = (checksum * 31 + 10) % 1000003;
+    }
+    static void Event(string payload) { Row("event|" + rows.Count().ToString() + "|" + payload); }
+    static void Control(string kind, int token, bool valid)
+    {
+        Check(valid);
+        int value; if (valid) value = 1;
+        Row("control|" + rows.Count().ToString() + "|" + kind + "|" + token.ToString() + "|" + value.ToString());
+    }
+    static int Assign(IEntity owner)
+    {
+        if (!owner || owners.Count() != 2) { Fail("Initialization outside owned spawn"); return 0; }
+        for (int i = 0; i < 2; i++) if (owners[i] && owners[i] == owner) return i + 1;
+        if (pending >= 1 && pending <= 2 && !owners[pending - 1])
+        {
+            owners[pending - 1] = owner;
+            return pending;
+        }
+        Fail("Unknown or duplicate callback owner"); return 0;
+    }
+    static void Bind(int token, IEntity owner)
+    {
+        if (token < 1 || token > 2 || !owner) { Fail("Spawn returned no admitted owner"); return; }
+        if (owners[token - 1] && owners[token - 1] != owner) { Fail("Spawn/callback owner mismatch"); return; }
+        owners[token - 1] = owner;
+    }
+    static void State(int token, @STATE@ value)
+    {
+        if (token < 1 || token > 2 || states.Count() != 2) { Fail("Unknown state token"); return; }
+        if (states[token - 1] && states[token - 1] != value) { Fail("Callback state root identity changed"); return; }
+        states[token - 1] = value;
+    }
+    static void Initialized(int token)
+    {
+        if (token < 1 || token > 2) { Fail("Unknown init token"); return; }
+        int index = token - 1;
+        int next = initCounts[index] + 1;
+        initCounts[index] = next;
+        if (next != 1) Fail("Duplicate engine post-init");
+    }
+    static void Framed(int token, int count)
+    {
+        if (token < 1 || token > 2) { Fail("Unknown frame token"); return; }
+        if (initCounts[token - 1] != 1 || deleteCounts[token - 1] != 0 || count != frameCounts[token - 1] + 1)
+            Fail("Frame ordering or callback count differs");
+        frameCounts[token - 1] = count;
+    }
+    static void Deleted(int token)
+    {
+        if (token < 1 || token > 2) { Fail("Unknown delete token"); return; }
+        int index = token - 1;
+        int next = deleteCounts[index] + 1;
+        deleteCounts[index] = next;
+        if (!deleteRequested || initCounts[index] != 1 || frameCounts[index] < 3 || next != 1)
+            Fail("Premature or duplicate delete callback");
+        if (deleteCounts[0] == 1 && deleteCounts[1] == 1) phase = 4;
+    }
+    static void Progress()
+    {
+        if (phase == 2 && initCounts[0] == 1 && initCounts[1] == 1 && frameCounts[0] >= 3 && frameCounts[1] >= 3)
+        {
+            Control("independent", 0, owners[0] != owners[1] && states[0] && states[1] && states[0] != states[1]);
+            phase = 3;
+        }
+    }
+    static bool Authority(int token, bool observe)
+    {
+        if (token < 1 || token > 2 || owners.Count() != 2 || !owners[token - 1]) return false;
+        RplComponent rpl = RplComponent.Cast(owners[token - 1].FindComponent(RplComponent));
+        bool valid = rpl && rpl.Role() == RplRole.Authority;
+        if (observe) Control("authority", token, valid);
+        return valid;
+    }
+}

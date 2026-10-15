@@ -2,9 +2,11 @@
 
 Historical scalar/record checkpoint below. The subsequent
 [P2 array packet](P2_IR_ARRAYS.md) extends the experimental evaluator to bounded
-fixed arrays and checked dynamic places using schema 4. That extension supersedes
-the earlier array exclusions and schema-3 representation statements here. Set/sink,
-owned storage, emitted IR and public backend release remain open gates.
+fixed arrays and checked dynamic places using schema 4. The later
+[differential route](P2_IR_DIFFERENTIAL.md) adds instrumented IR C tests; the
+[October 14 access-mode packet](P2_IR_ACCESS_MODES.md) adds bounded
+initialization/set/sink under schema 5. Those extensions supersede the older
+exclusions below. Owned storage and production IR backend release remain open.
 
 Date: 2026-09-07. Status: D1 finite-f32/source retention and the bounded D2
 record/let/inout PID evaluator checkpoint are implemented and unit-verified.

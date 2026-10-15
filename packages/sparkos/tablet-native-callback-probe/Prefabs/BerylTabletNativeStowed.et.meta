@@ -1,0 +1,7 @@
+MetaFileClass {
+ Name "{BE71570B20261010}Prefabs/BerylTabletNativeStowed.et"
+ Configurations {
+  EntityTemplateResourceClass PC {
+  }
+ }
+}

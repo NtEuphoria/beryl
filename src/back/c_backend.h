@@ -1,8 +1,10 @@
 /* c_backend.h — emits C11 from the typed AST.
  *
  * Emitting C rather than machine code buys clang's optimizer for free and
- * keeps the compiler small. `inout` parameters become `T *`. Restrict remains
- * disabled until ownership tracks storage identity through collection copies.
+ * keeps the compiler small. `inout` and `set` parameters become `T *`. A `let`
+ * parameter whose type is not copied by value becomes `const T *`. `str` and
+ * `sink` stay by value. `restrict` is emitted on those pointers when ownership
+ * admitted the function: every exclusive argument is a proven local path.
  */
 #ifndef BERYL_C_BACKEND_H
 #define BERYL_C_BACKEND_H

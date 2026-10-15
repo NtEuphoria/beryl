@@ -96,7 +96,9 @@ def main():
         cfile.write_text(code, encoding="utf-8", newline="\n")
         argv = [clang, "-std=c11", "-O2", "-ffp-contract=off", "-fno-fast-math"]
         if runtime:
-            argv += ["-I", runtime.parent, cfile, runtime]
+            argv += ["-I", runtime.parent, cfile]
+            if '#include "beryl_rt.c"' not in code:
+                argv.append(runtime)
         else:
             argv += [cfile]
         run([*argv, "-o", binary])

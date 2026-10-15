@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "profile": "sparkos.tablet.native-init-stowed.source.v1",
+  "state": "source_preparation_only",
+  "files": {
+    "observer.c.in": {
+      "bytes": 4310,
+      "sha256": "161a2ddfc98c21937022b1d077b4cad140754ef846f4e0ea02179d1582680b55"
+    },
+    "Prefabs/BerylTabletNativeStowed.et": {
+      "bytes": 73,
+      "sha256": "4461e36232119b09ce4031a2152521fa8d0fedada61234f1a3088ea368f3e18e"
+    },
+    "Prefabs/BerylTabletNativeStowed.et.meta": {
+      "bytes": 139,
+      "sha256": "e1cefcd21fc95cb26b2d6927a02362db3543be822600b981501b34d111183fd1"
+    },
+    "README.md": {
+      "bytes": 3691,
+      "sha256": "395244b5a9557b44effd4412e1e244ae11afc80cc57182cff552a9a4fc0ccdbd"
+    },
+    "worlds/BerylTabletNativeStowed.ent": {
+      "bytes": 27,
+      "sha256": "f1e51134fb42a814e072493a46a67a76853723964cc6eb87a24e45e15921385d"
+    },
+    "worlds/BerylTabletNativeStowed.ent.meta": {
+      "bytes": 316,
+      "sha256": "c9ae3ce18781757e0dce61c258bbf5469565838b6532cb1c79d3f446b17ea3a3"
+    },
+    "worlds/BerylTabletNativeStowed_Layers/default.layer": {
+      "bytes": 29,
+      "sha256": "e4584f0b154cbeea1bd4c9c9db96d5f062580f1886cbf40267392512800dcd4a"
+    }
+  },
+  "addon": {
+    "id": "BerylTabletNativeStowedPrototype",
+    "guid": "BE71570020261010",
+    "title": "Beryl experimental native tablet init and stowed frames",
+    "dependencies": [
+      "58D0FB3206B6F859"
+    ]
+  },
+  "fixture": {
+    "component": "SPK_BerylTabletNativeObserver",
+    "superclass": "SPK_TabletComponent",
+    "descriptor": "SPK_BerylTabletNativeObserverClass",
+    "state_declaration": "sparkos.tablet_lifecycle_prototype.State",
+    "fields": [
+      "mode",
+      "telemetry_accumulator"
+    ],
+    "world": "{BE71570A20261010}worlds/BerylTabletNativeStowed.ent",
+    "prefab": "{BE71570B20261010}Prefabs/BerylTabletNativeStowed.et",
+    "owner_count": 2,
+    "row_limit": 1024,
+    "native_callbacks": [
+      "OnPostInit",
+      "EOnFrame"
+    ],
+    "excluded_components": [
+      "SPK_DroneInputComponent",
+      "SPK_TabletGadgetComponent",
+      "InventoryItemComponent",
+      "SCR_EditableEntityComponent",
+      "MeshObject",
+      "RplComponent"
+    ],
+    "runtime_case_ids": [
+      "native.init.1",
+      "native.init.2",
+      "native.stowed-frames.1",
+      "native.stowed-frames.2",
+      "native.independent-state"
+    ],
+    "runtime_case_state": "proposed_not_installed",
+    "minimum_frames_per_owner": 3,
+    "maximum_frames_per_owner": 200
+  },
+  "source_basis": {
+    "layered_contract_path": "packages/sparkos/workbench-layered-world/source-contracts.json",
+    "layered_contract_sha256": "461b4c338e29ef7b9105e1e39f92d66e6861b112f8a77bd45046413600d0e45e",
+    "world_payload_sha256": "f1e51134fb42a814e072493a46a67a76853723964cc6eb87a24e45e15921385d",
+    "layer_payload_sha256": "e4584f0b154cbeea1bd4c9c9db96d5f062580f1886cbf40267392512800dcd4a",
+    "service_template_sha256": "21479adf12a76a48ad7be9419e6e5047d663cce0ebee1341e5d8bfaf8d20d3c7",
+    "original_tablet_sha256": "1f15962cf67a8cc513d7068757e89360260016fadff1c8843719784acc94be3a",
+    "primary_declarations": [
+      {
+        "file": "interfaceGame.html",
+        "sha256": "dfcab6b926646b8b56cdcbf38bb3e5f9809e96c9e3efaabc11cf806d6ec4b22e",
+        "scope": "GetWorld and SpawnEntityPrefab signature; observed native delivery separate"
+      },
+      {
+        "file": "interfaceScriptComponent.html",
+        "sha256": "215f2ca81f0d47cbe1dc61dd8471c73c5b5f78c623a247d5f82e8a1e6471c3de",
+        "scope": "native OnPostInit/EOnFrame and GetEventMask declarations"
+      },
+      {
+        "file": "interfaceIEntity.html",
+        "sha256": "ec2e7f4c76ab91af50a9448ccd13db7aa7590ba3584fbfdacbd6773d899ec585",
+        "scope": "GetWorld and flags; no deletion contract admitted"
+      }
+    ]
+  },
+  "admission_limits": {
+    "reference_emission": "unavailable_no_verified_identity_translation",
+    "runtime": "unavailable_no_installed_transport",
+    "engine_compilation": "not_run",
+    "registration": "unverified_new_fixture_names",
+    "binary32_encoding": "unverified",
+    "deletion": "not_admitted",
+    "profile_isolation": "unverified",
+    "services": "not_run",
+    "player_equipment": "not_run",
+    "multiplayer": "not_run"
+  }
+}

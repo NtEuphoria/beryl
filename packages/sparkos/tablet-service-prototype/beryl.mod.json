@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "name": "Beryl experimental tablet synchronous service candidate",
+  "addon": {
+    "id": "BerylTabletServicePrototype",
+    "guid": "BE715E7A20261008",
+    "dependencies": ["58D0FB3206B6F859"]
+  },
+  "binding": {"target": "enfusion", "version": "1.8.0.13"},
+  "sources": {
+    "native": ["src/lifecycle.be"],
+    "enfusion": ["src/lifecycle.be"],
+    "tests": []
+  },
+  "exports": []
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "scenario": "probe.state.member_box.manual",
+  "profile": "plain-script-member-box.bool-i32-f32.v1",
+  "scope": "Plain script member-box storage and actual emitted handlers, caller-member out ABI and scripted nested calls; no component runtime state or engine callback delivery",
+  "float_comparison": "Exact target scalar equality against representable binary32 constants; no wire bit encoding or signed-zero claim",
+  "cases": [
+    {"id": "record-defaults", "states": [{"prefix": "record", "ready": true, "count": 17, "elapsed": 0.125}], "identities": []},
+    {"id": "member-box-defaults", "states": [{"prefix": "box", "ready": true, "count": 17, "elapsed": 0.125}], "identities": []},
+    {"id": "member-box-field-write-through", "states": [{"prefix": "member", "ready": false, "count": 22, "elapsed": 0.375}, {"prefix": "prior", "ready": false, "count": 22, "elapsed": 0.375}], "identities": [{"key": "same-member", "equal": true}]},
+    {"id": "member-box-whole-record-replacement", "states": [{"prefix": "member", "ready": false, "count": 41, "elapsed": 0.5}, {"prefix": "prior", "ready": true, "count": 17, "elapsed": 0.125}], "identities": [{"key": "same-member", "equal": false}]},
+    {"id": "member-box-reset-after-replacement", "states": [{"prefix": "member", "ready": true, "count": 17, "elapsed": 0.125}, {"prefix": "prior", "ready": false, "count": 41, "elapsed": 0.5}], "identities": [{"key": "same-member", "equal": false}]},
+    {"id": "manual-handler-repeated-frame", "states": [{"prefix": "member", "ready": true, "count": 20, "elapsed": 0.5}], "identities": [{"key": "same-member", "equal": true}]},
+    {"id": "manual-handler-frame-replace-frame", "states": [{"prefix": "member", "ready": false, "count": 42, "elapsed": 0.625}, {"prefix": "prior", "ready": true, "count": 18, "elapsed": 0.25}], "identities": [{"key": "same-member", "equal": false}]},
+    {"id": "independent-member-boxes", "states": [{"prefix": "first", "ready": false, "count": 22, "elapsed": 0.375}, {"prefix": "second", "ready": true, "count": 17, "elapsed": 0.125}], "identities": [{"key": "same-instances", "equal": false}]},
+    {"id": "direct-handler-init", "states": [{"prefix": "member", "ready": true, "count": 18, "elapsed": 0.125}], "identities": [{"key": "same-member", "equal": true}]},
+    {"id": "direct-handler-delete", "states": [{"prefix": "member", "ready": false, "count": -7, "elapsed": 0.25}], "identities": [{"key": "same-member", "equal": true}]},
+    {"id": "manual-member-box-nested-field-call", "states": [{"prefix": "member", "ready": true, "count": 21, "elapsed": 0.25}], "identities": [{"key": "same-member", "equal": true}]}
+  ]
+}

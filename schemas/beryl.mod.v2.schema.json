@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beryl.invalid/schemas/beryl.mod.v2.schema.json",
+  "title": "Beryl mod description, bounded component profile",
+  "description": "Local schema; component structure/signature checks and experimental depth-one scalar-state wrappers. Resources, properties, UI, engine verification and promotion remain unavailable.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "name",
+    "addon",
+    "binding",
+    "sources",
+    "exports",
+    "components"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 2
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "^[ -~]+$"
+    },
+    "addon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "guid",
+        "dependencies"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "guid": {
+          "$ref": "#/$defs/guid"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/guid"
+          },
+          "uniqueItems": true,
+          "maxItems": 64
+        }
+      }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "version",
+        "sha256",
+        "contract_profile"
+      ],
+      "properties": {
+        "target": {
+          "const": "enfusion"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "contract_profile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        }
+      }
+    },
+    "sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "native",
+        "enfusion",
+        "tests"
+      ],
+      "properties": {
+        "native": {
+          "$ref": "#/$defs/sourceSet"
+        },
+        "enfusion": {
+          "$ref": "#/$defs/sourceSet"
+        },
+        "tests": {
+          "$ref": "#/$defs/optionalSourceSet"
+        }
+      }
+    },
+    "exports": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "name",
+          "methods"
+        ],
+        "properties": {
+          "source": {
+            "$ref": "#/$defs/symbol"
+          },
+          "name": {
+            "$ref": "#/$defs/identifier"
+          },
+          "constructor": {
+            "$ref": "#/$defs/symbol"
+          },
+          "methods": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "source",
+                "name"
+              ],
+              "properties": {
+                "source": {
+                  "$ref": "#/$defs/symbol"
+                },
+                "name": {
+                  "$ref": "#/$defs/identifier"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {
+        "$ref": "#/$defs/component"
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "maxLength": 120
+    },
+    "symbol": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+$",
+      "maxLength": 512
+    },
+    "guid": {
+      "type": "string",
+      "pattern": "^[0-9A-F]{16}$"
+    },
+    "source": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_ ./-]+\\.be$",
+      "maxLength": 512
+    },
+    "sourceSet": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "optionalSourceSet": {
+      "type": "array",
+      "maxItems": 1024,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "componentClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "parent"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/identifier"
+        },
+        "parent": {
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "componentCallback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding",
+        "handler",
+        "super_order"
+      ],
+      "properties": {
+        "binding": {
+          "$ref": "#/$defs/symbol"
+        },
+        "handler": {
+          "$ref": "#/$defs/symbol"
+        },
+        "super_order": {
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "descriptor",
+        "instance",
+        "state",
+        "callbacks"
+      ],
+      "properties": {
+        "descriptor": {
+          "$ref": "#/$defs/componentClass"
+        },
+        "instance": {
+          "$ref": "#/$defs/componentClass"
+        },
+        "state": {
+          "$ref": "#/$defs/symbol"
+        },
+        "callbacks": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/componentCallback"
+          }
+        }
+      }
+    }
+  }
+}

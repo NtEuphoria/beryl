@@ -1,0 +1,74 @@
+// Trusted opt-in observation only: no spawning, mutation or callback invocation.
+class BerylFrameStateRequest : JsonApiStruct
+{
+    string token;
+    void BerylFrameStateRequest() { RegV("token"); }
+}
+class BerylFrameStateResponse : JsonApiStruct
+{
+    string token, profile = "world-state-v1", status = "unavailable", failure;
+    int phase, api_frame = -1, game_frame = -1, owner1_frame = -1, owner2_frame = -1;
+    int owner1_flags, owner2_flags, owner1_mask, owner2_mask;
+    bool api_present, game_present, owner1_present, owner2_present;
+    bool owner1_component_present, owner2_component_present;
+    bool api_is_game, owner1_is_api, owner1_is_game, owner2_is_api, owner2_is_game;
+    bool owner1_active, owner2_active, owner1_frame_registered, owner2_frame_registered;
+    void BerylFrameStateResponse()
+    {
+        RegV("token"); RegV("profile"); RegV("status"); RegV("failure"); RegV("phase");
+        RegV("api_frame"); RegV("game_frame"); RegV("owner1_frame"); RegV("owner2_frame");
+        RegV("owner1_flags"); RegV("owner2_flags"); RegV("owner1_mask"); RegV("owner2_mask");
+        RegV("api_present"); RegV("game_present"); RegV("owner1_present"); RegV("owner2_present");
+        RegV("owner1_component_present"); RegV("owner2_component_present");
+        RegV("api_is_game"); RegV("owner1_is_api"); RegV("owner1_is_game"); RegV("owner2_is_api"); RegV("owner2_is_game");
+        RegV("owner1_active"); RegV("owner2_active"); RegV("owner1_frame_registered"); RegV("owner2_frame_registered");
+    }
+}
+class BerylComponentFrameState : NetApiHandler
+{
+    override JsonApiStruct GetRequest() { return new BerylFrameStateRequest(); }
+    override JsonApiStruct GetResponse(JsonApiStruct request)
+    {
+        BerylFrameStateRequest req = BerylFrameStateRequest.Cast(request);
+        BerylFrameStateResponse resp = new BerylFrameStateResponse();
+        resp.token = "@TOKEN@";
+        resp.phase = SPK_BerylCallbackRegistry.phase;
+        if (!req || req.token != resp.token) { resp.status = "failure"; resp.failure = "Diagnostic token differs"; return resp; }
+        // Retained owners are read only while native deletion has not begun.
+        if ((resp.phase != 2 && resp.phase != 3) || SPK_BerylCallbackRegistry.deleteRequested || !GetGame() || !GetGame().InPlayMode())
+        { resp.failure = "No admitted live-spawn observation phase"; return resp; }
+        WorldEditor editor = Workbench.GetModule(WorldEditor);
+        WorldEditorAPI api;
+        if (editor) api = editor.GetApi();
+        if (!api || !api.IsGameMode()) { resp.failure = "Running editor API unavailable"; return resp; }
+        BaseWorld apiWorld = api.GetWorld();
+        BaseWorld gameWorld = GetGame().GetWorld();
+        resp.api_present = apiWorld != null; resp.game_present = gameWorld != null;
+        if (!apiWorld || !gameWorld || SPK_BerylCallbackRegistry.owners.Count() != 2)
+        { resp.failure = "Worlds or exact two-owner registry unavailable"; return resp; }
+        IEntity owner1 = SPK_BerylCallbackRegistry.owners[0];
+        IEntity owner2 = SPK_BerylCallbackRegistry.owners[1];
+        resp.owner1_present = owner1 != null; resp.owner2_present = owner2 != null;
+        if (!owner1 || !owner2) { resp.failure = "Live owner reference unavailable"; return resp; }
+        ScriptComponent component1 = ScriptComponent.Cast(owner1.FindComponent(SPK_BerylCallbackObserver));
+        ScriptComponent component2 = ScriptComponent.Cast(owner2.FindComponent(SPK_BerylCallbackObserver));
+        resp.owner1_component_present = component1 != null; resp.owner2_component_present = component2 != null;
+        BaseWorld ownerWorld1 = owner1.GetWorld();
+        BaseWorld ownerWorld2 = owner2.GetWorld();
+        if (!component1 || !component2 || !ownerWorld1 || !ownerWorld2)
+        { resp.failure = "Live component or owner world unavailable"; return resp; }
+        resp.api_is_game = apiWorld == gameWorld;
+        resp.owner1_is_api = ownerWorld1 == apiWorld; resp.owner1_is_game = ownerWorld1 == gameWorld;
+        resp.owner2_is_api = ownerWorld2 == apiWorld; resp.owner2_is_game = ownerWorld2 == gameWorld;
+        resp.api_frame = apiWorld.GetFrameNumber(); resp.game_frame = gameWorld.GetFrameNumber();
+        resp.owner1_frame = ownerWorld1.GetFrameNumber(); resp.owner2_frame = ownerWorld2.GetFrameNumber();
+        resp.owner1_flags = owner1.GetFlags(); resp.owner2_flags = owner2.GetFlags();
+        resp.owner1_mask = component1.GetEventMask(); resp.owner2_mask = component2.GetEventMask();
+        resp.owner1_active = (resp.owner1_flags & EntityFlags.ACTIVE) != 0;
+        resp.owner2_active = (resp.owner2_flags & EntityFlags.ACTIVE) != 0;
+        resp.owner1_frame_registered = (resp.owner1_mask & EntityEvent.FRAME) != 0;
+        resp.owner2_frame_registered = (resp.owner2_mask & EntityEvent.FRAME) != 0;
+        resp.status = "observed";
+        return resp;
+    }
+}

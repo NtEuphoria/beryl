@@ -37,10 +37,10 @@ try {
         $toolHashes[$file] = Get-ContentHash (Join-Path $ToolRoot ('scripts/'+$file))
     }
     $record.tools = $toolHashes
-    $result = & (Join-Path $ToolRoot 'scripts/Invoke-ReforgerBuild.ps1') -ProjectDir $ProjectDir -TimeoutSeconds $TimeoutSeconds
+    $result = & (Join-Path $ToolRoot 'scripts/Invoke-ReforgerBuild.ps1') -ProjectDir $ProjectDir -TimeoutSeconds $TimeoutSeconds -IncludeWarnings
     $record.result = $result
     if ($result.Stage -eq 'Timeout') { $record.status = 'timeout'; throw $result.Summary }
-    if ($result.Stage -eq 'DidNotStart') { $record.status = 'unavailable'; throw $result.Summary }
+    if ($result.Stage -eq 'DidNotStart') { $record.status = 'unavailable'; throw 'Workbench returned without an associated log directory; engine startup and compilation outcome are unverified. Inspect the retained plugin result and host logs.' }
     if (-not $result.Ok) { throw $result.Summary }
     if ((Get-ContentHash $paths.WorkbenchExe) -ne $record.engine_sha256) { $record.status = 'stale_input'; throw 'Engine changed during compilation' }
     foreach ($file in $toolHashes.Keys) {

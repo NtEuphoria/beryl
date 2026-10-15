@@ -1,0 +1,6 @@
+[package]
+name    = "inout_axpy"
+version = "0.2.0"
+
+[security]
+forbid_unsafe = true

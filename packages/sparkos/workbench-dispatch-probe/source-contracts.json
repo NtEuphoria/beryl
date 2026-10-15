@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "profile": "workbench-game.harmless-direct-thread.v1",
+  "scope": "primary declarations and proposed same-module sentinel; no runtime evidence",
+  "inputs": [
+    {"path": "C:/Program Files (x86)/Steam/steamapps/common/Arma Reforger Tools/Workbench/docs/EnfusionScriptAPI/html/Page_Enforce_Syntax.html", "sha256": "df83332c65707ce3e9a751c76fe323f1e5fee5459814ba7b5ee850fb325a572d"},
+    {"path": "C:/Program Files (x86)/Steam/steamapps/common/Arma Reforger Tools/Workbench/docs/EnfusionScriptAPI/html/interfaceWorkbench.html", "sha256": "6da66bb00dd8cadb84463605e7272d93a01e179c8bd651dbdc614d3a68bbdf0f"}
+  ]
+}

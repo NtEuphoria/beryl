@@ -66,6 +66,7 @@ def main():
         assert [d["qualified_name"] for d in declarations] == sorted(d["qualified_name"] for d in declarations)
         states = [d for d in declarations if d["name"] == "State"]
         assert len(states) == 2 and states[0]["declaration_id"] != states[1]["declaration_id"]
+        assert all(d["generic_parameters"] == [] for d in states)
         assert all(d["effects"]["status"] == "unavailable" for d in declarations)
         assert project["data"]["released_plans"] == [] and project["data"]["measurements"] is None
         capabilities = project["data"]["capabilities"]
@@ -82,6 +83,13 @@ def main():
             assert probe["status"] == "admitted", probe
             assert probe["scope"] == "all_loaded_declarations" and probe["execution"] == "not_run"
         passed("deterministic qualified identity and separated admission probes")
+
+        generic = work / "generic.be"
+        generic.write_text("module context.generic\npub struct Envelope<T> { value: i32 }\n", encoding="utf-8")
+        generic_context, _ = run("project", generic)
+        selected = generic_context["data"]["declarations"][0]
+        assert selected["kind"] == "struct" and selected["generic_parameters"] == [{"name": "T", "bound": None}]
+        passed("record generic metadata is explicit; unused type parameters are not inferred absent")
 
         symbol, _ = run("symbol", "context.left.State.replace", left, right)
         item = symbol["data"]["symbol"]

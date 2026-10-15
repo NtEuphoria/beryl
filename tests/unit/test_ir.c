@@ -85,7 +85,120 @@ static uint32_t find_op(IrProgram *p,IrOp op) {
 static bool cancelled(void) { return true; }
 static uint64_t fake_clock_value;
 static uint64_t fake_clock(void) { return fake_clock_value++; }
+
+static void access_modes(void) {
+    FILE *file=fopen("tests/reference/access-modes/plain.be","rb"); CHECK(file!=NULL);
+    if (file) {
+        CHECK(fseek(file,0,SEEK_END)==0); long n=ftell(file); CHECK(n>0 && n<65536);
+        if (n>0 && n<65536) {
+            Arena *a=arena_new(0); char *text=ARENA_ARRAY(a,char,(size_t)n+1);
+            CHECK(fseek(file,0,SEEK_SET)==0); CHECK(fread(text,1,(size_t)n,file)==(size_t)n);
+            text[n]=0;
+            parity("IR: analytical plain SET/SINK records arrays receivers defaults and control",text,
+                IR_RUN_SUCCESS,26,"7\n5\n90\nok  6 tests, 26 assertions\n");
+            arena_free(a);
+        }
+        fclose(file);
+    }
+    parity("IR: SET first RHS failure preserves the successful event prefix",
+        "module t\nfn fail(set n: i32) { println(10)\nlet z = 0\nn = 1 / z }\n"
+        "test \"set trap\" { var n = 7\nfail(set n)\nprintln(99) }\n",IR_RUN_TRAP,0,"10\n");
+    parity("IR: SET completed write survives until a subsequent source trap",
+        "module t\nfn fail(set n: i32) { n = 8\nprintln(n)\nlet z = 0\nn = 1 / z }\n"
+        "test \"set trap\" { var n = 7\nfail(set n)\nprintln(99) }\n",IR_RUN_TRAP,0,"8\n");
+    unsupported("IR: outer initialization-changing loop requires a later admission rule",
+        "module t\nfn condition(set n: i32) -> bool { n = 1\nreturn false }\n"
+        "test \"loop\" { var n: i32\nwhile condition(set n) { }\nassert(n == 1) }\n");
+    struct { const char *name, *text, *code; } failures[]={
+        {"IR modes: moved whole root cannot be read",
+         "module t\nfn get(sink n: i32) -> i32 { return n }\ntest \"bad\" { let x=1\nget(sink x)\nprintln(x) }\n","BE0403"},
+        {"IR modes: later argument cannot read a moved earlier argument",
+         "module t\nfn get(sink n: i32, m: i32) {}\ntest \"bad\" { var x=1\nget(sink x,x) }\n","BE0403"},
+        {"IR modes: SET does not initialize before later argument evaluation",
+         "module t\nfn put(set n: i32,m: i32) { n=m }\ntest \"bad\" { var x:i32\nput(set x,x) }\n","BE0405"},
+        {"IR modes: SET must initialize every normal return",
+         "module t\nfn put(set n: i32,b: bool) { if b { n=1 } }\ntest \"bad\" {}\n","BE0404"},
+        {"IR modes: SET read before its first assignment",
+         "module t\nfn put(set n: i32) { println(n)\nn=1 }\ntest \"bad\" {}\n","BE0405"},
+        {"IR modes: borrowed root cannot be moved",
+         "module t\nfn get(sink n:i32) {}\nfn f(let n:i32) { get(sink n) }\ntest \"bad\" {}\n","BE0406"},
+        {"IR modes: partial moves remain rejected",
+         "module t\nstruct R {x:i32}\nfn get(sink n:i32) {}\ntest \"bad\" { var r=R{x:1}\nget(sink r.x) }\n","BE0406"},
+        {"IR modes: initialized immutable SET remains rejected",
+         "module t\nfn put(set n:i32) {n=1}\ntest \"bad\" {let n=0\nput(set n)}\n","BE0407"},
+    };
+    for (uint32_t n=0;n<sizeof failures/sizeof failures[0];n++) {
+        CASE(failures[n].name); Parsed s=parse_frontend(failures[n].text,false);
+        CHECK(!ownership_check(s.d,s.p)); CHECK_CONTAINS(diag_render_str(s.a,s.d),failures[n].code);
+        arena_free(s.a);
+    }
+
+    parity("IR: a returning moved branch does not poison the surviving branch",
+        "module t\nfn take(sink n:i32)->i32 {return n}\n"
+        "fn select(sink n:i32,on:bool)->i32 {if on {return take(sink n)}\nreturn n}\n"
+        "test \"branches\" {assert(select(sink 4,true)==4)\nassert(select(sink 7,false)==7)}\n",
+        IR_RUN_SUCCESS,2,"ok  1 test, 2 assertions\n");
+    parity("IR: initialized SET destination remains readable during later scalar capture",
+        "module t\nfn replace(set n:i32,old:i32) {n=old+1}\n"
+        "test \"capture\" {var n=4\nreplace(set n,n)\nassert(n==5)}\n",
+        IR_RUN_SUCCESS,1,"ok  1 test, 1 assertion\n");
+    {
+        CASE("IR modes: back-edge mutant cannot hide a moved outer root");
+        Parsed source=parse("module t\nfn take(sink n:i32)->i32 {return n}\n"
+            "test \"loop\" {var n=0\nvar spare=0\nwhile n<3 {let old=take(sink n)\nn=old+1}\nassert(n==3)}\n");
+        Arena *memory=arena_new(0); IrProgram *ir=ir_lower(memory,source.d,source.sm,source.p); CHECK(ir!=NULL);
+        if (ir) {
+            uint32_t move=find_op(ir,IR_MOVE),write=IR_NONE,spare=IR_NONE;
+            CHECK(move!=IR_NONE);
+            if (move!=IR_NONE) {
+                uint32_t root=ir->instructions.data[move].place;
+                for (uint32_t n=0;n<ir->places.len;n++) if (n!=root && ir->places.data[n].function==ir->places.data[root].function &&
+                    ir->places.data[n].parent==IR_NONE && ir->places.data[n].mutable && !ir->places.data[n].synthetic) {spare=n;break;}
+                for (uint32_t n=move+1;n<ir->instructions.len;n++) if (ir->instructions.data[n].op==IR_STORE && ir->instructions.data[n].place==root) {write=n;break;}
+                CHECK(spare!=IR_NONE && write!=IR_NONE);
+                if (spare!=IR_NONE && write!=IR_NONE) {
+                    ir->instructions.data[write].place=spare;
+                    IrVerification result=ir_verify(ir); CHECK(!result.ok);
+                    CHECK(strcmp(result.reason,"loop back edge changes an outer logical state")==0);
+                    ir->instructions.data[write].place=root; CHECK(ir_verify(ir).ok);
+                }
+            }
+        }
+        arena_free(memory); arena_free(source.a);
+    }
+
+    CASE("IR modes: malformed declaration move capture and SET return states reject");
+    Parsed s=parse("module t\nfn put(set n:i32) {n=8}\nfn get(sink n:i32)->i32 {return n}\n"
+        "test \"a\" {var x:i32\nput(set x)\nlet y=get(sink x)\nput(set x)\nassert(x==8)\nassert(y==8)}\n");
+    Arena *a=arena_new(0); IrProgram *p=ir_lower(a,s.d,s.sm,s.p); CHECK(p!=NULL);
+    if (p) {
+        CHECK_EQ_I(p->schema_version,IR_SCHEMA_VERSION); CHECK(ir_verify(p).ok);
+        uint32_t decl=find_op(p,IR_DECLARE),move=find_op(p,IR_MOVE),store=find_op(p,IR_STORE);
+        CHECK(decl!=IR_NONE && move!=IR_NONE && store!=IR_NONE);
+        if (decl!=IR_NONE && move!=IR_NONE && store!=IR_NONE) {
+            IrInstruction old=p->instructions.data[decl];
+            p->instructions.data[decl].op=IR_CAPTURE; p->instructions.data[decl].immediate=IR_SET; p->instructions.data[decl].flag=true;
+            CHECK(!ir_verify(p).ok); p->instructions.data[decl]=old;
+            uint32_t second=IR_NONE; for (uint32_t n=decl+1;n<p->instructions.len;n++) if (p->instructions.data[n].op==IR_DECLARE) {second=n;break;}
+            CHECK(second!=IR_NONE);
+            if (second!=IR_NONE) { IrInstruction saved=p->instructions.data[second]; p->instructions.data[second].place=old.place; CHECK(!ir_verify(p).ok); p->instructions.data[second]=saved; }
+            old=p->instructions.data[move]; p->instructions.data[move].op=IR_LOAD;
+            CHECK(!ir_verify(p).ok); p->instructions.data[move]=old;
+            old=p->instructions.data[store]; p->instructions.data[store].op=IR_CAPTURE;
+            p->instructions.data[store].immediate=IR_SET; p->instructions.data[store].flag=true;
+            CHECK(!ir_verify(p).ok); p->instructions.data[store]=old;
+            old=p->instructions.data[store]; p->instructions.data[store].op=IR_DECLARE;
+            CHECK(!ir_verify(p).ok); p->instructions.data[store]=old;
+            uint32_t mode_root=p->functions.data[1].places_start; IrMode mode=p->places.data[mode_root].mode;
+            p->places.data[mode_root].mode=IR_LET; CHECK(!ir_verify(p).ok); p->places.data[mode_root].mode=mode;
+            CHECK(ir_verify(p).ok);
+        }
+    }
+    arena_free(a); arena_free(s.a);
+}
+
 void run_ir_tests(void) {
+    access_modes();
     parity("IR: structured control, range continue, short circuit, call order and immediate defer",
         "module t\nfn mark(let n: i32) -> i32 { println(n)\nreturn n }\n"
         "fn flag() -> bool { println(999)\nreturn true }\n"
@@ -200,8 +313,9 @@ void run_ir_tests(void) {
         "test \"overlap\" { var xs = [1, 2]\ntwo(inout xs[0], inout xs[1]) }\n");
     unsupported("IR: oversized inline arrays are not silently admitted",
         "module t\nfn large(let xs: [i32; 257]) -> i32 { return xs[0] }\ntest \"unused\" { assert(true) }\n");
-    unsupported("IR: set array outputs remain outside this checkpoint",
-        "module t\nfn output(set xs: [i32; 2]) { xs = [1, 2] }\ntest \"unused\" { assert(true) }\n");
+    parity("IR: set array output creates an independently readable value",
+        "module t\nfn output(set xs: [i32; 2]) { xs = [1, 2] }\ntest \"array set\" { var xs: [i32;2]\noutput(set xs)\nassert(xs[0] == 1)\nassert(xs[1] == 2) }\n",
+        IR_RUN_SUCCESS,2,"ok  1 test, 2 assertions\n");
     unsupported("IR: aggregate equality is an admission limitation, not malformed lowering",
         "module t\ntest \"equality\" { let a = [1, 2]\nlet b = [1, 2]\nassert(a == b) }\n");
     {
@@ -282,7 +396,7 @@ void run_ir_tests(void) {
     parity("IR: scalar inout is captured and mutates the caller", "module t\nfn bump(inout n: i32) { n += 1 }\ntest \"a\" { var x = 0\nbump(inout x)\nassert(x == 1) }\n",IR_RUN_SUCCESS,1,"ok  1 test, 1 assertion\n");
     parity("IR: expanded default parameters preserve the call", "module t\nfn f(let n: i32 = 1) -> i32 { return n }\ntest \"a\" { assert(f() == 1) }\n",IR_RUN_SUCCESS,1,"ok  1 test, 1 assertion\n");
     parity("IR: shift failure has no fabricated overflow category", "module t\nfn n(let x: i32) -> i32 { return x }\ntest \"a\" { println(2 << n(32)) }\n",IR_RUN_TRAP,0,"");
-    unsupported("IR: uninitialized declarations remain unavailable", "module t\ntest \"a\" { var x: i32 }\n");
+    parity("IR: declared but unused uninitialized local", "module t\ntest \"a\" { var x: i32 }\n",IR_RUN_SUCCESS,0,"ok  1 test, 0 assertions\n");
     unsupported("IR: unreachable string expressions remain unavailable", "module t\nfn f() { return\nprintln(\"dead\") }\ntest \"a\" { f() }\n");
     unsupported("IR: unreachable unsupported intrinsic remains unavailable", "module t\nfn f() { return\nprintln(sqrt(4f32)) }\ntest \"a\" { f() }\n");
     parity("IR: nested record values, returns, inout methods and default fields remain independent",
@@ -305,8 +419,8 @@ void run_ir_tests(void) {
     rejected_before_ir("IR: shared semantics reject projected compound assignment before lowering",
         "module t\nstruct R { x: i32 }\nfn replace(inout r: R) -> i32 { r.x = 10\nreturn 7 }\n"
         "test \"replace\" { var r = R{x: 1}\nr.x += replace(inout r)\nprintln(r.x) }\n");
-    unsupported("IR: sink remains unavailable", "module t\nstruct R { n: i32 }\nfn take(sink r: R) -> i32 { return r.n }\ntest \"sink\" { var r = R{n: 3}\nassert(take(sink r) == 3) }\n");
-    unsupported("IR: set remains unavailable", "module t\nfn set_one(set x: i32) { x = 1 }\ntest \"set\" { var x: i32\nset_one(set x)\nassert(x == 1) }\n");
+    parity("IR: plain sink consumes a whole record", "module t\nstruct R { n: i32 }\nfn take(sink r: R) -> i32 { return r.n }\ntest \"sink\" { var r = R{n: 3}\nassert(take(sink r) == 3) }\n" ,IR_RUN_SUCCESS,1,"ok  1 test, 1 assertion\n");
+    parity("IR: plain set initializes a whole scalar", "module t\nfn set_one(set x: i32) { x = 1 }\ntest \"set\" { var x: i32\nset_one(set x)\nassert(x == 1) }\n" ,IR_RUN_SUCCESS,1,"ok  1 test, 1 assertion\n");
     {
         CASE("IR: record layout, constructor, projection and mode mutants reject malformed storage");
         Parsed s=parse("module t\nstruct R { a: i32\nb: i32 }\nfn update(inout a: i32, inout b: i32) { a += 1\nb += 2 }\n"
@@ -408,7 +522,11 @@ void run_ir_tests(void) {
             IrType result_saved=p->functions.data[0].result;
             p->functions.data[0].result=(IrType)-1; CHECK(!ir_verify(p).ok); p->functions.data[0].result=result_saved;
             IrInstruction init_saved=p->instructions.data[init];
-            p->instructions.data[init].op=IR_STORE; CHECK(!ir_verify(p).ok); p->instructions.data[init]=init_saved;
+            /* A first STORE is now legal; reading that still-uninitialized
+             * root in place of its initialization must remain invalid. */
+            p->instructions.data[init].op=IR_CAPTURE; p->instructions.data[init].immediate=IR_LET;
+            p->instructions.data[init].flag=false; p->instructions.data[init].effects=IR_READ;
+            CHECK(!ir_verify(p).ok); p->instructions.data[init]=init_saved;
             /* Retargeting a later INIT to this already initialized immutable
              * place must fail even though INIT does not carry STORE's mode. */
             uint32_t second_init=IR_NONE;

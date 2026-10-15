@@ -267,7 +267,11 @@ bool build_native(Arena *a, SourceMap *sm, DiagBag *d, Program *p, BuildOpts o, 
     argv[argc++] = "-ffp-contract=off"; argv[argc++] = "-fno-fast-math";
     argv[argc++] = "-I"; argv[argc++] = r->job_dir;
     argv[argc++] = "-o"; argv[argc++] = r->exe;
-    argv[argc++] = r->c_source; argv[argc++] = rtc; argv[argc] = NULL;
+    argv[argc++] = r->c_source;
+    /* AST output includes beryl_rt.c. IR output does not, so it still needs the
+     * runtime as its own translation unit. */
+    if (use_ir) argv[argc++] = rtc;
+    argv[argc] = NULL;
     SB args; sb_init(&args, a); sb_char(&args, '[');
     for (size_t i = 0; argv[i]; i++) {
         if (i) sb_char(&args, ',');

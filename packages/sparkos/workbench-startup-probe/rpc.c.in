@@ -1,0 +1,76 @@
+// Trusted startup-only observation. It never requests module/resource opening,
+// play transitions, entity spawning, deletion or component callbacks.
+class BerylStartupReadinessRequest : JsonApiStruct
+{
+    string token, action;
+    void BerylStartupReadinessRequest() { RegV("token"); RegV("action"); }
+}
+
+class BerylStartupReadinessResponse : JsonApiStruct
+{
+    string token, action, status, failure, mechanism, current_project;
+    string addon_world_path, resource_name, resource_path, resource_absolute_path;
+    string world_path, world_absolute_path;
+    bool addon_world_resolved, resource_name_resolved, module_present, api_present;
+    bool world_path_resolved, world_matches, edit_mode, game_mode, in_play_mode, world_present;
+    void BerylStartupReadinessResponse()
+    {
+        RegV("token"); RegV("action"); RegV("status"); RegV("failure"); RegV("mechanism"); RegV("current_project");
+        RegV("addon_world_path"); RegV("resource_name"); RegV("resource_path"); RegV("resource_absolute_path");
+        RegV("world_path"); RegV("world_absolute_path");
+        RegV("addon_world_resolved"); RegV("resource_name_resolved"); RegV("module_present"); RegV("api_present");
+        RegV("world_path_resolved"); RegV("world_matches"); RegV("edit_mode"); RegV("game_mode");
+        RegV("in_play_mode"); RegV("world_present");
+    }
+}
+
+class BerylStartupReadiness : NetApiHandler
+{
+    override JsonApiStruct GetRequest() { return new BerylStartupReadinessRequest(); }
+    override JsonApiStruct GetResponse(JsonApiStruct request)
+    {
+        BerylStartupReadinessResponse resp = new BerylStartupReadinessResponse();
+        resp.token = "@TOKEN@"; resp.mechanism = "@MECHANISM@"; resp.status = "failure";
+        BerylStartupReadinessRequest req = BerylStartupReadinessRequest.Cast(request);
+        if (!req || req.token != resp.token) { resp.failure = "Compiled startup token mismatch"; return resp; }
+        resp.action = req.action;
+        if (req.action != "observe") { resp.failure = "Unknown startup observation action"; return resp; }
+        resp.current_project = Workbench.GetCurrentGameProjectFile();
+        resp.addon_world_resolved = Workbench.GetAbsolutePath("$BerylComponentCallbackProbe:worlds/BerylCallbackProbe.ent", resp.addon_world_path, true);
+        string ownedWorldPath = resp.addon_world_path;
+        ownedWorldPath.Replace("\\", "/");
+        if (!resp.addon_world_resolved || ownedWorldPath != "@WORLD_ABSOLUTE@")
+        { resp.status = "unavailable"; resp.failure = "Native addon world does not identify owned startup input"; return resp; }
+        ResourceName registered = Workbench.GetResourceName(resp.addon_world_path);
+        resp.resource_name = registered;
+        if (registered != "") resp.resource_path = registered.GetPath();
+        if (resp.resource_path != "") resp.resource_name_resolved = Workbench.GetAbsolutePath(resp.resource_path, resp.resource_absolute_path, true);
+        string roundtrip = resp.resource_absolute_path;
+        roundtrip.Replace("\\", "/");
+        if (registered != "{BCCBA11B20261008}worlds/BerylCallbackProbe.ent" || !resp.resource_name_resolved || roundtrip != "@WORLD_ABSOLUTE@")
+        { resp.status = "unavailable"; resp.failure = "Native startup resource registration or roundtrip differs"; return resp; }
+        WorldEditor editor = Workbench.GetModule(WorldEditor);
+        resp.module_present = editor != null;
+        WorldEditorAPI api;
+        if (editor) api = editor.GetApi();
+        resp.api_present = api != null;
+        if (GetGame()) resp.in_play_mode = GetGame().InPlayMode();
+        if (api)
+        {
+            api.GetWorldPath(resp.world_path);
+            resp.edit_mode = api.IsEditMode(); resp.game_mode = api.IsGameMode(); resp.world_present = api.GetWorld() != null;
+            if (resp.world_path != "") resp.world_path_resolved = Workbench.GetAbsolutePath(resp.world_path, resp.world_absolute_path, true);
+            string observed = resp.world_absolute_path;
+            observed.Replace("\\", "/");
+            resp.world_matches = resp.world_path_resolved && observed == "@WORLD_ABSOLUTE@";
+        }
+        if (resp.in_play_mode || resp.game_mode)
+        { resp.status = "unavailable"; resp.failure = "Unexpected play mode in startup-only observation"; return resp; }
+        if (resp.world_path != "" && !resp.world_matches)
+        { resp.status = "unavailable"; resp.failure = "Native observed world is foreign or unresolved"; return resp; }
+        resp.status = "pending";
+        if (resp.module_present && resp.api_present && resp.world_matches && resp.world_present && resp.edit_mode)
+            resp.status = "ready";
+        return resp;
+    }
+}

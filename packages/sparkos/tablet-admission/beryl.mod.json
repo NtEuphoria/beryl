@@ -1,0 +1,26 @@
+{
+  "$schema": "../../../schemas/beryl.mod.v2.schema.json",
+  "schema_version": 2,
+  "name": "SPARKOS tablet signature-admission fixture",
+  "addon": {"id": "SPK_TabletAdmissionFixture", "guid": "DA00000000000001", "dependencies": ["58D0FB3206B6F859"]},
+  "binding": {
+    "target": "enfusion",
+    "version": "1.8.0.13",
+    "sha256": "7dd36ca1f662b0c13669a4f2f7f10e3c461c2906b021e742272d64b3ab7e9798",
+    "contract_profile": "enfusion.tablet.script-component.v1"
+  },
+  "sources": {"native": ["src/tablet.be"], "enfusion": ["src/tablet.be"], "tests": []},
+  "exports": [],
+  "components": [
+    {
+      "descriptor": {"name": "SPK_TabletAdmissionFixtureComponentClass", "parent": "ScriptComponentClass"},
+      "instance": {"name": "SPK_TabletAdmissionFixtureComponent", "parent": "ScriptComponent"},
+      "state": "sparkos.tablet_admission.State",
+      "callbacks": [
+        {"binding": "ScriptComponent.OnPostInit", "handler": "sparkos.tablet_admission.on_post_init", "super_order": "first"},
+        {"binding": "ScriptComponent.EOnFrame", "handler": "sparkos.tablet_admission.on_frame", "super_order": "none"},
+        {"binding": "ScriptComponent.OnDelete", "handler": "sparkos.tablet_admission.on_delete", "super_order": "last"}
+      ]
+    }
+  ]
+}

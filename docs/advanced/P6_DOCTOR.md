@@ -1,8 +1,24 @@
 # P6: bounded local doctor and native readiness probe
 
-Date: 2026-09-07. The C implementation and focused Windows tests are complete.
-This packet records source-level delivery; it does not install the compiler,
-start an engine, or complete MCP/LSP/analysis-service work.
+Historical baseline: 2026-09-07. The original C implementation and focused
+Windows tests completed at the receipts below. This packet records source-level
+delivery; it does not install the compiler or start an engine.
+
+October 14 source repair: the doctor inventory reader now
+recognizes the exact 24-file component-admission and 25-file component-generation
+bundles already supported by the installer. Previously it stopped at 21 files and
+reported valid current bundles unavailable. The change extends the fixed member
+sets; it does not accept arbitrary manifests by member count or certify dispatch.
+The root reproduced the rejection against the earlier private compiler, then
+built an immutable source snapshot and executed the focused suite successfully.
+The new receipt is `build/doctor & spaces-v2_kwkpj/results.json` (SHA-256
+`675c313fd53b41545e98c650288ebc949ce17685f56d03ccc05a100463f88b8a`):
+nine verification groups, including all 25 added bundle cases. The snapshot
+compiler SHA-256 is `89a8b2de5f03688462c280463445bcb94a6cf27f44979762d3dd77422f4cff97`;
+its captured inputs/build arguments are in
+`build/oct14-core-snapshot-1532jf6m/result.json`. No engine was launched or
+installed compiler replaced. Later integrated compiler changes need their own
+applicable receipt.
 
 ## Interface
 
@@ -60,7 +76,11 @@ The existing `context binding` API supplies the raw matching record.
 
 ## Installed bundle inspection
 
-The reader accepts the existing 4-, 8-, 13-, 16- and 19-file installed profiles.
+The reader accepts the fixed4-,8-,13-,16-,19-,21-,24- and 25-file installed profiles.
+The 21-file assistant profile adds MCP and the analysis schema. The 24-file profile
+adds `component_contracts.py`, `tablet-component-contracts.v1.json` and
+`beryl.mod.v2.schema.json`; the 25-file profile additionally requires
+`component_generation.py`. Each profile requires its complete exact filename set.
 It reads only bounded ASCII JSON string maps for `active.json` and `bundle.json`;
 this is not a general JSON parser. Duplicate keys, malformed hashes, unexpected
 filenames and paths outside the fixed profiles are rejected. Unknown future
@@ -114,10 +134,15 @@ compile` with its explicit immutable artifact.
 
 ## Verification and source identity
 
-`scripts/verify-doctor.py --beryl <compiler> --clang <clang>` runs eight groups:
+`scripts/verify-doctor.py --beryl <compiler> --clang <clang>` runs nine groups:
 
 - No-write/no-launch default inventory with missing optional dependencies.
 - Correct content-map identity and changed/malformed bundle rejection.
+- 25 named inert bundle cases: all historical profiles after the original 4-file
+  fixture, exact 24/25-file success, and missing payload/member, extra/unknown
+  member, tampered payload, duplicate member, malformed hashes and mismatched
+  bundle identities. Fixtures and loader bytes are never executed, and their
+  directory content hashes must remain unchanged after inventory.
 - Engine/document mismatch reporting and unavailable Enfusion probing.
 - Manifest and argument failures.
 - Missing compiler, failed job directory and invalid executable launch.

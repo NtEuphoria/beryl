@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "profile": "sparkos.tablet.native-init-stowed.source.v1",
+  "state": "experimental_trusted_runtime_source_not_executed",
+  "handler": "BerylTabletNativeCallbacks",
+  "template": {
+    "path": "rpc.c.in",
+    "bytes": 29020,
+    "sha256": "ff6021f598da79a8e9160825b885a064c85b64e4b207fdb824f5ddcf0f3ef132",
+    "placeholders": ["@TOKEN@", "@SOURCE_SHA256@", "@WORLD_ABSOLUTE@"],
+    "replacement_policy": "installed renderer supplies validated token, exact source92 manifest hash and slash-normalized owned absolute world path; no project engine-code strings",
+    "origin": "trusted fixture template",
+    "line_convention": "one-based UTF-8 text lines; substitutions add no newline; rendered-to-template line identity retained separately from production Beryl maps"
+  },
+  "source_identity": {
+    "source_manifest_files": 92,
+    "runtime_manifest_files": 93,
+    "source_sha256": "caller-pinned exact 92-file manifest, excludes this future RPC",
+    "token": "caller-pinned source92, template, transport, checker, engine and tool identities",
+    "prior_inputs": "all original 92 files remain byte-for-byte unchanged; this handler is the sole added source",
+    "original_contract": {
+      "path": "packages/sparkos/tablet-native-callback-probe/source-contracts.json",
+      "bytes": 4256,
+      "sha256": "e31da81b7b8b18beaf4d8760b8ead4b1358a273b0936e42958cfc6e2e5bbc792"
+    },
+    "observer": {
+      "path": "packages/sparkos/tablet-native-callback-probe/observer.c.in",
+      "bytes": 4310,
+      "sha256": "161a2ddfc98c21937022b1d077b4cad140754ef846f4e0ea02179d1582680b55"
+    },
+    "preparation": {
+      "path": "scripts/prepare-tablet-native-callbacks.py",
+      "bytes": 19272,
+      "sha256": "62bb44d64e4fb830777196855eb8febdf0df3afa2cb3c86e7c900c62090e9471"
+    },
+    "proven_loader_source": {
+      "path": "packages/sparkos/component-callback-probe/rpc.c.in",
+      "bytes": 18151,
+      "sha256": "bbf9630ac3de4f335943ddfdd46f6c2332e0533f5def1e32e6f1d187170413f8",
+      "scope": "source-linked generic fixture mechanism; does not establish this handler's compilation or tablet delivery"
+    }
+  },
+  "native_resources": {
+    "addon": "BerylTabletNativeStowedPrototype",
+    "world_alias": "$BerylTabletNativeStowedPrototype:worlds/BerylTabletNativeStowed.ent",
+    "world": "{BE71570A20261010}worlds/BerylTabletNativeStowed.ent",
+    "prefab": "{BE71570B20261010}Prefabs/BerylTabletNativeStowed.et",
+    "world_payload_sha256": "f1e51134fb42a814e072493a46a67a76853723964cc6eb87a24e45e15921385d",
+    "layer_payload_sha256": "e4584f0b154cbeea1bd4c9c9db96d5f062580f1886cbf40267392512800dcd4a",
+    "registration": "native world alias and registered GUID must independently roundtrip to the exact frozen absolute world; prefab must resolve as a valid native entity source",
+    "spawn_world": "fresh nonnull GetGame().GetWorld() in verified play mode; each returned owner must be in that world"
+  },
+  "actions": ["load", "status", "play", "spawn", "stop"],
+  "phase_policy": {
+    "0": "one-shot module/world setup; ready only from exact native world/mode observations",
+    "2": "two native-created owners; pending even when frames_ready is true",
+    "3": "one edit-mode request with scalar prefix retained; pending until real edit/noGame/noPlay",
+    "4": "complete only after final bounded scalar trace and prefix/cap/reset checks in the same owned edit world"
+  },
+  "trace": {
+    "owner_count": 2,
+    "minimum_frames_per_owner": 3,
+    "maximum_frames_per_owner": 200,
+    "maximum_rows": 1024,
+    "sequence_base": 0,
+    "row_columns": ["sequence", "token", "stage", "ordinal", "ownerMatches", "ownerWorldPresent", "gameWorldPresent", "gameWorldMatches", "statePresent", "sameState", "independenceObserved", "independentState", "mode", "accumulator", "timeSlice", "mask", "uiAbsent", "screenAbsent"],
+    "checksum": {"multiplier": 31, "modulus": 1000003, "separator_byte": 10, "input": "exact ASCII pipe-delimited row bytes and one newline per row"},
+    "numeric_scope": "rounded finite native float.ToString observations only; no exact binary32 encoding claim",
+    "pending_arrays": "rows and caseIds remain empty; row_count/checksum zero; frame_counts empty before two registered owners, then exactly two counts",
+    "final_case_ids": ["native.init.1", "native.init.2", "native.stowed-frames.1", "native.stowed-frames.2", "native.independent-state"],
+    "completion_subset": ["schema_version", "profile", "token", "source_contract_sha256", "source_sha256", "status", "failure", "executed", "failures", "caseIds", "owner_count", "frame_counts", "row_count", "checksum", "rows"],
+    "independent_admission": "scripts/verify-tablet-native-trace.py validates complete raw rows; engine scan and emitted case names alone do not establish semantic verification"
+  },
+  "retention": {
+    "existing_observer": "at most two retained owner/State references and 1024 plain observation records",
+    "handler": "at most one 1024-row scalar string prefix, one bounded scan and one bounded response at a time; no strong entity references added across requests",
+    "after_play": "no retained owner or State dereference; only plain observation fields and registry array counts are inspected",
+    "handoff": "include frames delivered during stop; reject later failure, exhausted budget, missing rows, changed prefix or registry reset; no early snapshot may suppress failure"
+  },
+  "primary_declarations": [
+    {"file": "interfaceWorkbench.html", "sha256": "6da66bb00dd8cadb84463605e7272d93a01e179c8bd651dbdc614d3a68bbdf0f", "scope": "GetModule/OpenModule, native resource-name and absolute-path resolution"},
+    {"file": "interfaceWBModuleDef.html", "sha256": "ca3377a5fa8aea08913f782ed770fe9421e8adfe6abb40d40c594d6aa13d550d", "scope": "SetOpenedResource request signature; its return is not load completion"},
+    {"file": "interfaceWorldEditor.html", "sha256": "51af7415047780b9efa7302dfa3b4573dd89d78c4d90b46968273f010f16f275", "scope": "GetApi and switch requests; void returns do not establish mode completion"},
+    {"file": "interfaceWorldEditorAPI.html", "sha256": "202fbc3822d1c8d9cd465ad4968a9541e90353b51cf4329046187ef8cba1d7b2", "scope": "GetWorldPath(out string), GetWorld, IsEditMode/IsGameMode"},
+    {"file": "interfaceGame.html", "sha256": "dfcab6b926646b8b56cdcbf38bb3e5f9809e96c9e3efaabc11cf806d6ec4b22e", "scope": "GetWorld/InPlayMode/SpawnEntityPrefab declarations; native spawn target is Game world"},
+    {"file": "interfaceIEntity.html", "sha256": "ec2e7f4c76ab91af50a9448ccd13db7aa7590ba3584fbfdacbd6773d899ec585", "scope": "GetWorld/FindComponent/SetFlags declarations; no deletion contract"},
+    {"file": "interfaceScriptComponent.html", "sha256": "215f2ca81f0d47cbe1dc61dd8471c73c5b5f78c623a247d5f82e8a1e6471c3de", "scope": "OnPostInit/EOnFrame/GetEventMask declarations used by unchanged observer"},
+    {"file": "interfaceString.html", "sha256": "3928a194290f3e1d72f64d65e1c3c2a7a161100ed23ba8e8ed69e225c9d20387", "scope": "Length/ToAscii used by source-linked bounded checksum"},
+    {"file": "Page_Enforce_Syntax.html", "sha256": "df83332c65707ce3e9a751c76fe323f1e5fee5459814ba7b5ee850fb325a572d", "scope": "thread/Sleep declaration examples; exactly one fixed worker yield"}
+  ],
+  "origins": [
+    {"template_line": 13, "operation": "source-linked deferred native world request"},
+    {"template_line": 67, "operation": "trusted typed response declaration and RegV field mapping"},
+    {"template_line": 123, "operation": "zero-based exact raw scalar row encoding"},
+    {"template_line": 147, "operation": "bounded checksum over retained raw bytes"},
+    {"template_line": 154, "operation": "engine prerequisite scalar scan; full admission remains independent"},
+    {"template_line": 223, "operation": "post-play prefix/cap/reset checks and complete receipt publication"},
+    {"template_line": 301, "operation": "typed installed action boundary and native identity gates"},
+    {"template_line": 407, "operation": "two native prefab spawns in verified Game world"},
+    {"template_line": 431, "operation": "one native edit-mode request; later status proves completion"}
+  ],
+  "required_transport": {
+    "ownership": "fresh hidden process, exact executable hash/PID/start identity, owned mutex/listener; no reuse or unrelated stop",
+    "stage_timeout_seconds": 30,
+    "rpc_timeout_seconds": 8,
+    "maximum_polls_per_stage": 64,
+    "overall_timeout_seconds": 180,
+    "cleanup_timeout_seconds": 5,
+    "source_checks": "exact93 input manifest and pinned tools/adapter/engine around every returned RPC",
+    "logs": "untouched raw RPC responses and raw logs retained after confirmed owned exit; derive codec separately",
+    "fallback": "forbidden; no request resubmission, alternate opener or deadline widening"
+  },
+  "excluded": ["manual callbacks", "native deletion request", "Focus/Unfocus/SetHeld services", "real input or profile writes", "UI/widget/screen exercise", "component construction with new", "production state writes", "authority/replication inference", "multiplayer", "whole-tablet completion"],
+  "evidence_state": {
+    "source_checks": "reported separately by immutable pure-source receipt; not a runtime assertion",
+    "handler_engine_compilation": "not_run",
+    "handler_runtime": "not_run",
+    "tablet_lifecycle_services": "not_run",
+    "binary32_encoding": "unavailable_unverified",
+    "public_scenario_installation": "not_installed"
+  }
+}
