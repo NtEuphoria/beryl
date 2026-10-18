@@ -8,3 +8,6 @@ build/
 .beryl-cache/
 .beryl-mod/
 __pycache__/
+
+# Local animation-tool downloads are not part of the compiler.
+/.blender-toolkit/
