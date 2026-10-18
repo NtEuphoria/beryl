@@ -1,5 +1,9 @@
 # Beryl — Roadmap
 
+Calendar sequence for this plan: [ROADMAP_2026.md](ROADMAP_2026.md)
+schedules the delivery program's packets and checkpoints onto a
+month-by-month window (October 2026 – April 2027).
+
 Current priority (October 14): resume the delivery plan's compiler and 4GL
 authoring work. Further Reforger testing is parked at the user's request after
 the ordinary tablet open/close checkpoint. IR initialization/access modes,
